@@ -227,7 +227,7 @@ canvas{display:block;width:100%;height:430px}
           <option value="periodic">周期境界</option>
           <option value="neumann">Neumann境界</option>
           <option value="dirichlet">Dirichlet境界</option>
-          <option value="outflow">流出境界</option>
+          <option value="outflow">開放境界（流入/流出）</option>
         </select>
         <div class="hint" id="boundary-1d-description"></div>
       </div>
@@ -239,7 +239,7 @@ canvas{display:block;width:100%;height:430px}
             <option value="periodic">周期境界</option>
             <option value="neumann">Neumann境界</option>
             <option value="dirichlet">Dirichlet境界</option>
-            <option value="outflow">流出境界</option>
+            <option value="outflow">開放境界（流入/流出）</option>
           </select>
           <div class="hint" id="boundary-x-description"></div>
         </div>
@@ -250,7 +250,7 @@ canvas{display:block;width:100%;height:430px}
             <option value="periodic">周期境界</option>
             <option value="neumann">Neumann境界</option>
             <option value="dirichlet">Dirichlet境界</option>
-            <option value="outflow">流出境界</option>
+            <option value="outflow">開放境界（流入/流出）</option>
           </select>
           <div class="hint" id="boundary-y-description"></div>
         </div>
@@ -283,6 +283,24 @@ canvas{display:block;width:100%;height:430px}
         <div class="group">
           <label for="dirichlet-ymax">y最大側の境界値</label>
           <input id="dirichlet-ymax" type="number" value="0" step="0.1">
+        </div>
+      </div>
+    </div>
+
+    <div id="open-boundary-values">
+      <div class="group" id="open-1d-values" style="display:none">
+        <label for="inflow-1d">流入値 φ_in</label>
+        <input id="inflow-1d" type="number" value="0" step="0.1">
+        <div class="hint">開放境界では、流入側をこの値に固定し、流出側はゼロ勾配で外へ抜けるように扱います。</div>
+      </div>
+      <div id="open-2d-values" style="display:none">
+        <div class="group" id="open-x-value-group" style="display:none">
+          <label for="inflow-x">x方向の流入値 φ_in,x</label>
+          <input id="inflow-x" type="number" value="0" step="0.1">
+        </div>
+        <div class="group" id="open-y-value-group" style="display:none">
+          <label for="inflow-y">y方向の流入値 φ_in,y</label>
+          <input id="inflow-y" type="number" value="0" step="0.1">
         </div>
       </div>
     </div>
@@ -387,6 +405,13 @@ var E={
   dirichletXmax:document.getElementById("dirichlet-xmax"),
   dirichletYmin:document.getElementById("dirichlet-ymin"),
   dirichletYmax:document.getElementById("dirichlet-ymax"),
+  open1dValues:document.getElementById("open-1d-values"),
+  open2dValues:document.getElementById("open-2d-values"),
+  openXValueGroup:document.getElementById("open-x-value-group"),
+  openYValueGroup:document.getElementById("open-y-value-group"),
+  inflow1d:document.getElementById("inflow-1d"),
+  inflowX:document.getElementById("inflow-x"),
+  inflowY:document.getElementById("inflow-y"),
   width:document.getElementById("width"),
   widthGroup:document.getElementById("width-group"),
   calculate:document.getElementById("calculate"),
@@ -442,10 +467,16 @@ function updateOutflowAvailability(){
 }
 
 function boundaryDescription(type){
-  if(type==="periodic")return "周期境界：反対側の境界とつながっています。右端から出た分布は左端へ、上端から出た分布は下端へ戻ります。";
-  if(type==="neumann")return "Neumann境界：境界の法線方向勾配を 0 とします。拡散では境界を横切るフラックスが 0 になる壁として扱います。";
-  if(type==="dirichlet")return "Dirichlet境界：境界上の値を指定した一定値に固定します。";
-  return "流出境界：境界に到達した分布がそのまま領域外へ出ることを想定し、外向き方向ではゼロ勾配に近い近似を用います。";
+  if(type==="periodic"){
+    return "周期境界：領域の両端（2Dでは向かい合う辺）がつながっているものとして扱います。片側から出た分布は反対側から戻ります。";
+  }
+  if(type==="neumann"){
+    return "Neumann境界：境界の法線方向勾配を 0 とします。拡散では境界を横切るフラックスが 0 となる断熱・反射的な壁に相当します。";
+  }
+  if(type==="dirichlet"){
+    return "Dirichlet境界：境界上の値を指定した一定値に固定します。";
+  }
+  return "開放境界：流入側では指定した φ_in を与え、流出側ではゼロ勾配近似を使って分布を領域外へ出します。周期境界のように反対側から戻りません。";
 }
 
 function updateBoundaryUI(){
@@ -463,27 +494,27 @@ function updateBoundaryUI(){
   E.boundaryXDescription.textContent=boundaryDescription(E.boundaryX.value);
   E.boundaryYDescription.textContent=boundaryDescription(E.boundaryY.value);
 
-  E.dirichlet1dValues.style.display=(!is2&&E.boundary1d.value==="dirichlet")?"block":"none";
-  E.dirichlet2dValues.style.display=(is2&&(E.boundaryX.value==="dirichlet"||E.boundaryY.value==="dirichlet"))?"block":"none";
-}
+  E.dirichlet1dValues.style.display=
+    (!is2&&E.boundary1d.value==="dirichlet")?"block":"none";
 
-function thermalBoundaryDescription(type){
-  if(type==="fixed-top-bottom"){
-    return "上下温度固定：下壁と上壁の温度を指定値に保ちます。典型的な Rayleigh–Bénard 対流の設定に対応します。左右壁は断熱として扱います。";
-  }
-  return "断熱壁：4辺で温度の法線方向勾配を 0 とし、壁を通る熱フラックスを 0 とします。初期温度分布だけが内部で再配置・拡散します。";
-}
+  E.dirichlet2dValues.style.display=
+    (is2&&(E.boundaryX.value==="dirichlet"||E.boundaryY.value==="dirichlet"))
+      ?"block"
+      :"none";
 
-function updateConvectionSpecialUI(){
-  var isConv=(E.equationType.value==="convection");
-  if(!isConv)return;
+  E.open1dValues.style.display=
+    (!is2&&E.boundary1d.value==="outflow")?"grid":"none";
 
-  E.thermalBoundaryDescription.textContent=thermalBoundaryDescription(E.thermalBoundary.value);
-  E.fixedTemperatureControls.style.display=
-    (E.thermalBoundary.value==="fixed-top-bottom")?"block":"none";
+  E.open2dValues.style.display=
+    (is2&&(E.boundaryX.value==="outflow"||E.boundaryY.value==="outflow"))
+      ?"block"
+      :"none";
 
-  E.customHotspotControls.style.display=
-    (E.convInitial.value==="custom-hot-spot")?"block":"none";
+  E.openXValueGroup.style.display=
+    (is2&&E.boundaryX.value==="outflow")?"grid":"none";
+
+  E.openYValueGroup.style.display=
+    (is2&&E.boundaryY.value==="outflow")?"grid":"none";
 }
 
 function updateModeUI(){
@@ -532,8 +563,8 @@ function updateModeUI(){
   }
 
   E.note.textContent=is2
-    ?"2D：移流項は、選択した数値解法（一次風上差分 または 2次精度 Lax–Wendroff）で離散化し、拡散項は中心差分で離散化します。境界条件はx方向・y方向ごとに周期境界・Neumann境界・Dirichlet境界から選択でき、移流を含む場合は流出境界も選択できます。"
-    :"1D：移流項は、選択した数値解法（一次風上差分 または 2次精度 Lax–Wendroff）で離散化し、拡散項は中心差分で離散化します。境界条件は周期境界・Neumann境界・Dirichlet境界から選択でき、移流を含む場合は流出境界も選択できます。";
+    ?"2D：移流項は、選択した数値解法（一次風上差分 または 2次精度 Lax–Wendroff）で離散化し、拡散項は中心差分で離散化します。境界条件はx方向・y方向ごとに周期境界・Neumann境界・Dirichlet境界から選択でき、移流を含む場合は開放境界も選択できます。"
+    :"1D：移流項は、選択した数値解法（一次風上差分 または 2次精度 Lax–Wendroff）で離散化し、拡散項は中心差分で離散化します。境界条件は周期境界・Neumann境界・Dirichlet境界から選択でき、移流を含む場合は開放境界も選択できます。";
   E.legend.style.display=is2?"flex":"none";
 
   if(is2){
@@ -585,7 +616,10 @@ function readParams(){
     dirichletXmin:num(E.dirichletXmin,0),
     dirichletXmax:num(E.dirichletXmax,0),
     dirichletYmin:num(E.dirichletYmin,0),
-    dirichletYmax:num(E.dirichletYmax,0)
+    dirichletYmax:num(E.dirichletYmax,0),
+    inflow1d:num(E.inflow1d,0),
+    inflowX:num(E.inflowX,0),
+    inflowY:num(E.inflowY,0)
   };
 
   if(p.sigma>p.L)p.sigma=p.L;
@@ -617,12 +651,14 @@ function calc1D(p){
   var N=181,periodic=(p.boundary1d==="periodic");
   var dx=periodic?p.L/N:p.L/(N-1),frameCount=320,displayDt=p.T/(frameCount-1);
 
-  var diffLimit=(p.D>0)?0.45*dx*dx/p.D:1e99;
-  var advLimit=(Math.abs(p.u)>0)?0.9*dx/Math.abs(p.u):1e99;
-  var stable=Math.min(diffLimit,advLimit);
+  // Combined explicit stability condition.
+  // Conservative bound for both upwind and Lax-Wendroff + diffusion:
+  // |u| dt/dx + 2 D dt/dx^2 <= 0.90
+  var rate=Math.abs(p.u)/dx + 2*p.D/(dx*dx);
+  var stable=(rate>0)?0.90/rate:1e99;
   var micro=Math.max(1,Math.ceil(displayDt/stable));
 
-  if(micro>12000)throw new Error("計算条件が細かすぎます。速度・D・最大時間の設定を見直してください。");
+  if(micro>20000)throw new Error("計算条件が細かすぎます。速度・D・最大時間の設定を見直してください。");
 
   var dt=displayDt/micro;
   var c=init1D(p.type,N,p.L,p.sigma,dx),next=new Float64Array(N);
@@ -666,7 +702,6 @@ function calc1D(p){
               adv=-p.u*(c[i+1]-c[i])/dx;
             }
           }
-
           next[i]=c[i]+dt*(adv+diff);
         }
 
@@ -674,16 +709,21 @@ function calc1D(p){
           next[0]=p.dirichletLeft;
           next[N-1]=p.dirichletRight;
         }else if(p.boundary1d==="neumann"){
-          next[0]=next[1];
-          next[N-1]=next[N-2];
+          // Second-order ghost-cell form for zero normal gradient.
+          next[0]=c[0]+dt*p.D*(2*(c[1]-c[0])/(dx*dx));
+          next[N-1]=c[N-1]+dt*p.D*(2*(c[N-2]-c[N-1])/(dx*dx));
+          if(p.D===0){
+            next[0]=next[1];
+            next[N-1]=next[N-2];
+          }
         }else{
-          // Outflow: use interior extrapolation / zero-gradient on outward side.
+          // Open boundary: inflow value on inflow side, zero-gradient on outflow side.
           if(p.u>0){
-            next[0]=c[0];
+            next[0]=p.inflow1d;
             next[N-1]=next[N-2];
           }else if(p.u<0){
             next[0]=next[1];
-            next[N-1]=c[N-1];
+            next[N-1]=p.inflow1d;
           }else{
             next[0]=next[1];
             next[N-1]=next[N-2];
@@ -704,14 +744,14 @@ function calc1D(p){
   E.mass.textContent="総量 = "+mass1D(frames[0],dx).toPrecision(5);
 }
 
-function mass2D(a,dx){
-  var s=0,i;for(i=0;i<a.length;i++)s+=a[i];return s*dx*dx;
+function mass2D(a,dx,dy){
+  var s=0,i;for(i=0;i<a.length;i++)s+=a[i];return s*dx*dy;
 }
 
-function init2D(type,N,L,sigma,dx){
+function init2D(type,N,L,sigma,dx,dy){
   var a=new Float64Array(N*N),mid=L/2,i,j,x,y,k,qx,qy,hw;
   for(j=0;j<N;j++){
-    y=j*dx;
+    y=j*dy;
     for(i=0;i<N;i++){
       x=i*dx;k=j*N+i;
       if(type==="gaussian"){
@@ -730,23 +770,28 @@ function init2D(type,N,L,sigma,dx){
 
 function calc2D(p){
   var N=51,px=(p.boundaryX==="periodic"),py=(p.boundaryY==="periodic");
-  var dx=p.L/(N-1),frameCount=160,displayDt=p.T/(frameCount-1);
+  var dx=px?p.L/N:p.L/(N-1);
+  var dy=py?p.L/N:p.L/(N-1);
+  var frameCount=160,displayDt=p.T/(frameCount-1);
 
-  var diffLimit=(p.D>0)?0.20*dx*dx/p.D:1e99;
-  var speedSum=Math.abs(p.ux)+Math.abs(p.uy);
-  var advLimit=(speedSum>0)?0.85*dx/speedSum:1e99;
-  var stable=Math.min(diffLimit,advLimit);
+  // Conservative combined CFL/diffusion condition:
+  // |ux|dt/dx + |uy|dt/dy + 2Ddt(1/dx^2+1/dy^2) <= 0.85
+  var rate=Math.abs(p.ux)/dx + Math.abs(p.uy)/dy
+    +2*p.D*(1/(dx*dx)+1/(dy*dy));
+  var stable=(rate>0)?0.85/rate:1e99;
   var micro=Math.max(1,Math.ceil(displayDt/stable));
 
-  if(micro>1200)throw new Error("2D計算が重すぎる条件です。速度・D・最大時間の設定を見直してください。");
+  if(micro>3000)throw new Error("2D計算が重すぎる条件です。速度・D・最大時間の設定を見直してください。");
 
   var dt=displayDt/micro;
-  var c=init2D(p.type,N,p.L,p.sigma,dx),next=new Float64Array(N*N);
+  var c=init2D(p.type,N,p.L,p.sigma,dx,dy),next=new Float64Array(N*N);
   var f,m,i,j,k,tmp,diff,gx,gy,im,ip,jm,jp,advx,advy;
   frames=[new Float64Array(c)];times=[0];
 
   for(f=1;f<frameCount;f++){
     for(m=0;m<micro;m++){
+      // start from current state so untouched corners are always defined
+      next.set(c);
 
       for(j=0;j<N;j++){
         jm=(j===0)?(py?N-1:0):j-1;
@@ -760,19 +805,17 @@ function calc2D(p){
           if(!px && (i===0||i===N-1))continue;
           if(!py && (j===0||j===N-1))continue;
 
-          diff=(p.D>0)?p.D*(c[j*N+ip]+c[j*N+im]+c[jp*N+i]+c[jm*N+i]-4*c[k])/(dx*dx):0;
+          diff=(p.D>0)?p.D*(
+            (c[j*N+ip]-2*c[k]+c[j*N+im])/(dx*dx)
+            +(c[jp*N+i]-2*c[k]+c[jm*N+i])/(dy*dy)
+          ):0;
 
           if(p.advectionScheme==="lax-wendroff"){
-            var ax=p.ux*dt/dx, ay=p.uy*dt/dx;
+            var ax=p.ux*dt/dx, ay=p.uy*dt/dy;
 
-            // Full 2D Lax–Wendroff:
-            // includes the mixed derivative term proportional to ux*uy*phi_xy.
             var mixed=
               0.25*ax*ay*(
-                c[jp*N+ip]
-                -c[jm*N+ip]
-                -c[jp*N+im]
-                +c[jm*N+im]
+                c[jp*N+ip]-c[jm*N+ip]-c[jp*N+im]+c[jm*N+im]
               );
 
             var advLW=
@@ -785,12 +828,11 @@ function calc2D(p){
             next[k]=c[k]+advLW+dt*diff;
           }else{
             advx=0;advy=0;
-
             if(p.ux>0)advx=-p.ux*(c[k]-c[j*N+im])/dx;
             else if(p.ux<0)advx=-p.ux*(c[j*N+ip]-c[k])/dx;
 
-            if(p.uy>0)advy=-p.uy*(c[k]-c[jm*N+i])/dx;
-            else if(p.uy<0)advy=-p.uy*(c[jp*N+i]-c[k])/dx;
+            if(p.uy>0)advy=-p.uy*(c[k]-c[jm*N+i])/dy;
+            else if(p.uy<0)advy=-p.uy*(c[jp*N+i]-c[k])/dy;
 
             next[k]=c[k]+dt*(advx+advy+diff);
           }
@@ -798,8 +840,8 @@ function calc2D(p){
       }
 
       // X boundaries
-      for(j=0;j<N;j++){
-        if(!px){
+      if(!px){
+        for(j=0;j<N;j++){
           if(p.boundaryX==="dirichlet"){
             next[j*N]=p.dirichletXmin;
             next[j*N+N-1]=p.dirichletXmax;
@@ -808,11 +850,11 @@ function calc2D(p){
             next[j*N+N-1]=next[j*N+N-2];
           }else{
             if(p.ux>0){
-              next[j*N]=c[j*N];
+              next[j*N]=p.inflowX;
               next[j*N+N-1]=next[j*N+N-2];
             }else if(p.ux<0){
               next[j*N]=next[j*N+1];
-              next[j*N+N-1]=c[j*N+N-1];
+              next[j*N+N-1]=p.inflowX;
             }else{
               next[j*N]=next[j*N+1];
               next[j*N+N-1]=next[j*N+N-2];
@@ -822,8 +864,8 @@ function calc2D(p){
       }
 
       // Y boundaries
-      for(i=0;i<N;i++){
-        if(!py){
+      if(!py){
+        for(i=0;i<N;i++){
           if(p.boundaryY==="dirichlet"){
             next[i]=p.dirichletYmin;
             next[(N-1)*N+i]=p.dirichletYmax;
@@ -832,16 +874,26 @@ function calc2D(p){
             next[(N-1)*N+i]=next[(N-2)*N+i];
           }else{
             if(p.uy>0){
-              next[i]=c[i];
+              next[i]=p.inflowY;
               next[(N-1)*N+i]=next[(N-2)*N+i];
             }else if(p.uy<0){
               next[i]=next[N+i];
-              next[(N-1)*N+i]=c[(N-1)*N+i];
+              next[(N-1)*N+i]=p.inflowY;
             }else{
               next[i]=next[N+i];
               next[(N-1)*N+i]=next[(N-2)*N+i];
             }
           }
+        }
+      }
+
+      // If two Dirichlet boundaries meet, use the average of their prescribed values at corners.
+      if(!px && !py){
+        if(p.boundaryX==="dirichlet" && p.boundaryY==="dirichlet"){
+          next[0]=0.5*(p.dirichletXmin+p.dirichletYmin);
+          next[N-1]=0.5*(p.dirichletXmax+p.dirichletYmin);
+          next[(N-1)*N]=0.5*(p.dirichletXmin+p.dirichletYmax);
+          next[N*N-1]=0.5*(p.dirichletXmax+p.dirichletYmax);
         }
       }
 
@@ -852,10 +904,12 @@ function calc2D(p){
     times.push(f*displayDt);
   }
 
-  state={mode:"2d",L:p.L,N:N,dx:dx,periodic:(px&&py)};
-  E.dx.textContent="Δx = Δy = "+dx.toPrecision(4);
+  state={mode:"2d",L:p.L,N:N,dx:dx,dy:dy,periodic:(px&&py)};
+  E.dx.textContent=(Math.abs(dx-dy)<1e-12)
+    ?"Δx = Δy = "+dx.toPrecision(4)
+    :"Δx = "+dx.toPrecision(4)+", Δy = "+dy.toPrecision(4);
   E.dt.textContent="Δt = "+dt.toPrecision(4);
-  E.mass.textContent="総量 = "+mass2D(frames[0],dx).toPrecision(5);
+  E.mass.textContent="総量 = "+mass2D(frames[0],dx,dy).toPrecision(5);
 }
 
 function initConvectionTemperature(kind,N,p){
@@ -922,30 +976,36 @@ function initConvectionTemperature(kind,N,p){
 }
 
 function solvePsi(omega,psi,tmp,N,dx){
-  var it,i,j,k;
+  var it,i,j,k,maxDiff,diff;
   var dx2=dx*dx;
-  for(it=0;it<45;it++){
+  var tol=1e-6;
+  var maxIter=500;
+
+  for(it=0;it<maxIter;it++){
+    maxDiff=0;
+
     for(j=1;j<N-1;j++){
       for(i=1;i<N-1;i++){
         k=j*N+i;
         tmp[k]=.25*(psi[k+1]+psi[k-1]+psi[k+N]+psi[k-N]+dx2*omega[k]);
+        diff=Math.abs(tmp[k]-psi[k]);
+        if(diff>maxDiff)maxDiff=diff;
       }
     }
+
     for(i=0;i<N;i++){tmp[i]=0;tmp[(N-1)*N+i]=0;}
     for(j=0;j<N;j++){tmp[j*N]=0;tmp[j*N+N-1]=0;}
+
     var sw=psi;psi=tmp;tmp=sw;
+
+    if(maxDiff<tol)break;
   }
-  return {psi:psi,tmp:tmp};
+
+  return {psi:psi,tmp:tmp,iterations:it+1,converged:(maxDiff<tol)};
 }
 
 function calcConvection(p){
   var N=41,dx=p.L/(N-1),frameCount=140,displayDt=p.T/(frameCount-1);
-  var diffMax=Math.max(p.D,p.nu);
-  var diffLimit=.18*dx*dx/diffMax;
-  var dtBase=Math.min(displayDt,diffLimit,.03);
-  var micro=Math.max(1,Math.ceil(displayDt/dtBase));
-  if(micro>600)throw new Error("自然対流の計算条件が重すぎます。最大時間・D・νを見直してください。");
-  var dt=displayDt/micro;
 
   var temp=initConvectionTemperature(p.convInitial,N,p);
   var tempNext=new Float64Array(N*N);
@@ -957,39 +1017,65 @@ function calcConvection(p){
   var velocityFrames=[new Float64Array(vel)];
   var vorticityFrames=[new Float64Array(omega)];
 
-  var f,m,i,j,k,gxT,gxW,gyW,lapT,lapW,u,v,advT,advW,res;
+  var f,i,j,k,gxT,gxW,gyW,lapT,lapW,u,v,advT,advW,res;
+  var totalSubsteps=0,lastDt=0,poissonConverged=true,maxPoissonIterUsed=0;
 
   for(f=1;f<frameCount;f++){
-    for(m=0;m<micro;m++){
+    var elapsed=0;
+
+    while(elapsed<displayDt-1e-12){
       res=solvePsi(omega,psi,psiTmp,N,dx);
       psi=res.psi;psiTmp=res.tmp;
+      if(!res.converged)poissonConverged=false;
+      if(res.iterations>maxPoissonIterUsed)maxPoissonIterUsed=res.iterations;
 
+      var maxSpeedSum=0;
       for(j=1;j<N-1;j++){
         for(i=1;i<N-1;i++){
           k=j*N+i;
           u=(psi[k+N]-psi[k-N])/(2*dx);
           v=-(psi[k+1]-psi[k-1])/(2*dx);
           vel[2*k]=u;vel[2*k+1]=v;
+          var ss=Math.abs(u)+Math.abs(v);
+          if(ss>maxSpeedSum)maxSpeedSum=ss;
+        }
+      }
+
+      // Dynamic stability limit for advection + diffusion of temperature/vorticity.
+      var diffRate=4*Math.max(p.D,p.nu)/(dx*dx);
+      var advRate=maxSpeedSum/dx;
+      var rate=advRate+diffRate;
+      var dtStable=(rate>0)?0.70/rate:(displayDt-elapsed);
+      var dt=Math.min(displayDt-elapsed,dtStable,0.03);
+      if(dt<=1e-10)throw new Error("自然対流の時間刻みが小さくなりすぎました。パラメータを見直してください。");
+      lastDt=dt;
+
+      tempNext.set(temp);
+      omegaNext.set(omega);
+
+      for(j=1;j<N-1;j++){
+        for(i=1;i<N-1;i++){
+          k=j*N+i;
+          u=vel[2*k];v=vel[2*k+1];
 
           gxT=(temp[k+1]-temp[k-1])/(2*dx);
           lapT=(temp[k+1]+temp[k-1]+temp[k+N]+temp[k-N]-4*temp[k])/(dx*dx);
 
-          var dTx = u>=0 ? (temp[k]-temp[k-1])/dx : (temp[k+1]-temp[k])/dx;
-          var dTy = v>=0 ? (temp[k]-temp[k-N])/dx : (temp[k+N]-temp[k])/dx;
+          var dTx=u>=0?(temp[k]-temp[k-1])/dx:(temp[k+1]-temp[k])/dx;
+          var dTy=v>=0?(temp[k]-temp[k-N])/dx:(temp[k+N]-temp[k])/dx;
           advT=-(u*dTx+v*dTy);
           tempNext[k]=temp[k]+dt*(advT+p.D*lapT);
 
-          gxW = u>=0 ? (omega[k]-omega[k-1])/dx : (omega[k+1]-omega[k])/dx;
-          gyW = v>=0 ? (omega[k]-omega[k-N])/dx : (omega[k+N]-omega[k])/dx;
+          gxW=u>=0?(omega[k]-omega[k-1])/dx:(omega[k+1]-omega[k])/dx;
+          gyW=v>=0?(omega[k]-omega[k-N])/dx:(omega[k+N]-omega[k])/dx;
           advW=-(u*gxW+v*gyW);
           lapW=(omega[k+1]+omega[k-1]+omega[k+N]+omega[k-N]-4*omega[k])/(dx*dx);
           omegaNext[k]=omega[k]+dt*(advW+p.nu*lapW+p.buoyancy*gxT);
         }
       }
 
-      // Temperature boundary conditions for natural convection.
+      // Temperature boundary conditions
       if(p.thermalBoundary==="fixed-top-bottom"){
-        // Bottom/top fixed temperature; side walls adiabatic.
         for(i=0;i<N;i++){
           tempNext[i]=p.tBottom;
           tempNext[(N-1)*N+i]=p.tTop;
@@ -999,7 +1085,6 @@ function calcConvection(p){
           tempNext[j*N+N-1]=tempNext[j*N+N-2];
         }
       }else{
-        // Adiabatic on all four walls.
         for(i=1;i<N-1;i++){
           tempNext[i]=tempNext[N+i];
           tempNext[(N-1)*N+i]=tempNext[(N-2)*N+i];
@@ -1010,15 +1095,7 @@ function calcConvection(p){
         }
       }
 
-      // Preserve the legacy side-wall hot/cold preset if chosen with adiabatic mode.
-      if(p.convInitial==="side-walls" && p.thermalBoundary==="adiabatic"){
-        for(j=0;j<N;j++){
-          tempNext[j*N]=1;
-          tempNext[j*N+N-1]=0;
-        }
-      }
-
-      // Approximate no-slip wall vorticity from streamfunction.
+      // No-slip wall vorticity approximation
       for(i=1;i<N-1;i++){
         omegaNext[i]=-2*psi[N+i]/(dx*dx);
         omegaNext[(N-1)*N+i]=-2*psi[(N-2)*N+i]/(dx*dx);
@@ -1030,10 +1107,17 @@ function calcConvection(p){
 
       var sw=temp;temp=tempNext;tempNext=sw;
       sw=omega;omega=omegaNext;omegaNext=sw;
+
+      elapsed+=dt;
+      totalSubsteps++;
+      if(totalSubsteps>200000)throw new Error("自然対流の計算ステップ数が多すぎます。条件を緩和してください。");
     }
 
     res=solvePsi(omega,psi,psiTmp,N,dx);
     psi=res.psi;psiTmp=res.tmp;
+    if(!res.converged)poissonConverged=false;
+    if(res.iterations>maxPoissonIterUsed)maxPoissonIterUsed=res.iterations;
+
     for(j=1;j<N-1;j++){
       for(i=1;i<N-1;i++){
         k=j*N+i;
@@ -1049,151 +1133,17 @@ function calcConvection(p){
   }
 
   state={
-    mode:"convection",L:p.L,N:N,dx:dx,
+    mode:"convection",L:p.L,N:N,dx:dx,dy:dx,
     velocityFrames:velocityFrames,
     vorticityFrames:vorticityFrames
   };
   E.dx.textContent="Δx = Δy = "+dx.toPrecision(4);
-  E.dt.textContent="Δt = "+dt.toPrecision(4);
-  E.mass.textContent="平均T = "+(mass2D(frames[0],dx)/(p.L*p.L)).toPrecision(4);
-}
+  E.dt.textContent="Δt ≈ "+lastDt.toPrecision(4);
+  E.mass.textContent="平均T = "+(mass2D(frames[0],dx,dx)/(p.L*p.L)).toPrecision(4);
 
-
-function calculate(){
-  stop();
-  try{
-    var p=readParams();
-    if(p.equationType==="convection")calcConvection(p);
-    else if(p.mode==="2d")calc2D(p);
-    else calc1D(p);
-    current=0;
-    E.slider.min="0";
-    E.slider.max=String(frames.length-1);
-    E.slider.value="0";
-    E.status.style.color="";
-    E.status.textContent="計算完了："+frames.length+" フレーム";
-    draw();
-  }catch(err){
-    frames=[];times=[];
-    E.status.style.color="#dc2626";
-    E.status.textContent="エラー: "+(err&&err.message?err.message:String(err));
-    clearCanvas();
+  if(!poissonConverged){
+    E.status.textContent="計算完了。ただし一部のPoisson反復が最大反復数までに収束しませんでした。";
   }
-}
-
-function canvasSize(){
-  var rect=E.chart.getBoundingClientRect();
-  var dpr=window.devicePixelRatio||1;
-  if(dpr>2)dpr=2;if(dpr<1)dpr=1;
-  var pw=Math.round(rect.width*dpr),ph=Math.round(rect.height*dpr);
-  if(E.chart.width!==pw||E.chart.height!==ph){E.chart.width=pw;E.chart.height=ph;}
-  ctx.setTransform(dpr,0,0,dpr,0,0);
-  return {w:rect.width,h:rect.height};
-}
-function clearCanvas(){var s=canvasSize();ctx.clearRect(0,0,s.w,s.h);}
-
-function draw1D(){
-  var s=canvasSize(),w=s.w,h=s.h;
-  ctx.clearRect(0,0,w,h);
-
-  var pad={l:56,r:18,t:18,b:44};
-  var pw=w-pad.l-pad.r,ph=h-pad.t-pad.b;
-  var data=frames[current],ymax=1,i,j;
-  for(i=0;i<frames[0].length;i++)if(frames[0][i]>ymax)ymax=frames[0][i];
-  ymax*=1.08;
-
-  ctx.lineWidth=1;ctx.strokeStyle=css("--grid");ctx.fillStyle=css("--muted");
-  ctx.font="12px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif";
-
-  for(j=0;j<=4;j++){
-    var gy=pad.t+ph*j/4;
-    ctx.beginPath();ctx.moveTo(pad.l,gy);ctx.lineTo(w-pad.r,gy);ctx.stroke();
-    ctx.fillText((ymax*(1-j/4)).toFixed(2),8,gy+4);
-  }
-  for(j=0;j<=5;j++){
-    var gx=pad.l+pw*j/5;
-    ctx.beginPath();ctx.moveTo(gx,pad.t);ctx.lineTo(gx,pad.t+ph);ctx.stroke();
-    ctx.fillText((state.L*j/5).toFixed(1),gx-10,h-18);
-  }
-
-  ctx.strokeStyle=css("--accent");ctx.lineWidth=2.5;ctx.beginPath();
-  for(i=0;i<data.length;i++){
-    var x=pad.l+pw*i/(data.length-1);
-    var y=pad.t+ph*(1-data[i]/ymax);
-    if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
-  }
-  ctx.stroke();
-
-  ctx.fillStyle=css("--muted");ctx.font="13px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif";
-  ctx.fillText("x",w-pad.r-4,h-8);
-  ctx.save();ctx.translate(14,pad.t+ph/2);ctx.rotate(-Math.PI/2);ctx.fillText("φ(x,t)",0,0);ctx.restore();
-}
-
-function colorMap(v){
-  v=clamp(v,0,1);
-  var stops=[
-    [0,29,78,216],
-    [.33,56,189,248],
-    [.66,250,204,21],
-    [1,239,68,68]
-  ];
-  var a=stops[0],b=stops[1],i;
-  for(i=0;i<stops.length-1;i++){
-    if(v>=stops[i][0]&&v<=stops[i+1][0]){a=stops[i];b=stops[i+1];break;}
-  }
-  var t=(v-a[0])/(b[0]-a[0]||1);
-  return [
-    Math.round(a[1]+(b[1]-a[1])*t),
-    Math.round(a[2]+(b[2]-a[2])*t),
-    Math.round(a[3]+(b[3]-a[3])*t)
-  ];
-}
-
-function draw2D(){
-  var s=canvasSize(),w=s.w,h=s.h;
-  ctx.clearRect(0,0,w,h);
-
-  var N=state.N,data=frames[current],pad={l:52,r:18,t:18,b:44};
-  var aw=w-pad.l-pad.r,ah=h-pad.t-pad.b;
-  var size=Math.max(120,Math.min(aw,ah));
-  var ox=pad.l+(aw-size)/2,oy=pad.t+(ah-size)/2;
-
-  var off=document.createElement("canvas");
-  off.width=N;off.height=N;
-  var octx=off.getContext("2d");
-  var img=octx.createImageData(N,N);
-  var max0=0,i,j,k,pix,rgb;
-
-  for(i=0;i<frames[0].length;i++)if(frames[0][i]>max0)max0=frames[0][i];
-  if(max0<=0)max0=1;
-
-  for(j=0;j<N;j++){
-    for(i=0;i<N;i++){
-      k=j*N+i;
-      rgb=colorMap(data[k]/max0);
-      pix=4*((N-1-j)*N+i);
-      img.data[pix]=rgb[0];
-      img.data[pix+1]=rgb[1];
-      img.data[pix+2]=rgb[2];
-      img.data[pix+3]=255;
-    }
-  }
-  octx.putImageData(img,0,0);
-
-  ctx.imageSmoothingEnabled=true;
-  ctx.drawImage(off,ox,oy,size,size);
-  ctx.strokeStyle=css("--muted");ctx.lineWidth=1;ctx.strokeRect(ox,oy,size,size);
-  ctx.fillStyle=css("--muted");ctx.font="12px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif";
-
-  for(i=0;i<=4;i++){
-    var xv=ox+size*i/4;
-    ctx.fillText((state.L*i/4).toFixed(1),xv-9,oy+size+20);
-    var yv=oy+size*(1-i/4);
-    ctx.fillText((state.L*i/4).toFixed(1),ox-38,yv+4);
-  }
-  ctx.font="13px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif";
-  ctx.fillText("x",ox+size+7,oy+size+3);
-  ctx.fillText("y",ox-3,oy-7);
 }
 
 function divergingColor(v,scale){
@@ -1389,6 +1339,9 @@ E.dirichletXmin.addEventListener("change",calculate);
 E.dirichletXmax.addEventListener("change",calculate);
 E.dirichletYmin.addEventListener("change",calculate);
 E.dirichletYmax.addEventListener("change",calculate);
+E.inflow1d.addEventListener("change",calculate);
+E.inflowX.addEventListener("change",calculate);
+E.inflowY.addEventListener("change",calculate);
 
 E.convInitial.addEventListener("change",function(){
   updateConvectionSpecialUI();
