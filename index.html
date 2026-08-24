@@ -114,11 +114,39 @@ canvas{display:block;width:100%;height:430px}
       <div class="hint">正の値で +x 方向へ移流します。</div>
     </div>
 
-    <div class="group" id="u2d-group" style="display:none">
-      <label for="ux">移流速度 uₓ</label>
-      <input id="ux" type="number" value="0.50" min="-10" max="10" step="0.05">
-      <label for="uy">移流速度 uᵧ</label>
-      <input id="uy" type="number" value="0.25" min="-10" max="10" step="0.05">
+    <div id="u2d-group" style="display:none">
+      <div class="group">
+        <label for="velocity-field">2D速度場</label>
+        <select id="velocity-field">
+          <option value="uniform">一様流</option>
+          <option value="rotation">剛体回転</option>
+          <option value="shear">せん断流</option>
+        </select>
+        <div class="hint" id="velocity-field-description"></div>
+      </div>
+
+      <div id="uniform-velocity-controls">
+        <div class="group">
+          <label for="ux">移流速度 uₓ</label>
+          <input id="ux" type="number" value="0.50" min="-10" max="10" step="0.05">
+        </div>
+        <div class="group">
+          <label for="uy">移流速度 uᵧ</label>
+          <input id="uy" type="number" value="0.25" min="-10" max="10" step="0.05">
+        </div>
+      </div>
+
+      <div class="group" id="rotation-controls" style="display:none">
+        <label for="rotation-omega">角速度 Ω</label>
+        <input id="rotation-omega" type="number" value="0.50" min="-10" max="10" step="0.05">
+        <div class="hint">領域中心まわりに uₓ = −Ω(y−L/2), uᵧ = Ω(x−L/2) とします。</div>
+      </div>
+
+      <div class="group" id="shear-controls" style="display:none">
+        <label for="shear-rate">せん断率 γ</label>
+        <input id="shear-rate" type="number" value="0.50" min="-10" max="10" step="0.05">
+        <div class="hint">uₓ = γ(y−L/2), uᵧ = 0 とします。</div>
+      </div>
     </div>
 
     <div id="wave-controls" style="display:none">
@@ -180,6 +208,8 @@ canvas{display:block;width:100%;height:430px}
           <option value="custom-hot-spot">局所高温スポット（位置指定）</option>
           <option value="center-hot-spot">中央に高温スポット</option>
           <option value="two-hot-spots">2つの高温スポット</option>
+          <option value="lower-left-hot">左下に高温スポット</option>
+          <option value="horizontal-hot-layer">中央に水平高温層</option>
           <option value="random-perturbations">微小温度むら（複数モード）</option>
           <option value="side-walls">左高温・右低温の初期分布</option>
         </select>
@@ -296,6 +326,11 @@ canvas{display:block;width:100%;height:430px}
         <option value="gaussian">Gaussian</option>
         <option value="pulse">中央パルス</option>
         <option value="step">ステップ分布</option>
+        <option value="double-gaussian">2つの Gaussian</option>
+        <option value="triangle">三角形分布</option>
+        <option value="sine">正弦波</option>
+        <option value="ring">リング（2D）</option>
+        <option value="random">不規則分布（再現可能）</option>
       </select>
     </div>
 
@@ -483,6 +518,13 @@ var E={
   u:document.getElementById("u"),
   ux:document.getElementById("ux"),
   uy:document.getElementById("uy"),
+  velocityField:document.getElementById("velocity-field"),
+  velocityFieldDescription:document.getElementById("velocity-field-description"),
+  uniformVelocityControls:document.getElementById("uniform-velocity-controls"),
+  rotationControls:document.getElementById("rotation-controls"),
+  rotationOmega:document.getElementById("rotation-omega"),
+  shearControls:document.getElementById("shear-controls"),
+  shearRate:document.getElementById("shear-rate"),
   u1dGroup:document.getElementById("u1d-group"),
   u2dGroup:document.getElementById("u2d-group"),
   convectionControls:document.getElementById("convection-controls"),
@@ -712,6 +754,62 @@ function updateLargeDomainWarning(){
   E.largeDomainWarning.style.display=(L>100 || T>1000)?"block":"none";
 }
 
+function velocityFieldDescription(type){
+  if(type==="rotation"){
+    return "剛体回転：中心からの距離を保って回転する非一様・非圧縮速度場です。周期境界を自動選択します。中央付近の分布が境界へ達する前の挙動や、1周後の形状比較に適しています。";
+  }
+  if(type==="shear"){
+    return "せん断流：高さによってx方向速度が変わります。分布が傾き・伸長する様子を観察できます。";
+  }
+  return "一様流：領域全体で一定の uₓ, uᵧ を与えます。";
+}
+
+function updateVelocityFieldUI(){
+  var type=E.velocityField.value;
+  E.velocityFieldDescription.textContent=velocityFieldDescription(type);
+  E.uniformVelocityControls.style.display=(type==="uniform")?"block":"none";
+  E.rotationControls.style.display=(type==="rotation")?"grid":"none";
+  E.shearControls.style.display=(type==="shear")?"grid":"none";
+}
+
+function updateInitialOptions(){
+  var is2=E.dimension.value==="2d";
+  for(var i=0;i<E.initial.options.length;i++){
+    var opt=E.initial.options[i];
+    if(opt.value==="ring"){
+      opt.hidden=!is2;
+      opt.disabled=!is2;
+      if(!is2 && E.initial.value==="ring")E.initial.value="gaussian";
+    }
+  }
+
+  var labels1={
+    gaussian:"Gaussian",
+    pulse:"中央パルス",
+    step:"ステップ分布",
+    "double-gaussian":"2つの Gaussian",
+    triangle:"三角形分布",
+    sine:"正弦波",
+    ring:"リング（2D）",
+    random:"不規則分布（再現可能）"
+  };
+  var labels2={
+    gaussian:"中央 Gaussian",
+    pulse:"中央正方形パルス",
+    step:"左右ステップ分布",
+    "double-gaussian":"2つの Gaussian",
+    triangle:"円錐状分布",
+    sine:"2D 正弦波",
+    ring:"リング",
+    random:"不規則分布（再現可能）"
+  };
+  var map=is2?labels2:labels1;
+  for(var j=0;j<E.initial.options.length;j++){
+    var o=E.initial.options[j];
+    if(map[o.value])o.textContent=map[o.value];
+  }
+}
+
 function updateModeUI(){
   updateLargeDomainWarning();
 
@@ -745,7 +843,9 @@ function updateModeUI(){
   updateGridWarning();
 
   E.u1dGroup.style.display=(!is2&&useAdv)?"grid":"none";
-  E.u2dGroup.style.display=(is2&&useAdv)?"grid":"none";
+  E.u2dGroup.style.display=(is2&&useAdv)?"block":"none";
+  if(is2&&useAdv)updateVelocityFieldUI();
+  updateInitialOptions();
   E.schemeGroup.style.display=(!special&&useAdv)?"grid":"none";
   E.limiterGroup.style.display=(!special&&useAdv&&E.advectionScheme.value==="muscl-tvd")?"grid":"none";
 
@@ -822,19 +922,11 @@ function updateModeUI(){
   }
 
   E.note.textContent=is2
-    ?"2D：移流は保存形の数値流束、拡散は中心差分による拡散フラックスで離散化します。"
+    ?"2D：移流はセル境界の速度を用いた保存形数値流束、拡散は中心差分による拡散フラックスで離散化します。一様流・剛体回転・せん断流を選択できます。"
     :"1D：移流は保存形の数値流束、拡散は中心差分による拡散フラックスで離散化します。";
   E.legend.style.display=is2?"flex":"none";
 
-  if(is2){
-    E.initial.options[0].textContent="中央 Gaussian";
-    E.initial.options[1].textContent="中央正方形パルス";
-    E.initial.options[2].textContent="左右ステップ分布";
-  }else{
-    E.initial.options[0].textContent="Gaussian";
-    E.initial.options[1].textContent="中央パルス";
-    E.initial.options[2].textContent="ステップ分布";
-  }
+
 }
 function readParams(){
   var type=E.equationType.value;
@@ -853,6 +945,9 @@ function readParams(){
     u:useAdv?clamp(num(E.u,.5),-10,10):0,
     ux:useAdv?clamp(num(E.ux,.5),-10,10):0,
     uy:useAdv?clamp(num(E.uy,.25),-10,10):0,
+    velocityField:E.velocityField.value,
+    rotationOmega:clamp(num(E.rotationOmega,.5),-10,10),
+    shearRate:clamp(num(E.shearRate,.5),-10,10),
     nu:clamp(num(E.nu,.03),.0001,2),
     buoyancy:clamp(num(E.buoyancy,1),0,20),
     convInitial:E.convInitial.value,
@@ -909,19 +1004,49 @@ function mass1D(a,dx,periodic){
   return s*dx;
 }
 
+function deterministicNoise1D(x,L){
+  return .5
+    +.20*Math.sin(2*Math.PI*x/L+0.7)
+    +.15*Math.sin(6*Math.PI*x/L+1.9)
+    +.10*Math.sin(14*Math.PI*x/L+0.2);
+}
+
 function init1D(type,N,L,sigma,dx){
-  var a=new Float64Array(N),mid=L/2,i,x,q,hw;
+  var a=new Float64Array(N),mid=L/2,i,x,q,hw,q1,q2;
   if(type==="gaussian"){
     for(i=0;i<N;i++){x=i*dx;q=(x-mid)/sigma;a[i]=Math.exp(-.5*q*q);}
   }else if(type==="pulse"){
     hw=Math.max(L*.06,sigma*.35);
     for(i=0;i<N;i++){x=i*dx;a[i]=Math.abs(x-mid)<=hw?1:0;}
+  }else if(type==="step"){
+    for(i=0;i<N;i++){x=i*dx;a[i]=x<mid?1:0;}
+  }else if(type==="double-gaussian"){
+    for(i=0;i<N;i++){
+      x=i*dx;
+      q1=(x-.32*L)/sigma;q2=(x-.68*L)/sigma;
+      a[i]=Math.min(1,Math.exp(-.5*q1*q1)+Math.exp(-.5*q2*q2));
+    }
+  }else if(type==="triangle"){
+    hw=Math.max(.15*L,2*sigma);
+    for(i=0;i<N;i++){
+      x=i*dx;
+      a[i]=Math.max(0,1-Math.abs(x-mid)/hw);
+    }
+  }else if(type==="sine"){
+    for(i=0;i<N;i++){
+      x=i*dx;
+      a[i]=.5+.5*Math.sin(2*Math.PI*x/L);
+    }
+  }else if(type==="random"){
+    for(i=0;i<N;i++){
+      x=i*dx;
+      a[i]=clamp(deterministicNoise1D(x,L),0,1);
+    }
   }else{
     for(i=0;i<N;i++){x=i*dx;a[i]=x<mid?1:0;}
   }
   return a;
 }
-
 function limiterPhi(r,type){
   if(!Number.isFinite(r))return 0;
   if(type==="minmod")return Math.max(0,Math.min(1,r));
@@ -1151,8 +1276,15 @@ function mass2D(a,dx,dy,px,py,N){
   return s*dx*dy;
 }
 
+function deterministicNoise2D(x,y,L){
+  return .5
+    +.17*Math.sin(2*Math.PI*x/L+.3)*Math.sin(4*Math.PI*y/L+1.1)
+    +.12*Math.sin(6*Math.PI*x/L+1.7)*Math.cos(2*Math.PI*y/L+.4)
+    +.08*Math.cos(10*Math.PI*x/L+.8)*Math.sin(8*Math.PI*y/L+2.0);
+}
+
 function init2D(type,N,L,sigma,dx,dy){
-  var a=new Float64Array(N*N),mid=L/2,i,j,x,y,k,qx,qy,hw;
+  var a=new Float64Array(N*N),mid=L/2,i,j,x,y,k,qx,qy,hw,r,r0,w,q1,q2;
   for(j=0;j<N;j++){
     y=j*dy;
     for(i=0;i<N;i++){
@@ -1163,6 +1295,24 @@ function init2D(type,N,L,sigma,dx,dy){
       }else if(type==="pulse"){
         hw=Math.max(L*.07,sigma*.35);
         a[k]=(Math.abs(x-mid)<=hw&&Math.abs(y-mid)<=hw)?1:0;
+      }else if(type==="step"){
+        a[k]=x<mid?1:0;
+      }else if(type==="double-gaussian"){
+        q1=((x-.32*L)*(x-.32*L)+(y-.5*L)*(y-.5*L))/(sigma*sigma);
+        q2=((x-.68*L)*(x-.68*L)+(y-.5*L)*(y-.5*L))/(sigma*sigma);
+        a[k]=Math.min(1,Math.exp(-.5*q1)+Math.exp(-.5*q2));
+      }else if(type==="triangle"){
+        r=Math.hypot(x-mid,y-mid);
+        hw=Math.max(.18*L,2*sigma);
+        a[k]=Math.max(0,1-r/hw);
+      }else if(type==="sine"){
+        a[k]=.5+.5*Math.sin(2*Math.PI*x/L)*Math.sin(2*Math.PI*y/L);
+      }else if(type==="ring"){
+        r=Math.hypot(x-mid,y-mid);
+        r0=.23*L;w=Math.max(.035*L,.7*sigma);
+        a[k]=Math.exp(-.5*Math.pow((r-r0)/w,2));
+      }else if(type==="random"){
+        a[k]=clamp(deterministicNoise2D(x,y,L),0,1);
       }else{
         a[k]=x<mid?1:0;
       }
@@ -1170,7 +1320,6 @@ function init2D(type,N,L,sigma,dx,dy){
   }
   return a;
 }
-
 function musclSweep2D(c,N,vel,dt,d,axis,boundary,limiter,inflow,bcMin,bcMax){
   var out=new Float64Array(c),line=new Float64Array(N),adv,i,j;
   if(axis==="x"){
@@ -1210,6 +1359,134 @@ function scalarSweep2D(c,N,vel,dt,d,axis,boundary,scheme,inflow,bcMin,bcMax){
   return out;
 }
 
+function velocityAt(p,x,y){
+  if(p.velocityField==="rotation"){
+    return [
+      -p.rotationOmega*(y-.5*p.L),
+       p.rotationOmega*(x-.5*p.L)
+    ];
+  }
+  if(p.velocityField==="shear"){
+    return [p.shearRate*(y-.5*p.L),0];
+  }
+  return [p.ux,p.uy];
+}
+
+function variableFaceVelocity(p,axis,x,y){
+  var uv=velocityAt(p,x,y);
+  return axis==="x"?uv[0]:uv[1];
+}
+
+function variableLineGhost(line,boundary,side,inflow,bcMin,bcMax){
+  var N=line.length;
+  if(boundary==="periodic")return side==="min"?line[N-1]:line[0];
+  if(boundary==="dirichlet"){
+    return side==="min"?2*bcMin-line[0]:2*bcMax-line[N-1];
+  }
+  if(boundary==="neumann")return side==="min"?line[0]:line[N-1];
+  return inflow;
+}
+
+function variableLineFluxes(line,faceVel,dt,d,boundary,scheme,limiter,inflow,bcMin,bcMax){
+  var N=line.length,flux=new Float64Array(N+1),i,L,R,a,C;
+  var gl=variableLineGhost(line,boundary,"min",inflow,bcMin,bcMax);
+  var gr=variableLineGhost(line,boundary,"max",inflow,bcMin,bcMax);
+  var slope=null;
+
+  if(scheme==="muscl-tvd"){
+    slope=new Float64Array(N);
+    for(i=0;i<N;i++){
+      var lm=(i===0)?gl:line[i-1];
+      var rp=(i===N-1)?gr:line[i+1];
+      slope[i]=limitedSlope(line[i]-lm,rp-line[i],limiter);
+    }
+  }
+
+  for(i=0;i<=N;i++){
+    var v=faceVel[i];
+    if(i===0){L=gl;R=line[0];}
+    else if(i===N){L=line[N-1];R=gr;}
+    else{
+      L=line[i-1];
+      R=line[i];
+      if(scheme==="muscl-tvd"){
+        L+=.5*slope[i-1];
+        R-=.5*slope[i];
+      }
+    }
+
+    if(scheme==="lax-wendroff"){
+      C=v*dt/d;
+      flux[i]=.5*v*(L+R)-.5*v*C*(R-L);
+    }else{
+      flux[i]=v>=0?v*L:v*R;
+    }
+  }
+
+  if(boundary==="periodic")flux[N]=flux[0];
+  return flux;
+}
+
+function variableVelocitySweepEuler2D(c,N,p,dt,d,axis,boundary,scheme,limiter,inflow,bcMin,bcMax,dx,dy){
+  var out=new Float64Array(c),line=new Float64Array(N),faceVel=new Float64Array(N+1);
+  var i,j,flux,x,y;
+
+  if(axis==="x"){
+    for(j=0;j<N;j++){
+      y=j*dy;
+      for(i=0;i<N;i++)line[i]=c[j*N+i];
+      for(i=0;i<=N;i++){
+        x=(i-.5)*dx;
+        faceVel[i]=variableFaceVelocity(p,"x",x,y);
+      }
+      flux=variableLineFluxes(line,faceVel,dt,d,boundary,scheme,limiter,inflow,bcMin,bcMax);
+      for(i=0;i<N;i++)out[j*N+i]=line[i]-(dt/d)*(flux[i+1]-flux[i]);
+    }
+  }else{
+    for(i=0;i<N;i++){
+      x=i*dx;
+      for(j=0;j<N;j++)line[j]=c[j*N+i];
+      for(j=0;j<=N;j++){
+        y=(j-.5)*dy;
+        faceVel[j]=variableFaceVelocity(p,"y",x,y);
+      }
+      flux=variableLineFluxes(line,faceVel,dt,d,boundary,scheme,limiter,inflow,bcMin,bcMax);
+      for(j=0;j<N;j++)out[j*N+i]=line[j]-(dt/d)*(flux[j+1]-flux[j]);
+    }
+  }
+  return out;
+}
+
+function variableVelocitySweep2D(c,N,p,dt,d,axis,boundary,scheme,limiter,inflow,bcMin,bcMax,dx,dy){
+  if(scheme!=="muscl-tvd"){
+    return variableVelocitySweepEuler2D(
+      c,N,p,dt,d,axis,boundary,scheme,limiter,inflow,bcMin,bcMax,dx,dy
+    );
+  }
+
+  // MUSCL reconstruction + SSP-RK2 time integration.
+  // Each Euler stage is conservative, so their convex combination is also conservative.
+  var q1=variableVelocitySweepEuler2D(
+    c,N,p,dt,d,axis,boundary,scheme,limiter,inflow,bcMin,bcMax,dx,dy
+  );
+  var q2=variableVelocitySweepEuler2D(
+    q1,N,p,dt,d,axis,boundary,scheme,limiter,inflow,bcMin,bcMax,dx,dy
+  );
+  var out=new Float64Array(c.length);
+  for(var k=0;k<c.length;k++)out[k]=.5*c[k]+.5*q2[k];
+  return out;
+}
+function maxVelocityForField(p,L){
+  if(p.velocityField==="rotation"){
+    var r=.5*Math.sqrt(2)*L;
+    return Math.abs(p.rotationOmega)*r;
+  }
+  if(p.velocityField==="shear"){
+    return .5*Math.abs(p.shearRate)*L;
+  }
+  return Math.abs(p.ux)+Math.abs(p.uy);
+}
+
 async function calc2D(p,serial){
   var N=p.grid2d,px=(p.boundaryX==="periodic"),py=(p.boundaryY==="periodic");
   if(N*N*160>18000000)throw new Error("2Dの格子点数が大きすぎます。保存フレームを含めたメモリ使用量が過大になるため、格子点数を小さくしてください。");
@@ -1217,8 +1494,15 @@ async function calc2D(p,serial){
   var dy=py?p.L/N:p.L/(N-1);
   var frameCount=160,displayDt=p.T/(frameCount-1);
 
-  var rate=Math.abs(p.ux)/dx + Math.abs(p.uy)/dy
-    +2*p.D*(1/(dx*dx)+1/(dy*dy));
+  var advRate;
+  if(p.velocityField==="uniform"){
+    advRate=Math.abs(p.ux)/dx+Math.abs(p.uy)/dy;
+  }else if(p.velocityField==="rotation"){
+    advRate=.5*Math.abs(p.rotationOmega)*p.L*(1/dx+1/dy);
+  }else{
+    advRate=.5*Math.abs(p.shearRate)*p.L/dx;
+  }
+  var rate=advRate+2*p.D*(1/(dx*dx)+1/(dy*dy));
   var stable=(rate>0)?0.85/rate:1e99;
   var micro=Math.max(1,Math.ceil(displayDt/stable));
   if(micro>30000)throw new Error("2Dの内部時間ステップ数が多すぎます。最大時間・速度・拡散係数・計算領域を見直してください。");
@@ -1231,7 +1515,7 @@ async function calc2D(p,serial){
     for(j=0;j<N;j++){
       if(p.boundaryX==="dirichlet"){c[j*N]=p.dirichletXmin;c[j*N+N-1]=p.dirichletXmax;}
       else if(p.boundaryX==="neumann"){
-        if(!(Math.abs(p.ux)<1e-15&&Math.abs(p.uy)<1e-15&&p.D>0)){
+        if(!(advRate<1e-15&&p.D>0)){
           c[j*N]=c[j*N+1];c[j*N+N-1]=c[j*N+N-2];
         }
       }else if(p.ux>0)c[j*N]=p.inflowX;
@@ -1242,7 +1526,7 @@ async function calc2D(p,serial){
     for(i=0;i<N;i++){
       if(p.boundaryY==="dirichlet"){c[i]=p.dirichletYmin;c[(N-1)*N+i]=p.dirichletYmax;}
       else if(p.boundaryY==="neumann"){
-        if(!(Math.abs(p.ux)<1e-15&&Math.abs(p.uy)<1e-15&&p.D>0)){
+        if(!(advRate<1e-15&&p.D>0)){
           c[i]=c[N+i];c[(N-1)*N+i]=c[(N-2)*N+i];
         }
       }else if(p.uy>0)c[i]=p.inflowY;
@@ -1255,22 +1539,37 @@ async function calc2D(p,serial){
   for(f=1;f<frameCount;f++){
     for(m=0;m<micro;m++){
       var advState=c;
+      var hasAdvection=advRate>1e-15;
 
-      if(Math.abs(p.ux)>0 || Math.abs(p.uy)>0){
-        if(p.advectionScheme==="muscl-tvd"){
-          if(Math.abs(p.ux)>0)advState=musclSweep2D(
-            advState,N,p.ux,0.5*dt,dx,"x",p.boundaryX,p.fluxLimiter,p.inflowX,p.dirichletXmin,p.dirichletXmax);
-          if(Math.abs(p.uy)>0)advState=musclSweep2D(
-            advState,N,p.uy,dt,dy,"y",p.boundaryY,p.fluxLimiter,p.inflowY,p.dirichletYmin,p.dirichletYmax);
-          if(Math.abs(p.ux)>0)advState=musclSweep2D(
-            advState,N,p.ux,0.5*dt,dx,"x",p.boundaryX,p.fluxLimiter,p.inflowX,p.dirichletXmin,p.dirichletXmax);
+      if(hasAdvection){
+        if(p.velocityField==="uniform"){
+          if(p.advectionScheme==="muscl-tvd"){
+            if(Math.abs(p.ux)>0)advState=musclSweep2D(
+              advState,N,p.ux,0.5*dt,dx,"x",p.boundaryX,p.fluxLimiter,p.inflowX,p.dirichletXmin,p.dirichletXmax);
+            if(Math.abs(p.uy)>0)advState=musclSweep2D(
+              advState,N,p.uy,dt,dy,"y",p.boundaryY,p.fluxLimiter,p.inflowY,p.dirichletYmin,p.dirichletYmax);
+            if(Math.abs(p.ux)>0)advState=musclSweep2D(
+              advState,N,p.ux,0.5*dt,dx,"x",p.boundaryX,p.fluxLimiter,p.inflowX,p.dirichletXmin,p.dirichletXmax);
+          }else{
+            if(Math.abs(p.ux)>0)advState=scalarSweep2D(
+              advState,N,p.ux,0.5*dt,dx,"x",p.boundaryX,p.advectionScheme,p.inflowX,p.dirichletXmin,p.dirichletXmax);
+            if(Math.abs(p.uy)>0)advState=scalarSweep2D(
+              advState,N,p.uy,dt,dy,"y",p.boundaryY,p.advectionScheme,p.inflowY,p.dirichletYmin,p.dirichletYmax);
+            if(Math.abs(p.ux)>0)advState=scalarSweep2D(
+              advState,N,p.ux,0.5*dt,dx,"x",p.boundaryX,p.advectionScheme,p.inflowX,p.dirichletXmin,p.dirichletXmax);
+          }
         }else{
-          if(Math.abs(p.ux)>0)advState=scalarSweep2D(
-            advState,N,p.ux,0.5*dt,dx,"x",p.boundaryX,p.advectionScheme,p.inflowX,p.dirichletXmin,p.dirichletXmax);
-          if(Math.abs(p.uy)>0)advState=scalarSweep2D(
-            advState,N,p.uy,dt,dy,"y",p.boundaryY,p.advectionScheme,p.inflowY,p.dirichletYmin,p.dirichletYmax);
-          if(Math.abs(p.ux)>0)advState=scalarSweep2D(
-            advState,N,p.ux,0.5*dt,dx,"x",p.boundaryX,p.advectionScheme,p.inflowX,p.dirichletXmin,p.dirichletXmax);
+          // Non-uniform divergence-free velocity fields.
+          // Each directional sweep uses a conservative face flux.
+          advState=variableVelocitySweep2D(
+            advState,N,p,0.5*dt,dx,"x",p.boundaryX,p.advectionScheme,p.fluxLimiter,
+            p.inflowX,p.dirichletXmin,p.dirichletXmax,dx,dy);
+          advState=variableVelocitySweep2D(
+            advState,N,p,dt,dy,"y",p.boundaryY,p.advectionScheme,p.fluxLimiter,
+            p.inflowY,p.dirichletYmin,p.dirichletYmax,dx,dy);
+          advState=variableVelocitySweep2D(
+            advState,N,p,0.5*dt,dx,"x",p.boundaryX,p.advectionScheme,p.fluxLimiter,
+            p.inflowX,p.dirichletXmin,p.dirichletXmax,dx,dy);
         }
       }
 
@@ -1292,7 +1591,7 @@ async function calc2D(p,serial){
       }
 
       // Pure diffusion + Neumann: mirrored ghost-cell update on walls.
-      if(Math.abs(p.ux)<1e-15 && Math.abs(p.uy)<1e-15 && p.D>0){
+      if(advRate<1e-15 && p.D>0){
         if(!px && p.boundaryX==="neumann"){
           for(j=1;j<N-1;j++){
             var lapYL=(c[(j+1)*N]-2*c[j*N]+c[(j-1)*N])/(dy*dy);
@@ -1324,7 +1623,7 @@ async function calc2D(p,serial){
           if(p.boundaryX==="dirichlet"){
             next[j*N]=p.dirichletXmin;next[j*N+N-1]=p.dirichletXmax;
           }else if(p.boundaryX==="neumann"){
-            if(!(Math.abs(p.ux)<1e-15&&Math.abs(p.uy)<1e-15&&p.D>0)){
+            if(!(advRate<1e-15&&p.D>0)){
               next[j*N]=next[j*N+1];next[j*N+N-1]=next[j*N+N-2];
             }
           }else{
@@ -1340,7 +1639,7 @@ async function calc2D(p,serial){
           if(p.boundaryY==="dirichlet"){
             next[i]=p.dirichletYmin;next[(N-1)*N+i]=p.dirichletYmax;
           }else if(p.boundaryY==="neumann"){
-            if(!(Math.abs(p.ux)<1e-15&&Math.abs(p.uy)<1e-15&&p.D>0)){
+            if(!(advRate<1e-15&&p.D>0)){
               next[i]=next[N+i];next[(N-1)*N+i]=next[(N-2)*N+i];
             }
           }else{
@@ -1806,6 +2105,12 @@ function initConvectionTemperature(kind,N,p){
           Math.exp(-(d1x*d1x+d1y*d1y)/.012)
           +Math.exp(-(d2x*d2x+d2y*d2y)/.012);
         if(base>1)base=1;
+      }else if(kind==="lower-left-hot"){
+        var dlx=x-.25,dly=y-.18;
+        base=Math.exp(-(dlx*dlx+dly*dly)/.012);
+      }else if(kind==="horizontal-hot-layer"){
+        var dlyr=(y-.5)/.06;
+        base=Math.exp(-.5*dlyr*dlyr);
       }else if(kind==="random-perturbations"){
         base=.5
           +.05*Math.sin(6*Math.PI*x+1.7)*Math.sin(4*Math.PI*y+.4)
@@ -2615,6 +2920,26 @@ E.equationType.addEventListener("change",function(){
   }
   updateModeUI();
   calculate();
+});
+
+E.velocityField.addEventListener("change",function(){
+  updateVelocityFieldUI();
+  if(E.velocityField.value!=="uniform"){
+    E.boundaryX.value="periodic";
+    E.boundaryY.value="periodic";
+    updateBoundaryUI();
+  }
+  if(E.equationType.value==="advection"||E.equationType.value==="advection-diffusion"){
+    calculate();
+  }
+});
+E.rotationOmega.addEventListener("change",function(){
+  if((E.equationType.value==="advection"||E.equationType.value==="advection-diffusion") &&
+     E.velocityField.value==="rotation")calculate();
+});
+E.shearRate.addEventListener("change",function(){
+  if((E.equationType.value==="advection"||E.equationType.value==="advection-diffusion") &&
+     E.velocityField.value==="shear")calculate();
 });
 
 E.waveSpeed.addEventListener("change",function(){
