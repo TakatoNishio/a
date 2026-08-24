@@ -513,7 +513,7 @@ var E={
 
 var ctx=E.chart.getContext("2d");
 var frames=[],times=[],current=0,playing=false,raf=null,lastTs=0;
-var activeWorker=null,loadingTimer=null,loadingIndex=0,calculationSerial=0;
+var loadingTimer=null,loadingIndex=0,calculationSerial=0,lastCalculationYield=0;
 var state={mode:"1d",L:10,N:181,dx:0,velocityFrames:[],vorticityFrames:[]};
 
 function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
@@ -937,7 +937,7 @@ function conservativeLaxWendroff1D(c,u,dt,dx,boundary,inflow,bcLeft,bcRight){
   return out;
 }
 
-function calc1D(p){
+async function calc1D(p,serial){
   var N=p.grid1d,periodic=(p.boundary1d==="periodic");
   if(N*320>1600000)throw new Error("1Dの格子点数が大きすぎます。保存フレームを含めるとメモリ使用量が過大になるため、格子点数を小さくしてください。");
   var dx=periodic?p.L/N:p.L/(N-1),frameCount=320,displayDt=p.T/(frameCount-1);
@@ -949,7 +949,7 @@ function calc1D(p){
 
   var dt=displayDt/micro;
   var c=init1D(p.type,N,p.L,p.sigma,dx),next=new Float64Array(N);
-  var f,m,i,tmp,advected,im,ip;
+  var f,m,i,tmp,advected,im,ip,workSinceYield=0;
 
   if(!periodic){
     if(p.boundary1d==="dirichlet"){
@@ -1008,7 +1008,15 @@ function calc1D(p){
       }
 
       tmp=c;c=next;next=tmp;
+
+      workSinceYield++;
+      if(workSinceYield>=80){
+        workSinceYield=0;
+        await maybeYieldToBrowser(serial,false);
+      }
     }
+
+    if(f%8===0)await maybeYieldToBrowser(serial,false);
     frames.push(new Float64Array(c));times.push(f*displayDt);
   }
 
@@ -1088,7 +1096,7 @@ function scalarSweep2D(c,N,vel,dt,d,axis,boundary,scheme,inflow,bcMin,bcMax){
   return out;
 }
 
-function calc2D(p){
+async function calc2D(p,serial){
   var N=p.grid2d,px=(p.boundaryX==="periodic"),py=(p.boundaryY==="periodic");
   if(N*N*160>18000000)throw new Error("2Dの格子点数が大きすぎます。保存フレームを含めたメモリ使用量が過大になるため、格子点数を小さくしてください。");
   var dx=px?p.L/N:p.L/(N-1);
@@ -1103,7 +1111,7 @@ function calc2D(p){
 
   var dt=displayDt/micro;
   var c=init2D(p.type,N,p.L,p.sigma,dx,dy),next=new Float64Array(N*N);
-  var f,m,i,j,k,tmp,im,ip,jm,jp;
+  var f,m,i,j,k,tmp,im,ip,jm,jp,workSinceYield=0;
 
   if(!px){
     for(j=0;j<N;j++){
@@ -1237,8 +1245,15 @@ function calc2D(p){
       }
 
       tmp=c;c=next;next=tmp;
+
+      workSinceYield++;
+      if(workSinceYield>=8){
+        workSinceYield=0;
+        await maybeYieldToBrowser(serial,false);
+      }
     }
 
+    if(f%3===0)await maybeYieldToBrowser(serial,false);
     frames.push(new Float64Array(c));times.push(f*displayDt);
   }
 
@@ -1329,7 +1344,7 @@ function initConvectionTemperature(kind,N,p){
 
   return T;
 }
-function solvePsi(omega,psi,tmp,N,dx){
+async function solvePsi(omega,psi,tmp,N,dx,serial){
   var it,i,j,k,residual,maxResidual;
   var dx2=dx*dx;
   var tol=1e-6;
@@ -1365,6 +1380,8 @@ function solvePsi(omega,psi,tmp,N,dx){
       }
       if(maxResidual<tol)break;
     }
+
+    if(it%40===39)await maybeYieldToBrowser(serial,false);
   }
 
   return {
@@ -1379,7 +1396,7 @@ function convectiveFaceFlux(faceVelocity,leftValue,rightValue){
   return (faceVelocity>=0)?faceVelocity*leftValue:faceVelocity*rightValue;
 }
 
-function calcConvection(p){
+async function calcConvection(p,serial){
   var N=p.gridConvection,dx=p.L/(N-1),frameCount=140,displayDt=p.T/(frameCount-1);
   if(N*N*140>6000000)throw new Error("自然対流の格子点数が大きすぎます。保存フレームを含めた計算量とメモリ使用量が過大になるため、格子点数を小さくしてください。");
 
@@ -1404,7 +1421,7 @@ function calcConvection(p){
     var elapsed=0;
 
     while(elapsed<displayDt-1e-12){
-      res=solvePsi(omega,psi,psiTmp,N,dx);
+      res=await solvePsi(omega,psi,psiTmp,N,dx,serial);
       psi=res.psi;psiTmp=res.tmp;
       if(!res.converged)poissonConverged=false;
       if(res.iterations>maxPoissonIterUsed)maxPoissonIterUsed=res.iterations;
@@ -1510,9 +1527,12 @@ function calcConvection(p){
       elapsed+=dt;
       totalSubsteps++;
       if(totalSubsteps>2000000)throw new Error("自然対流の内部時間ステップ数が多すぎます。最大時間・拡散率・粘性・浮力・領域サイズを見直してください。");
+
+      if(totalSubsteps%6===0)await maybeYieldToBrowser(serial,false);
     }
 
-    res=solvePsi(omega,psi,psiTmp,N,dx);
+    if(f%2===0)await maybeYieldToBrowser(serial,false);
+    res=await solvePsi(omega,psi,psiTmp,N,dx,serial);
     psi=res.psi;psiTmp=res.tmp;
     if(!res.converged)poissonConverged=false;
     if(res.iterations>maxPoissonIterUsed)maxPoissonIterUsed=res.iterations;
@@ -1863,61 +1883,72 @@ function stopCalculationIndicator(){
   E.calculationOverlay.classList.remove("active");
 }
 
-function terminateActiveWorker(){
-  if(activeWorker!==null){
-    activeWorker.terminate();
-    activeWorker=null;
+function calculationCancelledError(){
+  var err=new Error("計算がキャンセルされました。");
+  err.isCalculationCancelled=true;
+  return err;
+}
+
+function ensureCalculationActive(serial){
+  if(serial!==calculationSerial)throw calculationCancelledError();
+}
+
+var calculationYieldQueue=[];
+var calculationYieldChannel=null;
+
+if(typeof MessageChannel!=="undefined"){
+  calculationYieldChannel=new MessageChannel();
+  calculationYieldChannel.port1.onmessage=function(){
+    var item=calculationYieldQueue.shift();
+    if(item)item();
+  };
+}
+
+function yieldToBrowser(serial){
+  return new Promise(function(resolve,reject){
+    var done=function(){
+      if(serial!==calculationSerial){
+        reject(calculationCancelledError());
+        return;
+      }
+      lastCalculationYield=
+        (typeof performance!=="undefined"&&performance.now)
+          ?performance.now()
+          :Date.now();
+      resolve();
+    };
+
+    if(calculationYieldChannel){
+      calculationYieldQueue.push(done);
+      calculationYieldChannel.port2.postMessage(0);
+    }else{
+      setTimeout(done,0);
+    }
+  });
+}
+
+async function maybeYieldToBrowser(serial,force){
+  ensureCalculationActive(serial);
+  var now=
+    (typeof performance!=="undefined"&&performance.now)
+      ?performance.now()
+      :Date.now();
+
+  if(force || now-lastCalculationYield>=45){
+    await yieldToBrowser(serial);
   }
 }
 
-function simulationWorkerSource(){
-  var workerFunctions=[
-    mass1D,init1D,limiterPhi,limitedSlope,musclAdvect1D,
-    conservativeUpwindFlux,scalarBoundaryGhost1D,
-    conservativeUpwind1D,conservativeLaxWendroff1D,
-    calc1D,mass2D,init2D,musclSweep2D,scalarSweep2D,calc2D,
-    initConvectionTemperature,solvePsi,convectiveFaceFlux,calcConvection
-  ];
-
-  var source='"use strict";\n';
-  for(var i=0;i<workerFunctions.length;i++){
-    source+=workerFunctions[i].toString()+"\n";
-  }
-
-  source+=
-    'var frames=[],times=[],state={};\\n'+
-    'var E={dx:{textContent:""},dt:{textContent:""},mass:{textContent:""},status:{textContent:""}};\\n'+
-    'self.onmessage=function(ev){\\n'+
-    '  try{\\n'+
-    '    var p=ev.data;\\n'+
-    '    frames=[];times=[];state={};\\n'+
-    '    if(p.equationType==="convection")calcConvection(p);\\n'+
-    '    else if(p.mode==="1d")calc1D(p);\\n'+
-    '    else calc2D(p);\\n'+
-    '    self.postMessage({ok:true,frames:frames,times:times,state:state,labels:{dx:E.dx.textContent,dt:E.dt.textContent,mass:E.mass.textContent,status:E.status.textContent}});\\n'+
-    '  }catch(err){\\n'+
-    '    self.postMessage({ok:false,error:(err&&err.message)?err.message:String(err)});\\n'+
-    '  }\\n'+
-    '};\\n';
-
-  return source;
+function nextPaint(){
+  return new Promise(function(resolve){
+    if(typeof requestAnimationFrame==="function"){
+      requestAnimationFrame(function(){resolve();});
+    }else{
+      setTimeout(resolve,16);
+    }
+  });
 }
 
-function createSimulationWorker(){
-  var blob=new Blob([simulationWorkerSource()],{type:"text/javascript"});
-  var url=URL.createObjectURL(blob);
-  var worker=new Worker(url);
-  worker._simulationURL=url;
-  return worker;
-}
-
-function disposeSimulationWorker(worker){
-  if(!worker)return;
-  try{worker.terminate();}catch(_err){}
-  if(worker._simulationURL){
-    try{URL.revokeObjectURL(worker._simulationURL);}catch(_err2){}
-  }
-}
 
 function draw(){
   if(!frames.length)return;
@@ -1945,43 +1976,9 @@ function step(ts){
 
 
 
-function runCalculationOnMainThread(p,serial,workerErrorMessage){
-  // Yield once so that the loading message is painted before a synchronous fallback.
-  setTimeout(function(){
-    if(serial!==calculationSerial)return;
 
-    try{
-      frames=[];times=[];current=0;
-
-      if(p.equationType==="convection")calcConvection(p);
-      else if(p.mode==="1d")calc1D(p);
-      else calc2D(p);
-
-      if(serial!==calculationSerial)return;
-
-      stopCalculationIndicator();
-      E.slider.min="0";
-      E.slider.max=String(Math.max(0,frames.length-1));
-      E.slider.value="0";
-      E.status.textContent="計算完了："+frames.length+" フレーム";
-      E.play.disabled=false;
-      draw();
-    }catch(err){
-      stopCalculationIndicator();
-      frames=[];times=[];current=0;
-      E.status.textContent="計算エラー："+(err&&err.message?err.message:String(err));
-      E.dx.textContent="Δx = —";
-      E.dt.textContent="Δt = —";
-      E.mass.textContent=(p.equationType==="convection")?"平均T = —":"総量 = —";
-      E.play.disabled=false;
-      console.error("Worker fallback error:",workerErrorMessage||"",err);
-    }
-  },30);
-}
-
-function calculate(){
+async function calculate(){
   stop();
-  terminateActiveWorker();
 
   var serial=++calculationSerial;
 
@@ -1990,6 +1987,8 @@ function calculate(){
     var p=readParams();
 
     frames=[];times=[];current=0;
+    E.slider.min="0";
+    E.slider.max="0";
     E.slider.value="0";
     E.output.value="t = 0.000";
     E.status.textContent="";
@@ -1997,95 +1996,41 @@ function calculate(){
     E.dt.textContent="Δt = —";
     E.mass.textContent=(p.equationType==="convection")?"平均T = —":"総量 = —";
 
-    startCalculationIndicator();
     E.play.disabled=true;
+    startCalculationIndicator();
 
-    // Let the browser paint the loading overlay before starting the worker.
-    setTimeout(function(){
-      if(serial!==calculationSerial)return;
+    // Ensure the loading overlay is actually painted before numerical work starts.
+    await nextPaint();
+    lastCalculationYield=
+      (typeof performance!=="undefined"&&performance.now)
+        ?performance.now()
+        :Date.now();
+    await maybeYieldToBrowser(serial,true);
 
-      if(typeof Worker==="undefined" || typeof Blob==="undefined"){
-        runCalculationOnMainThread(p,serial,"Web Worker is unavailable");
-        return;
-      }
+    if(p.equationType==="convection"){
+      await calcConvection(p,serial);
+    }else if(p.mode==="1d"){
+      await calc1D(p,serial);
+    }else{
+      await calc2D(p,serial);
+    }
 
-      var worker;
-      try{
-        worker=createSimulationWorker();
-      }catch(err){
-        runCalculationOnMainThread(
-          p,serial,
-          "Web Worker を開始できませんでした："+((err&&err.message)?err.message:String(err))
-        );
-        return;
-      }
+    ensureCalculationActive(serial);
 
-      activeWorker=worker;
-
-      var workerWatchdog=setTimeout(function(){
-        if(serial!==calculationSerial || activeWorker!==worker)return;
-        disposeSimulationWorker(worker);
-        if(activeWorker===worker)activeWorker=null;
-        runCalculationOnMainThread(p,serial,"Worker timeout");
-      },15000);
-
-      worker.onmessage=function(ev){
-        clearTimeout(workerWatchdog);
-        if(serial!==calculationSerial){
-          disposeSimulationWorker(worker);
-          return;
-        }
-
-        var result=ev.data;
-        disposeSimulationWorker(worker);
-        if(activeWorker===worker)activeWorker=null;
-        stopCalculationIndicator();
-
-        if(!result.ok){
-          runCalculationOnMainThread(p,serial,"Worker error: "+result.error);
-          return;
-        }
-
-        frames=result.frames;
-        times=result.times;
-        state=result.state;
-        current=0;
-
-        E.dx.textContent=result.labels.dx;
-        E.dt.textContent=result.labels.dt;
-        E.mass.textContent=result.labels.mass;
-        E.slider.min="0";
-        E.slider.max=String(Math.max(0,frames.length-1));
-        E.slider.value="0";
-        E.status.textContent=result.labels.status ||
-          ("計算完了："+frames.length+" フレーム");
-        E.play.disabled=false;
-        draw();
-      };
-
-      worker.onerror=function(err){
-        clearTimeout(workerWatchdog);
-        if(serial!==calculationSerial)return;
-        disposeSimulationWorker(worker);
-        if(activeWorker===worker)activeWorker=null;
-        runCalculationOnMainThread(
-          p,serial,
-          "Worker runtime error: "+(err.message||"unknown error")
-        );
-      };
-
-      worker.onmessageerror=function(){
-        clearTimeout(workerWatchdog);
-        if(serial!==calculationSerial)return;
-        disposeSimulationWorker(worker);
-        if(activeWorker===worker)activeWorker=null;
-        runCalculationOnMainThread(p,serial,"Worker message could not be decoded");
-      };
-
-      worker.postMessage(p);
-    },30);
+    current=0;
+    E.slider.min="0";
+    E.slider.max=String(Math.max(0,frames.length-1));
+    E.slider.value="0";
+    E.status.textContent="計算完了："+frames.length+" フレーム";
+    E.play.disabled=false;
+    stopCalculationIndicator();
+    draw();
 
   }catch(err){
+    if(err && err.isCalculationCancelled){
+      return;
+    }
+
     stopCalculationIndicator();
     frames=[];times=[];current=0;
     E.status.textContent="計算エラー："+(err&&err.message?err.message:String(err));
@@ -2116,7 +2061,6 @@ function stop(){
 
 function reset(){
   calculationSerial++;
-  terminateActiveWorker();
   stopCalculationIndicator();
   stop();
   current=0;
