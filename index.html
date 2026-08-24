@@ -146,6 +146,17 @@ canvas{display:block;width:100%;height:430px}
       </select>
     </div>
 
+    <div class="group" id="scheme-group">
+      <label for="advection-scheme">移流の数値解法</label>
+      <select id="advection-scheme">
+        <option value="upwind">一次風上差分</option>
+        <option value="lax-wendroff">2次精度 Lax–Wendroff</option>
+      </select>
+      <div class="hint">
+        Lax–Wendroff は数値拡散が小さい一方、不連続な分布では振動が生じることがあります。
+      </div>
+    </div>
+
     <div class="group" id="width-group">
       <label for="width">初期分布の幅 σ</label>
       <input id="width" type="number" value="0.65" min="0.05" max="20" step="0.05">
@@ -214,6 +225,8 @@ var E={
   length:document.getElementById("length"),
   duration:document.getElementById("duration"),
   initial:document.getElementById("initial"),
+  advectionScheme:document.getElementById("advection-scheme"),
+  schemeGroup:document.getElementById("scheme-group"),
   width:document.getElementById("width"),
   widthGroup:document.getElementById("width-group"),
   calculate:document.getElementById("calculate"),
@@ -257,6 +270,7 @@ function updateModeUI(){
   E.D.disabled=!(useDiff||isConv);
   E.u1dGroup.style.display=(!is2&&useAdv)?"grid":"none";
   E.u2dGroup.style.display=(is2&&useAdv)?"grid":"none";
+  E.schemeGroup.style.display=(!isConv&&useAdv)?"grid":"none";
   E.convectionControls.style.display=isConv?"block":"none";
   E.initial.parentElement.style.display=isConv?"none":"grid";
   E.widthGroup.style.display=isConv?"none":(E.initial.value==="step"?"none":"grid");
@@ -282,8 +296,8 @@ function updateModeUI(){
   }
 
   E.note.textContent=is2
-    ?"2D：移流項は一次精度風上差分、拡散項は中心差分、4辺は Neumann 境界条件です。"
-    :"1D：移流項は一次精度風上差分、拡散項は中心差分、両端は Neumann 境界条件です。";
+    ?"2D：移流項は一次精度風上差分、拡散項は中心差分です。移流のみ・移流＋拡散では x・y 両方向に周期境界条件を用います。移流の数値解法は一次風上差分または2次精度 Lax–Wendroff を選択できます。拡散のみは従来どおり Neumann 境界条件です。"
+    :"1D：移流項は一次精度風上差分、拡散項は中心差分です。移流のみ・移流＋拡散では周期境界条件を用います。移流の数値解法は一次風上差分または2次精度 Lax–Wendroff を選択できます。拡散のみは従来どおり Neumann 境界条件です。";
   E.legend.style.display=is2?"flex":"none";
 
   if(is2){
@@ -316,7 +330,8 @@ function readParams(){
     sigma:clamp(num(E.width,.65),.05,100),
     type:E.initial.value,
     mode:E.dimension.value,
-    equationType:type
+    equationType:type,
+    advectionScheme:E.advectionScheme.value
   };
 
   if(p.sigma>p.L)p.sigma=p.L;
@@ -345,7 +360,10 @@ function init1D(type,N,L,sigma,dx){
 }
 
 function calc1D(p){
-  var N=181,dx=p.L/(N-1),frameCount=320,displayDt=p.T/(frameCount-1);
+  var N=181,dx=p.L/N,frameCount=320,displayDt=p.T/(frameCount-1);
+  var periodic=(p.equationType==="advection"||p.equationType==="advection-diffusion");
+
+  if(!periodic)dx=p.L/(N-1);
 
   var diffLimit=(p.D>0)?0.45*dx*dx/p.D:1e99;
   var advLimit=(Math.abs(p.u)>0)?0.9*dx/Math.abs(p.u):1e99;
@@ -356,31 +374,47 @@ function calc1D(p){
 
   var dt=displayDt/micro;
   var c=init1D(p.type,N,p.L,p.sigma,dx),next=new Float64Array(N);
-  var f,m,i,tmp,adv,diff,grad;
+  var f,m,i,tmp,diff,im,ip;
   frames=[new Float64Array(c)];times=[0];
 
   for(f=1;f<frameCount;f++){
     for(m=0;m<micro;m++){
-      for(i=1;i<N-1;i++){
-        adv=0; diff=0;
+      if(periodic){
+        var a=p.u*dt/dx;
 
-        if(p.u>0){
-          grad=(c[i]-c[i-1])/dx;
-          adv=-p.u*grad;
-        }else if(p.u<0){
-          grad=(c[i+1]-c[i])/dx;
-          adv=-p.u*grad;
+        for(i=0;i<N;i++){
+          im=(i===0)?N-1:i-1;
+          ip=(i===N-1)?0:i+1;
+
+          diff=(p.D>0)
+            ?p.D*(c[ip]-2*c[i]+c[im])/(dx*dx)
+            :0;
+
+          if(p.advectionScheme==="lax-wendroff"){
+            next[i]=c[i]
+              -0.5*a*(c[ip]-c[im])
+              +0.5*a*a*(c[ip]-2*c[i]+c[im])
+              +dt*diff;
+          }else{
+            var adv=0,grad=0;
+            if(p.u>0){
+              grad=(c[i]-c[im])/dx;
+              adv=-p.u*grad;
+            }else if(p.u<0){
+              grad=(c[ip]-c[i])/dx;
+              adv=-p.u*grad;
+            }
+            next[i]=c[i]+dt*(adv+diff);
+          }
         }
-
-        if(p.D>0){
+      }else{
+        for(i=1;i<N-1;i++){
           diff=p.D*(c[i+1]-2*c[i]+c[i-1])/(dx*dx);
+          next[i]=c[i]+dt*diff;
         }
-
-        next[i]=c[i]+dt*(adv+diff);
+        next[0]=next[1];
+        next[N-1]=next[N-2];
       }
-
-      next[0]=next[1];
-      next[N-1]=next[N-2];
 
       tmp=c;c=next;next=tmp;
     }
@@ -389,7 +423,7 @@ function calc1D(p){
     times.push(f*displayDt);
   }
 
-  state={mode:"1d",L:p.L,N:N,dx:dx};
+  state={mode:"1d",L:p.L,N:N,dx:dx,periodic:periodic};
   E.dx.textContent="Δx = "+dx.toPrecision(4);
   E.dt.textContent="Δt = "+dt.toPrecision(4);
   E.mass.textContent="総量 = "+mass1D(frames[0],dx).toPrecision(5);
@@ -420,7 +454,8 @@ function init2D(type,N,L,sigma,dx){
 }
 
 function calc2D(p){
-  var N=51,dx=p.L/(N-1),frameCount=160,displayDt=p.T/(frameCount-1);
+  var N=51,periodic=(p.equationType==="advection"||p.equationType==="advection-diffusion");
+  var dx=periodic?p.L/N:p.L/(N-1),frameCount=160,displayDt=p.T/(frameCount-1);
 
   var diffLimit=(p.D>0)?0.22*dx*dx/p.D:1e99;
   var speedSum=Math.abs(p.ux)+Math.abs(p.uy);
@@ -432,47 +467,76 @@ function calc2D(p){
 
   var dt=displayDt/micro;
   var c=init2D(p.type,N,p.L,p.sigma,dx),next=new Float64Array(N*N);
-  var f,m,i,j,k,tmp,advx,advy,diff,gx,gy;
+  var f,m,i,j,k,tmp,diff,gx,gy,im,ip,jm,jp;
   frames=[new Float64Array(c)];times=[0];
 
   for(f=1;f<frameCount;f++){
     for(m=0;m<micro;m++){
-      for(j=1;j<N-1;j++){
-        for(i=1;i<N-1;i++){
-          k=j*N+i;
-          advx=0;advy=0;diff=0;
+      if(periodic){
+        var ax=p.ux*dt/dx;
+        var ay=p.uy*dt/dx;
 
-          if(p.ux>0){
-            gx=(c[k]-c[k-1])/dx;
-            advx=-p.ux*gx;
-          }else if(p.ux<0){
-            gx=(c[k+1]-c[k])/dx;
-            advx=-p.ux*gx;
+        for(j=0;j<N;j++){
+          jm=(j===0)?N-1:j-1;
+          jp=(j===N-1)?0:j+1;
+
+          for(i=0;i<N;i++){
+            im=(i===0)?N-1:i-1;
+            ip=(i===N-1)?0:i+1;
+            k=j*N+i;
+
+            diff=(p.D>0)
+              ?p.D*(c[j*N+ip]+c[j*N+im]+c[jp*N+i]+c[jm*N+i]-4*c[k])/(dx*dx)
+              :0;
+
+            if(p.advectionScheme==="lax-wendroff"){
+              var advLW =
+                -0.5*ax*(c[j*N+ip]-c[j*N+im])
+                +0.5*ax*ax*(c[j*N+ip]-2*c[k]+c[j*N+im])
+                -0.5*ay*(c[jp*N+i]-c[jm*N+i])
+                +0.5*ay*ay*(c[jp*N+i]-2*c[k]+c[jm*N+i]);
+
+              next[k]=c[k]+advLW+dt*diff;
+            }else{
+              var advx=0,advy=0;
+
+              if(p.ux>0){
+                gx=(c[k]-c[j*N+im])/dx;
+                advx=-p.ux*gx;
+              }else if(p.ux<0){
+                gx=(c[j*N+ip]-c[k])/dx;
+                advx=-p.ux*gx;
+              }
+
+              if(p.uy>0){
+                gy=(c[k]-c[jm*N+i])/dx;
+                advy=-p.uy*gy;
+              }else if(p.uy<0){
+                gy=(c[jp*N+i]-c[k])/dx;
+                advy=-p.uy*gy;
+              }
+
+              next[k]=c[k]+dt*(advx+advy+diff);
+            }
           }
-
-          if(p.uy>0){
-            gy=(c[k]-c[k-N])/dx;
-            advy=-p.uy*gy;
-          }else if(p.uy<0){
-            gy=(c[k+N]-c[k])/dx;
-            advy=-p.uy*gy;
-          }
-
-          if(p.D>0){
-            diff=p.D*(c[k+1]+c[k-1]+c[k+N]+c[k-N]-4*c[k])/(dx*dx);
-          }
-
-          next[k]=c[k]+dt*(advx+advy+diff);
         }
-      }
+      }else{
+        for(j=1;j<N-1;j++){
+          for(i=1;i<N-1;i++){
+            k=j*N+i;
+            diff=p.D*(c[k+1]+c[k-1]+c[k+N]+c[k-N]-4*c[k])/(dx*dx);
+            next[k]=c[k]+dt*diff;
+          }
+        }
 
-      for(i=1;i<N-1;i++){
-        next[i]=next[N+i];
-        next[(N-1)*N+i]=next[(N-2)*N+i];
-      }
-      for(j=0;j<N;j++){
-        next[j*N]=next[j*N+1];
-        next[j*N+N-1]=next[j*N+N-2];
+        for(i=1;i<N-1;i++){
+          next[i]=next[N+i];
+          next[(N-1)*N+i]=next[(N-2)*N+i];
+        }
+        for(j=0;j<N;j++){
+          next[j*N]=next[j*N+1];
+          next[j*N+N-1]=next[j*N+N-2];
+        }
       }
 
       tmp=c;c=next;next=tmp;
@@ -482,7 +546,7 @@ function calc2D(p){
     times.push(f*displayDt);
   }
 
-  state={mode:"2d",L:p.L,N:N,dx:dx};
+  state={mode:"2d",L:p.L,N:N,dx:dx,periodic:periodic};
   E.dx.textContent="Δx = Δy = "+dx.toPrecision(4);
   E.dt.textContent="Δt = "+dt.toPrecision(4);
   E.mass.textContent="総量 = "+mass2D(frames[0],dx).toPrecision(5);
@@ -926,6 +990,12 @@ E.equationType.addEventListener("change",function(){
   stop();
   updateModeUI();
   calculate();
+});
+
+E.advectionScheme.addEventListener("change",function(){
+  if(E.equationType.value==="advection"||E.equationType.value==="advection-diffusion"){
+    calculate();
+  }
 });
 
 E.convInitial.addEventListener("change",function(){
