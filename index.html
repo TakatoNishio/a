@@ -217,7 +217,7 @@ canvas{display:block;width:100%;height:430px}
         <option value="muscl-tvd">MUSCL-TVD</option>
       </select>
       <div class="hint">
-        一次風上差分は安定ですが数値拡散が大きく、Lax–Wendroff は数値拡散が小さい一方で不連続付近に振動が生じることがあります。MUSCL-TVD は区分的線形再構築と Hancock 予測子を用い、limiter によって高精度化と非物理的振動の抑制を両立します。
+        一次風上差分は安定ですが数値拡散が大きく、Lax–Wendroff は数値拡散が小さい一方で不連続付近に振動が生じることがあります。MUSCL-TVD は区分的線形再構築と Hancock 予測子を用い、limiter によって高精度化と非物理的振動の抑制を両立します。2Dでは Strang 方向分割を用います。
       </div>
     </div>
 
@@ -648,8 +648,15 @@ function readParams(){
   return p;
 }
 
-function mass1D(a,dx){
-  var s=0,i;for(i=0;i<a.length;i++)s+=a[i];return s*dx;
+function mass1D(a,dx,periodic){
+  var s=0,i;
+  if(periodic){
+    for(i=0;i<a.length;i++)s+=a[i];
+  }else{
+    s=0.5*a[0]+0.5*a[a.length-1];
+    for(i=1;i<a.length-1;i++)s+=a[i];
+  }
+  return s*dx;
 }
 
 function init1D(type,N,L,sigma,dx){
@@ -682,47 +689,53 @@ function limitedSlope(dm,dp,type){
 
 // MUSCL-Hancock finite-volume update for constant 1D advection.
 // Returns the advected state after one dt, without physical diffusion.
-function musclAdvect1D(c,u,dt,dx,periodic,limiter,inflow){
+function musclAdvect1D(c,u,dt,dx,boundary,limiter,inflow,bcLeft,bcRight){
   var N=c.length,slope=new Float64Array(N);
   var left=new Float64Array(N),right=new Float64Array(N);
   var flux=new Float64Array(N+1),out=new Float64Array(N);
-  var i,im,ip,dm,dp,C=u*dt/dx;
+  var i,dm,dp,C=u*dt/dx;
+
+  function ghostLeft(){
+    if(boundary==="periodic")return c[N-1];
+    if(boundary==="dirichlet")return 2*bcLeft-c[0];
+    if(boundary==="neumann")return c[0];
+    return (u>0)?inflow:c[0];
+  }
+  function ghostRight(){
+    if(boundary==="periodic")return c[0];
+    if(boundary==="dirichlet")return 2*bcRight-c[N-1];
+    if(boundary==="neumann")return c[N-1];
+    return (u<0)?inflow:c[N-1];
+  }
+  function val(q){
+    if(q<0)return ghostLeft();
+    if(q>=N)return ghostRight();
+    return c[q];
+  }
 
   for(i=0;i<N;i++){
-    if(periodic){
-      im=(i===0)?N-1:i-1;
-      ip=(i===N-1)?0:i+1;
-      dm=c[i]-c[im];
-      dp=c[ip]-c[i];
-      slope[i]=limitedSlope(dm,dp,limiter);
-    }else if(i>0&&i<N-1){
-      dm=c[i]-c[i-1];
-      dp=c[i+1]-c[i];
-      slope[i]=limitedSlope(dm,dp,limiter);
-    }else{
-      slope[i]=0;
-    }
+    dm=val(i)-val(i-1);
+    dp=val(i+1)-val(i);
+    slope[i]=limitedSlope(dm,dp,limiter);
 
-    // MUSCL-Hancock predictor to t^(n+1/2).
-    // Signed Courant number C is essential for negative velocity.
+    // MUSCL-Hancock predictor to n+1/2 with signed Courant number.
     left[i] =c[i]-0.5*(1+C)*slope[i];
     right[i]=c[i]+0.5*(1-C)*slope[i];
   }
 
   for(i=0;i<=N;i++){
-    if(periodic){
-      var il=(i===0)?N-1:i-1;
-      var ir=(i===N)?0:i;
-      flux[i]=(u>=0)?u*right[il]:u*left[ir];
+    var lState,rState;
+    if(i===0){
+      lState=ghostLeft();
+      rState=left[0];
+    }else if(i===N){
+      lState=right[N-1];
+      rState=ghostRight();
     }else{
-      if(i===0){
-        flux[i]=(u>=0)?u*inflow:u*left[0];
-      }else if(i===N){
-        flux[i]=(u>=0)?u*right[N-1]:u*inflow;
-      }else{
-        flux[i]=(u>=0)?u*right[i-1]:u*left[i];
-      }
+      lState=right[i-1];
+      rState=left[i];
     }
+    flux[i]=(u>=0)?u*lState:u*rState;
   }
 
   for(i=0;i<N;i++){
@@ -730,7 +743,6 @@ function musclAdvect1D(c,u,dt,dx,periodic,limiter,inflow){
   }
   return out;
 }
-
 function calc1D(p){
   var N=181,periodic=(p.boundary1d==="periodic");
   var dx=periodic?p.L/N:p.L/(N-1),frameCount=320,displayDt=p.T/(frameCount-1);
@@ -742,13 +754,23 @@ function calc1D(p){
 
   var dt=displayDt/micro;
   var c=init1D(p.type,N,p.L,p.sigma,dx),next=new Float64Array(N);
+  if(!periodic){
+    if(p.boundary1d==="dirichlet"){
+      c[0]=p.dirichletLeft;c[N-1]=p.dirichletRight;
+    }else if(p.boundary1d==="neumann"){
+      c[0]=c[1];c[N-1]=c[N-2];
+    }else{
+      if(p.u>0)c[0]=p.inflow1d;
+      else if(p.u<0)c[N-1]=p.inflow1d;
+    }
+  }
   var f,m,i,tmp,diff,im,ip,adv,grad,advected;
   frames=[new Float64Array(c)];times=[0];
 
   for(f=1;f<frameCount;f++){
     for(m=0;m<micro;m++){
       if(p.advectionScheme==="muscl-tvd" && Math.abs(p.u)>0){
-        advected=musclAdvect1D(c,p.u,dt,dx,periodic,p.fluxLimiter,p.inflow1d);
+        advected=musclAdvect1D(c,p.u,dt,dx,p.boundary1d,p.fluxLimiter,p.inflow1d,p.dirichletLeft,p.dirichletRight);
         next.set(advected);
 
         if(p.D>0){
@@ -810,11 +832,19 @@ function calc1D(p){
   state={mode:"1d",L:p.L,N:N,dx:dx,periodic:periodic};
   E.dx.textContent="Δx = "+dx.toPrecision(4);
   E.dt.textContent="Δt = "+dt.toPrecision(4);
-  E.mass.textContent="総量 = "+mass1D(frames[0],dx).toPrecision(5);
+  E.mass.textContent="総量 = "+mass1D(frames[0],dx,periodic).toPrecision(5);
 }
 
-function mass2D(a,dx,dy){
-  var s=0,i;for(i=0;i<a.length;i++)s+=a[i];return s*dx*dy;
+function mass2D(a,dx,dy,px,py,N){
+  var s=0,i,j,wx,wy;
+  for(j=0;j<N;j++){
+    wy=py?1:((j===0||j===N-1)?0.5:1);
+    for(i=0;i<N;i++){
+      wx=px?1:((i===0||i===N-1)?0.5:1);
+      s+=wx*wy*a[j*N+i];
+    }
+  }
+  return s*dx*dy;
 }
 
 function init2D(type,N,L,sigma,dx,dy){
@@ -837,24 +867,23 @@ function init2D(type,N,L,sigma,dx,dy){
   return a;
 }
 
-function musclSweep2D(c,N,vel,dt,d,axis,periodic,limiter,inflow){
-  var out=new Float64Array(c),line=new Float64Array(N),adv,i,j,k;
+function musclSweep2D(c,N,vel,dt,d,axis,boundary,limiter,inflow,bcMin,bcMax){
+  var out=new Float64Array(c),line=new Float64Array(N),adv,i,j;
   if(axis==="x"){
     for(j=0;j<N;j++){
       for(i=0;i<N;i++)line[i]=c[j*N+i];
-      adv=musclAdvect1D(line,vel,dt,d,periodic,limiter,inflow);
+      adv=musclAdvect1D(line,vel,dt,d,boundary,limiter,inflow,bcMin,bcMax);
       for(i=0;i<N;i++)out[j*N+i]=adv[i];
     }
   }else{
     for(i=0;i<N;i++){
       for(j=0;j<N;j++)line[j]=c[j*N+i];
-      adv=musclAdvect1D(line,vel,dt,d,periodic,limiter,inflow);
+      adv=musclAdvect1D(line,vel,dt,d,boundary,limiter,inflow,bcMin,bcMax);
       for(j=0;j<N;j++)out[j*N+i]=adv[j];
     }
   }
   return out;
 }
-
 function calc2D(p){
   var N=51,px=(p.boundaryX==="periodic"),py=(p.boundaryY==="periodic");
   var dx=px?p.L/N:p.L/(N-1);
@@ -872,6 +901,24 @@ function calc2D(p){
 
   var dt=displayDt/micro;
   var c=init2D(p.type,N,p.L,p.sigma,dx,dy),next=new Float64Array(N*N);
+  // Enforce selected non-periodic boundary values already at t=0.
+  var ii,jj;
+  if(!px){
+    for(jj=0;jj<N;jj++){
+      if(p.boundaryX==="dirichlet"){c[jj*N]=p.dirichletXmin;c[jj*N+N-1]=p.dirichletXmax;}
+      else if(p.boundaryX==="neumann"){c[jj*N]=c[jj*N+1];c[jj*N+N-1]=c[jj*N+N-2];}
+      else if(p.ux>0)c[jj*N]=p.inflowX;
+      else if(p.ux<0)c[jj*N+N-1]=p.inflowX;
+    }
+  }
+  if(!py){
+    for(ii=0;ii<N;ii++){
+      if(p.boundaryY==="dirichlet"){c[ii]=p.dirichletYmin;c[(N-1)*N+ii]=p.dirichletYmax;}
+      else if(p.boundaryY==="neumann"){c[ii]=c[N+ii];c[(N-1)*N+ii]=c[(N-2)*N+ii];}
+      else if(p.uy>0)c[ii]=p.inflowY;
+      else if(p.uy<0)c[(N-1)*N+ii]=p.inflowY;
+    }
+  }
   var f,m,i,j,k,tmp,diff,gx,gy,im,ip,jm,jp,advx,advy;
   frames=[new Float64Array(c)];times=[0];
 
@@ -881,9 +928,15 @@ function calc2D(p){
       next.set(c);
 
       if(p.advectionScheme==="muscl-tvd"){
+        // Strang directional splitting: x(dt/2) -> y(dt) -> x(dt/2).
+        // This avoids the first-order Lie splitting used in the previous version.
         var musclState=c;
-        if(Math.abs(p.ux)>0)musclState=musclSweep2D(musclState,N,p.ux,dt,dx,"x",px,p.fluxLimiter,p.inflowX);
-        if(Math.abs(p.uy)>0)musclState=musclSweep2D(musclState,N,p.uy,dt,dy,"y",py,p.fluxLimiter,p.inflowY);
+        if(Math.abs(p.ux)>0)musclState=musclSweep2D(
+          musclState,N,p.ux,0.5*dt,dx,"x",p.boundaryX,p.fluxLimiter,p.inflowX,p.dirichletXmin,p.dirichletXmax);
+        if(Math.abs(p.uy)>0)musclState=musclSweep2D(
+          musclState,N,p.uy,dt,dy,"y",p.boundaryY,p.fluxLimiter,p.inflowY,p.dirichletYmin,p.dirichletYmax);
+        if(Math.abs(p.ux)>0)musclState=musclSweep2D(
+          musclState,N,p.ux,0.5*dt,dx,"x",p.boundaryX,p.fluxLimiter,p.inflowX,p.dirichletXmin,p.dirichletXmax);
         next.set(musclState);
 
         if(p.D>0){
@@ -1016,7 +1069,7 @@ function calc2D(p){
     ?"Δx = Δy = "+dx.toPrecision(4)
     :"Δx = "+dx.toPrecision(4)+", Δy = "+dy.toPrecision(4);
   E.dt.textContent="Δt = "+dt.toPrecision(4);
-  E.mass.textContent="総量 = "+mass2D(frames[0],dx,dy).toPrecision(5);
+  E.mass.textContent="総量 = "+mass2D(frames[0],dx,dy,px,py,N).toPrecision(5);
 }
 
 function initConvectionTemperature(kind,N,p){
@@ -1083,34 +1136,39 @@ function initConvectionTemperature(kind,N,p){
 }
 
 function solvePsi(omega,psi,tmp,N,dx){
-  var it,i,j,k,maxDiff,diff;
+  var it,i,j,k,residual,maxResidual;
   var dx2=dx*dx;
   var tol=1e-6;
-  var maxIter=500;
+  var maxIter=800;
 
   for(it=0;it<maxIter;it++){
-    maxDiff=0;
-
+    // Jacobi iteration
     for(j=1;j<N-1;j++){
       for(i=1;i<N-1;i++){
         k=j*N+i;
-        tmp[k]=.25*(psi[k+1]+psi[k-1]+psi[k+N]+psi[k-N]+dx2*omega[k]);
-        diff=Math.abs(tmp[k]-psi[k]);
-        if(diff>maxDiff)maxDiff=diff;
+        tmp[k]=0.25*(psi[k+1]+psi[k-1]+psi[k+N]+psi[k-N]+dx2*omega[k]);
       }
     }
-
     for(i=0;i<N;i++){tmp[i]=0;tmp[(N-1)*N+i]=0;}
     for(j=0;j<N;j++){tmp[j*N]=0;tmp[j*N+N-1]=0;}
 
     var sw=psi;psi=tmp;tmp=sw;
 
-    if(maxDiff<tol)break;
+    // Residual of ∇²ψ + ω = 0.
+    maxResidual=0;
+    for(j=1;j<N-1;j++){
+      for(i=1;i<N-1;i++){
+        k=j*N+i;
+        residual=(psi[k+1]+psi[k-1]+psi[k+N]+psi[k-N]-4*psi[k])/dx2+omega[k];
+        residual=Math.abs(residual);
+        if(residual>maxResidual)maxResidual=residual;
+      }
+    }
+    if(maxResidual<tol)break;
   }
 
-  return {psi:psi,tmp:tmp,iterations:it+1,converged:(maxDiff<tol)};
+  return {psi:psi,tmp:tmp,iterations:it+1,converged:(maxResidual<tol),residual:maxResidual};
 }
-
 function calcConvection(p){
   var N=41,dx=p.L/(N-1),frameCount=140,displayDt=p.T/(frameCount-1);
 
@@ -1377,6 +1435,73 @@ function step(ts){
     draw();lastTs=ts;
   }
   if(playing)raf=requestAnimationFrame(step);
+}
+
+
+function calculate(){
+  stop();
+  try{
+    var type=E.equationType.value;
+    var isConv=(type==="convection");
+    var p={
+      L:clamp(num(E.length,10),1,100),
+      T:clamp(num(E.duration,10),0.1,1000),
+      D:clamp(num(E.D,0.2),0,10),
+      u:num(E.u,0.5), ux:num(E.ux,0.5), uy:num(E.uy,0.0),
+      type:E.initial.value,
+      sigma:clamp(num(E.width,0.65),0.01,100),
+      advectionScheme:E.advectionScheme.value,
+      fluxLimiter:E.fluxLimiter.value,
+      boundary1d:E.boundary1d.value,
+      boundaryX:E.boundaryX.value,
+      boundaryY:E.boundaryY.value,
+      dirichletLeft:num(E.dirichletLeft,0),
+      dirichletRight:num(E.dirichletRight,0),
+      dirichletXmin:num(E.dirichletXmin,0),
+      dirichletXmax:num(E.dirichletXmax,0),
+      dirichletYmin:num(E.dirichletYmin,0),
+      dirichletYmax:num(E.dirichletYmax,0),
+      inflow1d:num(E.inflow1d,0),
+      inflowX:num(E.inflowX,0),
+      inflowY:num(E.inflowY,0),
+      nu:clamp(num(E.nu,0.03),0,10),
+      buoyancy:num(E.buoyancy,1),
+      convInitial:E.convInitial.value,
+      thermalBoundary:E.thermalBoundary.value,
+      tBottom:num(E.tBottom,1),
+      tTop:num(E.tTop,0),
+      hotspotX:clamp(num(E.hotspotX,0.5),0,1),
+      hotspotY:clamp(num(E.hotspotY,0.2),0,1),
+      hotspotSize:clamp(num(E.hotspotSize,0.08),0.005,1),
+      hotspotTemperature:num(E.hotspotTemperature,1),
+      perturbationMode:E.perturbationMode.value,
+      perturbationAmplitude:Math.max(0,num(E.perturbationAmplitude,0.01)),
+      viewMode:E.viewMode.value
+    };
+
+    // A pure advection run must not accidentally retain diffusion.
+    if(type==="advection")p.D=0;
+    if(type==="diffusion"){p.u=0;p.ux=0;p.uy=0;}
+
+    frames=[];times=[];current=0;
+    if(isConv)calcConvection(p);
+    else if(E.dimension.value==="1d")calc1D(p);
+    else calc2D(p);
+
+    current=0;
+    E.slider.min="0";
+    E.slider.max=String(Math.max(0,frames.length-1));
+    E.slider.value="0";
+    E.status.textContent="計算完了："+frames.length+" フレーム";
+    draw();
+  }catch(err){
+    frames=[];times=[];current=0;
+    E.status.textContent="計算エラー："+(err&&err.message?err.message:String(err));
+    E.dx.textContent="Δx = —";
+    E.dt.textContent="Δt = —";
+    E.mass.textContent="総量 = —";
+    console.error(err);
+  }
 }
 
 function play(){
