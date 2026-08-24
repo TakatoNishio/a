@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1D / 2D Diffusion Simulator</title>
+<style>
+:root{
+  color-scheme:light dark;
+  --bg:#f6f7f9;--panel:#ffffff;--text:#111827;--muted:#6b7280;--border:#e5e7eb;
+  --input:#ffffff;--accent:#2563eb;--grid:#e5e7eb;--chart:#fafafa;--chip:#f3f4f6;--note:#f8fafc;
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg:#111318;--panel:#1b1e24;--text:#f3f4f6;--muted:#aab0ba;--border:#30343b;
+    --input:#14171c;--accent:#3b82f6;--grid:#343942;--chart:#13161b;--chip:#252932;--note:#171a20;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.app{padding:24px;min-height:100vh}
+.header{max-width:1200px;margin:0 auto 18px}
+.header h1{margin:0 0 6px;font-size:clamp(24px,4vw,36px)}
+.header p{margin:0;color:var(--muted);line-height:1.6}
+.layout{max-width:1200px;margin:auto;display:grid;grid-template-columns:minmax(250px,320px) minmax(0,1fr);gap:20px;align-items:start}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px}
+.controls{display:grid;gap:15px}.group{display:grid;gap:6px}
+label{font-size:13px;font-weight:650}
+input,select,button{font:inherit}
+input[type=number],select{width:100%;min-height:44px;border-radius:10px;border:1px solid var(--border);background:var(--input);color:var(--text);padding:9px 11px;font-size:16px}
+input[type=range]{width:100%}
+.hint{font-size:12px;color:var(--muted);line-height:1.45}
+.button-row{display:flex;flex-wrap:wrap;gap:9px}
+button{min-height:44px;border-radius:10px;border:1px solid var(--border);padding:9px 14px;font-weight:700;background:var(--chip);color:var(--text);cursor:pointer}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button:disabled{opacity:.5;cursor:not-allowed}
+.visual-header{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+.equation{font-family:Georgia,serif;font-size:18px;font-weight:700}
+.stats{display:flex;flex-wrap:wrap;gap:8px}.stat{background:var(--chip);border-radius:999px;padding:7px 10px;font-size:12px}
+.canvas-wrap{width:100%;background:var(--chart);border:1px solid var(--border);border-radius:14px;padding:10px;overflow:hidden}
+canvas{display:block;width:100%;height:430px}
+.time-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;margin-top:14px}
+.time-row output{font-weight:700;font-variant-numeric:tabular-nums;min-width:92px;text-align:right}
+.status{min-height:20px;margin-top:10px;font-size:13px;color:var(--muted)}
+.note{margin-top:14px;padding:12px;border-radius:12px;background:var(--note);border:1px solid var(--border);font-size:13px;line-height:1.5;color:var(--muted)}
+.legend{display:none;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:var(--muted)}
+.gradient{height:10px;flex:1;max-width:220px;border-radius:999px;background:linear-gradient(90deg,#1d4ed8,#38bdf8,#facc15,#ef4444)}
+@media(max-width:760px){
+  .app{padding:14px}.layout{grid-template-columns:1fr}canvas{height:330px}.time-row{grid-template-columns:1fr}.time-row output{text-align:left}
+}
+</style>
+</head>
+<body>
+<main class="app">
+<header class="header">
+  <h1>1D / 2D 拡散シミュレータ</h1>
+  <p>次元・拡散係数・初期条件を設定し、拡散方程式の時間発展を確認できます。</p>
+</header>
+
+<div class="layout">
+<section class="panel">
+  <div class="controls">
+    <div class="group">
+      <label for="dimension">次元</label>
+      <select id="dimension">
+        <option value="1d">1次元</option>
+        <option value="2d">2次元</option>
+      </select>
+    </div>
+
+    <div class="group">
+      <label for="equation-type">方程式タイプ</label>
+      <select id="equation-type">
+        <option value="diffusion">拡散のみ</option>
+        <option value="advection">移流のみ</option>
+        <option value="advection-diffusion">移流＋拡散</option>
+        <option value="convection">自然対流（2D）</option>
+      </select>
+    </div>
+
+    <div class="group">
+      <label for="D">拡散係数 D</label>
+      <input id="D" type="number" value="0.20" min="0.0001" max="10" step="0.01">
+    </div>
+
+    <div class="group" id="u1d-group" style="display:none">
+      <label for="u">移流速度 u</label>
+      <input id="u" type="number" value="0.50" min="-10" max="10" step="0.05">
+      <div class="hint">正の値で +x 方向へ移流します。</div>
+    </div>
+
+    <div class="group" id="u2d-group" style="display:none">
+      <label for="ux">移流速度 uₓ</label>
+      <input id="ux" type="number" value="0.50" min="-10" max="10" step="0.05">
+      <label for="uy">移流速度 uᵧ</label>
+      <input id="uy" type="number" value="0.25" min="-10" max="10" step="0.05">
+    </div>
+
+    <div id="convection-controls" style="display:none">
+      <div class="group">
+        <label for="nu">動粘性係数 ν</label>
+        <input id="nu" type="number" value="0.03" min="0.0001" max="2" step="0.005">
+      </div>
+      <div class="group">
+        <label for="buoyancy">浮力係数 gβ</label>
+        <input id="buoyancy" type="number" value="1.0" min="0" max="20" step="0.1">
+        <div class="hint">温度差が流れを駆動する強さです。</div>
+      </div>
+      <div class="group">
+        <label for="conv-initial">自然対流の初期条件</label>
+        <select id="conv-initial">
+          <option value="left-right">左右：高温 / 低温（中央仕切り除去）</option>
+          <option value="bottom-hot">下が高温・上が低温</option>
+          <option value="top-hot">上が高温・下が低温（安定成層）</option>
+          <option value="hot-spot">下部中央に高温スポット</option>
+          <option value="side-walls">左壁高温・右壁低温</option>
+        </select>
+      </div>
+      <div class="group">
+        <label for="view-mode">表示</label>
+        <select id="view-mode">
+          <option value="temperature">温度分布</option>
+          <option value="velocity">流速の大きさ</option>
+          <option value="vorticity">渦度</option>
+          <option value="temperature-velocity">温度＋流速ベクトル</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="group">
+      <label for="length">計算領域の長さ L</label>
+      <input id="length" type="number" value="10" min="1" max="100" step="1">
+    </div>
+
+    <div class="group">
+      <label for="duration">表示する最大時間</label>
+      <input id="duration" type="number" value="10" min="0.1" max="1000" step="0.5">
+    </div>
+
+    <div class="group">
+      <label for="initial">初期条件</label>
+      <select id="initial">
+        <option value="gaussian">Gaussian</option>
+        <option value="pulse">中央パルス</option>
+        <option value="step">ステップ分布</option>
+      </select>
+    </div>
+
+    <div class="group" id="width-group">
+      <label for="width">初期分布の幅 σ</label>
+      <input id="width" type="number" value="0.65" min="0.05" max="20" step="0.05">
+    </div>
+
+    <div class="button-row">
+      <button class="primary" id="calculate" type="button">計算</button>
+      <button id="play" type="button">再生</button>
+      <button id="reset" type="button">リセット</button>
+    </div>
+  </div>
+
+  <div class="note" id="method-note"></div>
+</section>
+
+<section class="panel">
+  <div class="visual-header">
+    <div>
+      <div class="equation" id="equation"></div>
+      <div class="hint" id="subtitle"></div>
+    </div>
+    <div class="stats">
+      <div class="stat" id="dx-stat">Δx = —</div>
+      <div class="stat" id="dt-stat">Δt = —</div>
+      <div class="stat" id="mass-stat">総量 = —</div>
+    </div>
+  </div>
+
+  <div class="canvas-wrap">
+    <canvas id="chart" width="900" height="430"></canvas>
+  </div>
+
+  <div class="legend" id="legend">
+    <span>低</span><div class="gradient"></div><span>高</span>
+  </div>
+
+  <div class="time-row">
+    <button id="pause" type="button">一時停止</button>
+    <input id="time-slider" type="range" min="0" max="100" value="0" step="1">
+    <output id="time-output">t = 0.000</output>
+  </div>
+
+  <div class="status" id="status"></div>
+</section>
+</div>
+</main>
+
+<script>
+(function(){
+"use strict";
+
+var E={
+  dimension:document.getElementById("dimension"),
+  equationType:document.getElementById("equation-type"),
+  D:document.getElementById("D"),
+  u:document.getElementById("u"),
+  ux:document.getElementById("ux"),
+  uy:document.getElementById("uy"),
+  u1dGroup:document.getElementById("u1d-group"),
+  u2dGroup:document.getElementById("u2d-group"),
+  convectionControls:document.getElementById("convection-controls"),
+  nu:document.getElementById("nu"),
+  buoyancy:document.getElementById("buoyancy"),
+  convInitial:document.getElementById("conv-initial"),
+  viewMode:document.getElementById("view-mode"),
+  length:document.getElementById("length"),
+  duration:document.getElementById("duration"),
+  initial:document.getElementById("initial"),
+  width:document.getElementById("width"),
+  widthGroup:document.getElementById("width-group"),
+  calculate:document.getElementById("calculate"),
+  play:document.getElementById("play"),
+  pause:document.getElementById("pause"),
+  reset:document.getElementById("reset"),
+  slider:document.getElementById("time-slider"),
+  output:document.getElementById("time-output"),
+  status:document.getElementById("status"),
+  dx:document.getElementById("dx-stat"),
+  dt:document.getElementById("dt-stat"),
+  mass:document.getElementById("mass-stat"),
+  equation:document.getElementById("equation"),
+  subtitle:document.getElementById("subtitle"),
+  note:document.getElementById("method-note"),
+  legend:document.getElementById("legend"),
+  chart:document.getElementById("chart")
+};
+
+var ctx=E.chart.getContext("2d");
+var frames=[],times=[],current=0,playing=false,raf=null,lastTs=0;
+var state={mode:"1d",L:10,N:181,dx:0,velocityFrames:[],vorticityFrames:[]};
+
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function num(node,fallback){var v=Number(node.value);return isFinite(v)?v:fallback;}
+function css(name){return getComputedStyle(document.documentElement).getPropertyValue(name).trim();}
+
+function updateModeUI(){
+  var type=E.equationType.value;
+  var isConv=(type==="convection");
+
+  if(isConv && E.dimension.value!=="2d"){
+    E.dimension.value="2d";
+  }
+
+  var is2=E.dimension.value==="2d";
+  var useDiff=(type==="diffusion"||type==="advection-diffusion");
+  var useAdv=(type==="advection"||type==="advection-diffusion");
+
+  E.dimension.disabled=isConv;
+  E.D.disabled=!(useDiff||isConv);
+  E.u1dGroup.style.display=(!is2&&useAdv)?"grid":"none";
+  E.u2dGroup.style.display=(is2&&useAdv)?"grid":"none";
+  E.convectionControls.style.display=isConv?"block":"none";
+  E.initial.parentElement.style.display=isConv?"none":"grid";
+  E.widthGroup.style.display=isConv?"none":(E.initial.value==="step"?"none":"grid");
+
+  if(isConv){
+    E.equation.textContent="∂T/∂t + u·∇T = κ∇²T　/　∂ω/∂t + u·∇ω = ν∇²ω + gβ ∂T/∂x";
+    E.subtitle.textContent="Boussinesq近似による2D自然対流：温度差 → 浮力 → 流れ → 温度輸送";
+    E.note.textContent="自然対流は2D専用です。温度と渦度を時間発展させ、∇²ψ = −ω から流速場を求めます。壁は非貫通・近似no-slip、温度は基本的に断熱境界です。";
+    E.legend.style.display="flex";
+    return;
+  }
+
+  if(!is2){
+    if(type==="diffusion") E.equation.textContent="∂C/∂t = D ∂²C/∂x²";
+    else if(type==="advection") E.equation.textContent="∂C/∂t + u ∂C/∂x = 0";
+    else E.equation.textContent="∂C/∂t + u ∂C/∂x = D ∂²C/∂x²";
+    E.subtitle.textContent="濃度分布 C(x,t) の時間発展";
+  }else{
+    if(type==="diffusion") E.equation.textContent="∂C/∂t = D (∂²C/∂x² + ∂²C/∂y²)";
+    else if(type==="advection") E.equation.textContent="∂C/∂t + uₓ ∂C/∂x + uᵧ ∂C/∂y = 0";
+    else E.equation.textContent="∂C/∂t + uₓ ∂C/∂x + uᵧ ∂C/∂y = D (∂²C/∂x² + ∂²C/∂y²)";
+    E.subtitle.textContent="濃度分布 C(x,y,t) の時間発展";
+  }
+
+  E.note.textContent=is2
+    ?"2D：移流項は一次精度風上差分、拡散項は中心差分、4辺は Neumann 境界条件です。"
+    :"1D：移流項は一次精度風上差分、拡散項は中心差分、両端は Neumann 境界条件です。";
+  E.legend.style.display=is2?"flex":"none";
+
+  if(is2){
+    E.initial.options[0].textContent="中央 Gaussian";
+    E.initial.options[1].textContent="中央正方形パルス";
+    E.initial.options[2].textContent="左右ステップ分布";
+  }else{
+    E.initial.options[0].textContent="Gaussian";
+    E.initial.options[1].textContent="中央パルス";
+    E.initial.options[2].textContent="ステップ分布";
+  }
+}
+
+function readParams(){
+  var type=E.equationType.value;
+  var isConv=(type==="convection");
+  var useDiff=(type==="diffusion"||type==="advection-diffusion"||isConv);
+  var useAdv=(type==="advection"||type==="advection-diffusion");
+
+  var p={
+    D:useDiff?clamp(num(E.D,.2),.0001,10):0,
+    u:useAdv?clamp(num(E.u,.5),-10,10):0,
+    ux:useAdv?clamp(num(E.ux,.5),-10,10):0,
+    uy:useAdv?clamp(num(E.uy,.25),-10,10):0,
+    nu:clamp(num(E.nu,.03),.0001,2),
+    buoyancy:clamp(num(E.buoyancy,1),0,20),
+    convInitial:E.convInitial.value,
+    L:clamp(num(E.length,10),1,100),
+    T:clamp(num(E.duration,10),.1,1000),
+    sigma:clamp(num(E.width,.65),.05,100),
+    type:E.initial.value,
+    mode:E.dimension.value,
+    equationType:type
+  };
+
+  if(p.sigma>p.L)p.sigma=p.L;
+  if(useDiff)E.D.value=p.D;
+  if(useAdv){E.u.value=p.u;E.ux.value=p.ux;E.uy.value=p.uy;}
+  E.nu.value=p.nu;E.buoyancy.value=p.buoyancy;
+  E.length.value=p.L;E.duration.value=p.T;E.width.value=p.sigma;
+  return p;
+}
+
+function mass1D(a,dx){
+  var s=0,i;for(i=0;i<a.length;i++)s+=a[i];return s*dx;
+}
+
+function init1D(type,N,L,sigma,dx){
+  var a=new Float64Array(N),mid=L/2,i,x,q,hw;
+  if(type==="gaussian"){
+    for(i=0;i<N;i++){x=i*dx;q=(x-mid)/sigma;a[i]=Math.exp(-.5*q*q);}
+  }else if(type==="pulse"){
+    hw=Math.max(L*.06,sigma*.35);
+    for(i=0;i<N;i++){x=i*dx;a[i]=Math.abs(x-mid)<=hw?1:0;}
+  }else{
+    for(i=0;i<N;i++){x=i*dx;a[i]=x<mid?1:0;}
+  }
+  return a;
+}
+
+function calc1D(p){
+  var N=181,dx=p.L/(N-1),frameCount=320,displayDt=p.T/(frameCount-1);
+
+  var diffLimit=(p.D>0)?0.45*dx*dx/p.D:1e99;
+  var advLimit=(Math.abs(p.u)>0)?0.9*dx/Math.abs(p.u):1e99;
+  var stable=Math.min(diffLimit,advLimit);
+  var micro=Math.max(1,Math.ceil(displayDt/stable));
+
+  if(micro>12000)throw new Error("計算条件が細かすぎます。速度・D・最大時間の設定を見直してください。");
+
+  var dt=displayDt/micro;
+  var c=init1D(p.type,N,p.L,p.sigma,dx),next=new Float64Array(N);
+  var f,m,i,tmp,adv,diff,grad;
+  frames=[new Float64Array(c)];times=[0];
+
+  for(f=1;f<frameCount;f++){
+    for(m=0;m<micro;m++){
+      for(i=1;i<N-1;i++){
+        adv=0; diff=0;
+
+        if(p.u>0){
+          grad=(c[i]-c[i-1])/dx;
+          adv=-p.u*grad;
+        }else if(p.u<0){
+          grad=(c[i+1]-c[i])/dx;
+          adv=-p.u*grad;
+        }
+
+        if(p.D>0){
+          diff=p.D*(c[i+1]-2*c[i]+c[i-1])/(dx*dx);
+        }
+
+        next[i]=c[i]+dt*(adv+diff);
+      }
+
+      next[0]=next[1];
+      next[N-1]=next[N-2];
+
+      tmp=c;c=next;next=tmp;
+    }
+
+    frames.push(new Float64Array(c));
+    times.push(f*displayDt);
+  }
+
+  state={mode:"1d",L:p.L,N:N,dx:dx};
+  E.dx.textContent="Δx = "+dx.toPrecision(4);
+  E.dt.textContent="Δt = "+dt.toPrecision(4);
+  E.mass.textContent="総量 = "+mass1D(frames[0],dx).toPrecision(5);
+}
+
+function mass2D(a,dx){
+  var s=0,i;for(i=0;i<a.length;i++)s+=a[i];return s*dx*dx;
+}
+
+function init2D(type,N,L,sigma,dx){
+  var a=new Float64Array(N*N),mid=L/2,i,j,x,y,k,qx,qy,hw;
+  for(j=0;j<N;j++){
+    y=j*dx;
+    for(i=0;i<N;i++){
+      x=i*dx;k=j*N+i;
+      if(type==="gaussian"){
+        qx=(x-mid)/sigma;qy=(y-mid)/sigma;
+        a[k]=Math.exp(-.5*(qx*qx+qy*qy));
+      }else if(type==="pulse"){
+        hw=Math.max(L*.07,sigma*.35);
+        a[k]=(Math.abs(x-mid)<=hw&&Math.abs(y-mid)<=hw)?1:0;
+      }else{
+        a[k]=x<mid?1:0;
+      }
+    }
+  }
+  return a;
+}
+
+function calc2D(p){
+  var N=51,dx=p.L/(N-1),frameCount=160,displayDt=p.T/(frameCount-1);
+
+  var diffLimit=(p.D>0)?0.22*dx*dx/p.D:1e99;
+  var speedSum=Math.abs(p.ux)+Math.abs(p.uy);
+  var advLimit=(speedSum>0)?0.9*dx/speedSum:1e99;
+  var stable=Math.min(diffLimit,advLimit);
+  var micro=Math.max(1,Math.ceil(displayDt/stable));
+
+  if(micro>1200)throw new Error("2D計算が重すぎる条件です。速度・D・最大時間の設定を見直してください。");
+
+  var dt=displayDt/micro;
+  var c=init2D(p.type,N,p.L,p.sigma,dx),next=new Float64Array(N*N);
+  var f,m,i,j,k,tmp,advx,advy,diff,gx,gy;
+  frames=[new Float64Array(c)];times=[0];
+
+  for(f=1;f<frameCount;f++){
+    for(m=0;m<micro;m++){
+      for(j=1;j<N-1;j++){
+        for(i=1;i<N-1;i++){
+          k=j*N+i;
+          advx=0;advy=0;diff=0;
+
+          if(p.ux>0){
+            gx=(c[k]-c[k-1])/dx;
+            advx=-p.ux*gx;
+          }else if(p.ux<0){
+            gx=(c[k+1]-c[k])/dx;
+            advx=-p.ux*gx;
+          }
+
+          if(p.uy>0){
+            gy=(c[k]-c[k-N])/dx;
+            advy=-p.uy*gy;
+          }else if(p.uy<0){
+            gy=(c[k+N]-c[k])/dx;
+            advy=-p.uy*gy;
+          }
+
+          if(p.D>0){
+            diff=p.D*(c[k+1]+c[k-1]+c[k+N]+c[k-N]-4*c[k])/(dx*dx);
+          }
+
+          next[k]=c[k]+dt*(advx+advy+diff);
+        }
+      }
+
+      for(i=1;i<N-1;i++){
+        next[i]=next[N+i];
+        next[(N-1)*N+i]=next[(N-2)*N+i];
+      }
+      for(j=0;j<N;j++){
+        next[j*N]=next[j*N+1];
+        next[j*N+N-1]=next[j*N+N-2];
+      }
+
+      tmp=c;c=next;next=tmp;
+    }
+
+    frames.push(new Float64Array(c));
+    times.push(f*displayDt);
+  }
+
+  state={mode:"2d",L:p.L,N:N,dx:dx};
+  E.dx.textContent="Δx = Δy = "+dx.toPrecision(4);
+  E.dt.textContent="Δt = "+dt.toPrecision(4);
+  E.mass.textContent="総量 = "+mass2D(frames[0],dx).toPrecision(5);
+}
+
+function initConvectionTemperature(kind,N){
+  var T=new Float64Array(N*N),i,j,k,x,y;
+  for(j=0;j<N;j++){
+    y=j/(N-1);
+    for(i=0;i<N;i++){
+      x=i/(N-1); k=j*N+i;
+      if(kind==="left-right"){
+        T[k]=(x<.5)?1:0;
+      }else if(kind==="bottom-hot"){
+        T[k]=1-y;
+      }else if(kind==="top-hot"){
+        T[k]=y;
+      }else if(kind==="hot-spot"){
+        var dx0=x-.5,dy0=y-.12;
+        T[k]=Math.exp(-(dx0*dx0+dy0*dy0)/.012);
+      }else{
+        T[k]=1-x;
+      }
+    }
+  }
+  return T;
+}
+
+function solvePsi(omega,psi,tmp,N,dx){
+  var it,i,j,k;
+  var dx2=dx*dx;
+  for(it=0;it<45;it++){
+    for(j=1;j<N-1;j++){
+      for(i=1;i<N-1;i++){
+        k=j*N+i;
+        tmp[k]=.25*(psi[k+1]+psi[k-1]+psi[k+N]+psi[k-N]+dx2*omega[k]);
+      }
+    }
+    for(i=0;i<N;i++){tmp[i]=0;tmp[(N-1)*N+i]=0;}
+    for(j=0;j<N;j++){tmp[j*N]=0;tmp[j*N+N-1]=0;}
+    var sw=psi;psi=tmp;tmp=sw;
+  }
+  return {psi:psi,tmp:tmp};
+}
+
+function calcConvection(p){
+  var N=41,dx=p.L/(N-1),frameCount=140,displayDt=p.T/(frameCount-1);
+  var diffMax=Math.max(p.D,p.nu);
+  var diffLimit=.18*dx*dx/diffMax;
+  var dtBase=Math.min(displayDt,diffLimit,.03);
+  var micro=Math.max(1,Math.ceil(displayDt/dtBase));
+  if(micro>600)throw new Error("自然対流の計算条件が重すぎます。最大時間・D・νを見直してください。");
+  var dt=displayDt/micro;
+
+  var temp=initConvectionTemperature(p.convInitial,N);
+  var tempNext=new Float64Array(N*N);
+  var omega=new Float64Array(N*N),omegaNext=new Float64Array(N*N);
+  var psi=new Float64Array(N*N),psiTmp=new Float64Array(N*N);
+  var vel=new Float64Array(N*N*2);
+
+  frames=[new Float64Array(temp)];times=[0];
+  var velocityFrames=[new Float64Array(vel)];
+  var vorticityFrames=[new Float64Array(omega)];
+
+  var f,m,i,j,k,gxT,gxW,gyW,lapT,lapW,u,v,advT,advW,res;
+
+  for(f=1;f<frameCount;f++){
+    for(m=0;m<micro;m++){
+      res=solvePsi(omega,psi,psiTmp,N,dx);
+      psi=res.psi;psiTmp=res.tmp;
+
+      for(j=1;j<N-1;j++){
+        for(i=1;i<N-1;i++){
+          k=j*N+i;
+          u=(psi[k+N]-psi[k-N])/(2*dx);
+          v=-(psi[k+1]-psi[k-1])/(2*dx);
+          vel[2*k]=u;vel[2*k+1]=v;
+
+          gxT=(temp[k+1]-temp[k-1])/(2*dx);
+          lapT=(temp[k+1]+temp[k-1]+temp[k+N]+temp[k-N]-4*temp[k])/(dx*dx);
+
+          var dTx = u>=0 ? (temp[k]-temp[k-1])/dx : (temp[k+1]-temp[k])/dx;
+          var dTy = v>=0 ? (temp[k]-temp[k-N])/dx : (temp[k+N]-temp[k])/dx;
+          advT=-(u*dTx+v*dTy);
+          tempNext[k]=temp[k]+dt*(advT+p.D*lapT);
+
+          gxW = u>=0 ? (omega[k]-omega[k-1])/dx : (omega[k+1]-omega[k])/dx;
+          gyW = v>=0 ? (omega[k]-omega[k-N])/dx : (omega[k+N]-omega[k])/dx;
+          advW=-(u*gxW+v*gyW);
+          lapW=(omega[k+1]+omega[k-1]+omega[k+N]+omega[k-N]-4*omega[k])/(dx*dx);
+          omegaNext[k]=omega[k]+dt*(advW+p.nu*lapW+p.buoyancy*gxT);
+        }
+      }
+
+      // Temperature boundaries: insulated, except fixed side walls preset.
+      for(i=1;i<N-1;i++){
+        tempNext[i]=tempNext[N+i];
+        tempNext[(N-1)*N+i]=tempNext[(N-2)*N+i];
+      }
+      for(j=0;j<N;j++){
+        if(p.convInitial==="side-walls"){
+          tempNext[j*N]=1;
+          tempNext[j*N+N-1]=0;
+        }else{
+          tempNext[j*N]=tempNext[j*N+1];
+          tempNext[j*N+N-1]=tempNext[j*N+N-2];
+        }
+      }
+
+      // Approximate no-slip wall vorticity from streamfunction.
+      for(i=1;i<N-1;i++){
+        omegaNext[i]=-2*psi[N+i]/(dx*dx);
+        omegaNext[(N-1)*N+i]=-2*psi[(N-2)*N+i]/(dx*dx);
+      }
+      for(j=1;j<N-1;j++){
+        omegaNext[j*N]=-2*psi[j*N+1]/(dx*dx);
+        omegaNext[j*N+N-1]=-2*psi[j*N+N-2]/(dx*dx);
+      }
+
+      var sw=temp;temp=tempNext;tempNext=sw;
+      sw=omega;omega=omegaNext;omegaNext=sw;
+    }
+
+    res=solvePsi(omega,psi,psiTmp,N,dx);
+    psi=res.psi;psiTmp=res.tmp;
+    for(j=1;j<N-1;j++){
+      for(i=1;i<N-1;i++){
+        k=j*N+i;
+        vel[2*k]=(psi[k+N]-psi[k-N])/(2*dx);
+        vel[2*k+1]=-(psi[k+1]-psi[k-1])/(2*dx);
+      }
+    }
+
+    frames.push(new Float64Array(temp));
+    velocityFrames.push(new Float64Array(vel));
+    vorticityFrames.push(new Float64Array(omega));
+    times.push(f*displayDt);
+  }
+
+  state={
+    mode:"convection",L:p.L,N:N,dx:dx,
+    velocityFrames:velocityFrames,
+    vorticityFrames:vorticityFrames
+  };
+  E.dx.textContent="Δx = Δy = "+dx.toPrecision(4);
+  E.dt.textContent="Δt = "+dt.toPrecision(4);
+  E.mass.textContent="平均T = "+(mass2D(frames[0],dx)/(p.L*p.L)).toPrecision(4);
+}
+
+
+function calculate(){
+  stop();
+  try{
+    var p=readParams();
+    if(p.equationType==="convection")calcConvection(p);
+    else if(p.mode==="2d")calc2D(p);
+    else calc1D(p);
+    current=0;
+    E.slider.min="0";
+    E.slider.max=String(frames.length-1);
+    E.slider.value="0";
+    E.status.style.color="";
+    E.status.textContent="計算完了："+frames.length+" フレーム";
+    draw();
+  }catch(err){
+    frames=[];times=[];
+    E.status.style.color="#dc2626";
+    E.status.textContent="エラー: "+(err&&err.message?err.message:String(err));
+    clearCanvas();
+  }
+}
+
+function canvasSize(){
+  var rect=E.chart.getBoundingClientRect();
+  var dpr=window.devicePixelRatio||1;
+  if(dpr>2)dpr=2;if(dpr<1)dpr=1;
+  var pw=Math.round(rect.width*dpr),ph=Math.round(rect.height*dpr);
+  if(E.chart.width!==pw||E.chart.height!==ph){E.chart.width=pw;E.chart.height=ph;}
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {w:rect.width,h:rect.height};
+}
+function clearCanvas(){var s=canvasSize();ctx.clearRect(0,0,s.w,s.h);}
+
+function draw1D(){
+  var s=canvasSize(),w=s.w,h=s.h;
+  ctx.clearRect(0,0,w,h);
+
+  var pad={l:56,r:18,t:18,b:44};
+  var pw=w-pad.l-pad.r,ph=h-pad.t-pad.b;
+  var data=frames[current],ymax=1,i,j;
+  for(i=0;i<frames[0].length;i++)if(frames[0][i]>ymax)ymax=frames[0][i];
+  ymax*=1.08;
+
+  ctx.lineWidth=1;ctx.strokeStyle=css("--grid");ctx.fillStyle=css("--muted");
+  ctx.font="12px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif";
+
+  for(j=0;j<=4;j++){
+    var gy=pad.t+ph*j/4;
+    ctx.beginPath();ctx.moveTo(pad.l,gy);ctx.lineTo(w-pad.r,gy);ctx.stroke();
+    ctx.fillText((ymax*(1-j/4)).toFixed(2),8,gy+4);
+  }
+  for(j=0;j<=5;j++){
+    var gx=pad.l+pw*j/5;
+    ctx.beginPath();ctx.moveTo(gx,pad.t);ctx.lineTo(gx,pad.t+ph);ctx.stroke();
+    ctx.fillText((state.L*j/5).toFixed(1),gx-10,h-18);
+  }
+
+  ctx.strokeStyle=css("--accent");ctx.lineWidth=2.5;ctx.beginPath();
+  for(i=0;i<data.length;i++){
+    var x=pad.l+pw*i/(data.length-1);
+    var y=pad.t+ph*(1-data[i]/ymax);
+    if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+
+  ctx.fillStyle=css("--muted");ctx.font="13px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif";
+  ctx.fillText("x",w-pad.r-4,h-8);
+  ctx.save();ctx.translate(14,pad.t+ph/2);ctx.rotate(-Math.PI/2);ctx.fillText("C(x,t)",0,0);ctx.restore();
+}
+
+function colorMap(v){
+  v=clamp(v,0,1);
+  var stops=[
+    [0,29,78,216],
+    [.33,56,189,248],
+    [.66,250,204,21],
+    [1,239,68,68]
+  ];
+  var a=stops[0],b=stops[1],i;
+  for(i=0;i<stops.length-1;i++){
+    if(v>=stops[i][0]&&v<=stops[i+1][0]){a=stops[i];b=stops[i+1];break;}
+  }
+  var t=(v-a[0])/(b[0]-a[0]||1);
+  return [
+    Math.round(a[1]+(b[1]-a[1])*t),
+    Math.round(a[2]+(b[2]-a[2])*t),
+    Math.round(a[3]+(b[3]-a[3])*t)
+  ];
+}
+
+function draw2D(){
+  var s=canvasSize(),w=s.w,h=s.h;
+  ctx.clearRect(0,0,w,h);
+
+  var N=state.N,data=frames[current],pad={l:52,r:18,t:18,b:44};
+  var aw=w-pad.l-pad.r,ah=h-pad.t-pad.b;
+  var size=Math.max(120,Math.min(aw,ah));
+  var ox=pad.l+(aw-size)/2,oy=pad.t+(ah-size)/2;
+
+  var off=document.createElement("canvas");
+  off.width=N;off.height=N;
+  var octx=off.getContext("2d");
+  var img=octx.createImageData(N,N);
+  var max0=0,i,j,k,pix,rgb;
+
+  for(i=0;i<frames[0].length;i++)if(frames[0][i]>max0)max0=frames[0][i];
+  if(max0<=0)max0=1;
+
+  for(j=0;j<N;j++){
+    for(i=0;i<N;i++){
+      k=j*N+i;
+      rgb=colorMap(data[k]/max0);
+      pix=4*((N-1-j)*N+i);
+      img.data[pix]=rgb[0];
+      img.data[pix+1]=rgb[1];
+      img.data[pix+2]=rgb[2];
+      img.data[pix+3]=255;
+    }
+  }
+  octx.putImageData(img,0,0);
+
+  ctx.imageSmoothingEnabled=true;
+  ctx.drawImage(off,ox,oy,size,size);
+  ctx.strokeStyle=css("--muted");ctx.lineWidth=1;ctx.strokeRect(ox,oy,size,size);
+  ctx.fillStyle=css("--muted");ctx.font="12px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif";
+
+  for(i=0;i<=4;i++){
+    var xv=ox+size*i/4;
+    ctx.fillText((state.L*i/4).toFixed(1),xv-9,oy+size+20);
+    var yv=oy+size*(1-i/4);
+    ctx.fillText((state.L*i/4).toFixed(1),ox-38,yv+4);
+  }
+  ctx.font="13px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif";
+  ctx.fillText("x",ox+size+7,oy+size+3);
+  ctx.fillText("y",ox-3,oy-7);
+}
+
+function divergingColor(v,scale){
+  if(scale<=0)scale=1;
+  var q=clamp(v/scale,-1,1);
+  if(q<0){
+    var t=q+1;
+    return [Math.round(30+225*t),Math.round(80+175*t),255];
+  }else{
+    var s=1-q;
+    return [255,Math.round(255*s),Math.round(255*s)];
+  }
+}
+
+function drawConvection(){
+  var s=canvasSize(),w=s.w,h=s.h;
+  ctx.clearRect(0,0,w,h);
+
+  var N=state.N,pad={l:52,r:18,t:18,b:44};
+  var aw=w-pad.l-pad.r,ah=h-pad.t-pad.b;
+  var size=Math.max(120,Math.min(aw,ah));
+  var ox=pad.l+(aw-size)/2,oy=pad.t+(ah-size)/2;
+  var mode=E.viewMode.value;
+  var data=frames[current];
+  var vel=state.velocityFrames[current];
+  var vort=state.vorticityFrames[current];
+
+  var off=document.createElement("canvas");
+  off.width=N;off.height=N;
+  var octx=off.getContext("2d"),img=octx.createImageData(N,N);
+  var i,j,k,pix,rgb,val,maxVal=0;
+
+  if(mode==="velocity"){
+    for(k=0;k<N*N;k++){
+      val=Math.sqrt(vel[2*k]*vel[2*k]+vel[2*k+1]*vel[2*k+1]);
+      if(val>maxVal)maxVal=val;
+    }
+  }else if(mode==="vorticity"){
+    for(k=0;k<N*N;k++)if(Math.abs(vort[k])>maxVal)maxVal=Math.abs(vort[k]);
+  }else{
+    maxVal=1;
+  }
+  if(maxVal<=0)maxVal=1;
+
+  for(j=0;j<N;j++){
+    for(i=0;i<N;i++){
+      k=j*N+i;
+      if(mode==="velocity"){
+        val=Math.sqrt(vel[2*k]*vel[2*k]+vel[2*k+1]*vel[2*k+1])/maxVal;
+        rgb=colorMap(val);
+      }else if(mode==="vorticity"){
+        rgb=divergingColor(vort[k],maxVal);
+      }else{
+        rgb=colorMap(clamp(data[k],0,1));
+      }
+      pix=4*((N-1-j)*N+i);
+      img.data[pix]=rgb[0];img.data[pix+1]=rgb[1];img.data[pix+2]=rgb[2];img.data[pix+3]=255;
+    }
+  }
+  octx.putImageData(img,0,0);
+  ctx.imageSmoothingEnabled=true;
+  ctx.drawImage(off,ox,oy,size,size);
+  ctx.strokeStyle=css("--muted");ctx.strokeRect(ox,oy,size,size);
+
+  if(mode==="temperature-velocity"){
+    var step=5,maxSpeed=0;
+    for(k=0;k<N*N;k++){
+      val=Math.sqrt(vel[2*k]*vel[2*k]+vel[2*k+1]*vel[2*k+1]);
+      if(val>maxSpeed)maxSpeed=val;
+    }
+    if(maxSpeed>0){
+      ctx.strokeStyle="#111827";ctx.fillStyle="#111827";ctx.lineWidth=1.2;
+      for(j=2;j<N-2;j+=step){
+        for(i=2;i<N-2;i+=step){
+          k=j*N+i;
+          var uu=vel[2*k],vv=vel[2*k+1];
+          var sp=Math.sqrt(uu*uu+vv*vv);
+          if(sp<maxSpeed*.03)continue;
+          var px=ox+size*i/(N-1),py=oy+size*(1-j/(N-1));
+          var len=12*sp/maxSpeed+3;
+          var ex=px+len*uu/sp,ey=py-len*vv/sp;
+          ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(ex,ey);ctx.stroke();
+          var ang=Math.atan2(ey-py,ex-px);
+          ctx.beginPath();
+          ctx.moveTo(ex,ey);
+          ctx.lineTo(ex-4*Math.cos(ang-.5),ey-4*Math.sin(ang-.5));
+          ctx.lineTo(ex-4*Math.cos(ang+.5),ey-4*Math.sin(ang+.5));
+          ctx.closePath();ctx.fill();
+        }
+      }
+    }
+  }
+
+  ctx.fillStyle=css("--muted");ctx.font="12px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif";
+  for(i=0;i<=4;i++){
+    var xv=ox+size*i/4;
+    ctx.fillText((state.L*i/4).toFixed(1),xv-9,oy+size+20);
+    var yv=oy+size*(1-i/4);
+    ctx.fillText((state.L*i/4).toFixed(1),ox-38,yv+4);
+  }
+  ctx.font="13px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif";
+  ctx.fillText("x",ox+size+7,oy+size+3);ctx.fillText("y",ox-3,oy-7);
+}
+
+
+function draw(){
+  if(!frames.length)return;
+  if(state.mode==="convection")drawConvection();
+  else if(state.mode==="2d")draw2D();
+  else draw1D();
+  E.output.value="t = "+times[current].toFixed(3);
+  E.slider.value=String(current);
+}
+
+function step(ts){
+  if(!playing)return;
+  if(!lastTs)lastTs=ts;
+  if(ts-lastTs>=40){
+    current++;
+    if(current>=frames.length){
+      current=frames.length-1;
+      stop();draw();return;
+    }
+    draw();lastTs=ts;
+  }
+  if(playing)raf=requestAnimationFrame(step);
+}
+
+function play(){
+  if(!frames.length)calculate();
+  if(!frames.length)return;
+  if(current>=frames.length-1)current=0;
+  if(playing)return;
+  playing=true;lastTs=0;E.play.disabled=true;
+  raf=requestAnimationFrame(step);
+}
+
+function stop(){
+  playing=false;
+  E.play.disabled=false;
+  if(raf!==null)cancelAnimationFrame(raf);
+  raf=null;lastTs=0;
+}
+
+function reset(){
+  stop();current=0;if(frames.length)draw();
+}
+
+E.dimension.addEventListener("change",function(){
+  stop();
+  updateModeUI();
+  calculate();
+});
+
+E.equationType.addEventListener("change",function(){
+  stop();
+  updateModeUI();
+  calculate();
+});
+
+E.convInitial.addEventListener("change",function(){
+  if(E.equationType.value==="convection")calculate();
+});
+
+E.viewMode.addEventListener("change",function(){
+  if(state.mode==="convection")draw();
+});
+E.initial.addEventListener("change",function(){
+  E.widthGroup.style.display=E.initial.value==="step"?"none":"grid";
+});
+E.calculate.addEventListener("click",calculate);
+E.play.addEventListener("click",play);
+E.pause.addEventListener("click",stop);
+E.reset.addEventListener("click",reset);
+E.slider.addEventListener("input",function(){
+  stop();
+  current=Number(E.slider.value)||0;
+  if(current<0)current=0;
+  if(current>=frames.length)current=frames.length-1;
+  draw();
+});
+window.addEventListener("resize",draw);
+
+updateModeUI();
+calculate();
+
+})();
+</script>
+</body>
+</html>
