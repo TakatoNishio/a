@@ -534,6 +534,35 @@ function updateBoundaryUI(){
     (is2&&E.boundaryY.value==="outflow")?"grid":"none";
 }
 
+function thermalBoundaryDescription(type){
+  if(type==="fixed-top-bottom"){
+    return "上下温度固定：下壁と上壁の温度を指定値に保ちます。Rayleigh–Bénard 型の自然対流を調べる設定で、左右壁は断熱として扱います。";
+  }
+  return "断熱壁：4辺で温度の法線方向勾配を 0 とし、壁を通る熱フラックスを 0 とします。";
+}
+
+function updateConvectionSpecialUI(){
+  var isConv=(E.equationType.value==="convection");
+
+  if(!isConv){
+    E.customHotspotControls.style.display="none";
+    E.fixedTemperatureControls.style.display="none";
+    return;
+  }
+
+  E.thermalBoundaryDescription.textContent=
+    thermalBoundaryDescription(E.thermalBoundary.value);
+
+  E.fixedTemperatureControls.style.display=
+    (E.thermalBoundary.value==="fixed-top-bottom")?"block":"none";
+
+  E.customHotspotControls.style.display=
+    (E.convInitial.value==="custom-hot-spot")?"block":"none";
+
+  E.perturbationAmplitudeGroup.style.display=
+    (E.perturbationMode.value==="on")?"grid":"none";
+}
+
 function updateModeUI(){
   var type=E.equationType.value;
   var isConv=(type==="convection");
