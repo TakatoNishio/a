@@ -1944,6 +1944,41 @@ function step(ts){
 }
 
 
+
+function runCalculationOnMainThread(p,serial,workerErrorMessage){
+  // Yield once so that the loading message is painted before a synchronous fallback.
+  setTimeout(function(){
+    if(serial!==calculationSerial)return;
+
+    try{
+      frames=[];times=[];current=0;
+
+      if(p.equationType==="convection")calcConvection(p);
+      else if(p.mode==="1d")calc1D(p);
+      else calc2D(p);
+
+      if(serial!==calculationSerial)return;
+
+      stopCalculationIndicator();
+      E.slider.min="0";
+      E.slider.max=String(Math.max(0,frames.length-1));
+      E.slider.value="0";
+      E.status.textContent="計算完了："+frames.length+" フレーム";
+      E.play.disabled=false;
+      draw();
+    }catch(err){
+      stopCalculationIndicator();
+      frames=[];times=[];current=0;
+      E.status.textContent="計算エラー："+(err&&err.message?err.message:String(err));
+      E.dx.textContent="Δx = —";
+      E.dt.textContent="Δt = —";
+      E.mass.textContent=(p.equationType==="convection")?"平均T = —":"総量 = —";
+      E.play.disabled=false;
+      console.error("Worker fallback error:",workerErrorMessage||"",err);
+    }
+  },30);
+}
+
 function calculate(){
   stop();
   terminateActiveWorker();
@@ -1970,26 +2005,7 @@ function calculate(){
       if(serial!==calculationSerial)return;
 
       if(typeof Worker==="undefined" || typeof Blob==="undefined"){
-        // Fallback for environments without Web Worker support.
-        try{
-          if(p.equationType==="convection")calcConvection(p);
-          else if(p.mode==="1d")calc1D(p);
-          else calc2D(p);
-
-          if(serial!==calculationSerial)return;
-          stopCalculationIndicator();
-          E.slider.min="0";
-          E.slider.max=String(Math.max(0,frames.length-1));
-          E.slider.value="0";
-          E.status.textContent="計算完了："+frames.length+" フレーム";
-          E.play.disabled=false;
-          draw();
-        }catch(err){
-          stopCalculationIndicator();
-          E.status.textContent="計算エラー："+(err&&err.message?err.message:String(err));
-          E.play.disabled=false;
-          console.error(err);
-        }
+        runCalculationOnMainThread(p,serial,"Web Worker is unavailable");
         return;
       }
 
@@ -1997,15 +2013,24 @@ function calculate(){
       try{
         worker=createSimulationWorker();
       }catch(err){
-        stopCalculationIndicator();
-        E.status.textContent="計算エラー：Web Worker を開始できませんでした。"+((err&&err.message)?err.message:String(err));
-        E.play.disabled=false;
+        runCalculationOnMainThread(
+          p,serial,
+          "Web Worker を開始できませんでした："+((err&&err.message)?err.message:String(err))
+        );
         return;
       }
 
       activeWorker=worker;
 
+      var workerWatchdog=setTimeout(function(){
+        if(serial!==calculationSerial || activeWorker!==worker)return;
+        disposeSimulationWorker(worker);
+        if(activeWorker===worker)activeWorker=null;
+        runCalculationOnMainThread(p,serial,"Worker timeout");
+      },15000);
+
       worker.onmessage=function(ev){
+        clearTimeout(workerWatchdog);
         if(serial!==calculationSerial){
           disposeSimulationWorker(worker);
           return;
@@ -2017,12 +2042,7 @@ function calculate(){
         stopCalculationIndicator();
 
         if(!result.ok){
-          frames=[];times=[];current=0;
-          E.status.textContent="計算エラー："+result.error;
-          E.dx.textContent="Δx = —";
-          E.dt.textContent="Δt = —";
-          E.mass.textContent="総量 = —";
-          E.play.disabled=false;
+          runCalculationOnMainThread(p,serial,"Worker error: "+result.error);
           return;
         }
 
@@ -2044,13 +2064,22 @@ function calculate(){
       };
 
       worker.onerror=function(err){
+        clearTimeout(workerWatchdog);
         if(serial!==calculationSerial)return;
         disposeSimulationWorker(worker);
         if(activeWorker===worker)activeWorker=null;
-        stopCalculationIndicator();
-        frames=[];times=[];current=0;
-        E.status.textContent="計算エラー："+(err.message||"Worker 内でエラーが発生しました。");
-        E.play.disabled=false;
+        runCalculationOnMainThread(
+          p,serial,
+          "Worker runtime error: "+(err.message||"unknown error")
+        );
+      };
+
+      worker.onmessageerror=function(){
+        clearTimeout(workerWatchdog);
+        if(serial!==calculationSerial)return;
+        disposeSimulationWorker(worker);
+        if(activeWorker===worker)activeWorker=null;
+        runCalculationOnMainThread(p,serial,"Worker message could not be decoded");
       };
 
       worker.postMessage(p);
