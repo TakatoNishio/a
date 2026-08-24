@@ -157,6 +157,73 @@ canvas{display:block;width:100%;height:430px}
       </div>
     </div>
 
+    <div id="boundary-controls">
+      <div class="group" id="boundary-1d-group">
+        <label for="boundary-1d">境界条件</label>
+        <select id="boundary-1d">
+          <option value="periodic">周期境界</option>
+          <option value="neumann">Neumann境界</option>
+          <option value="dirichlet">Dirichlet境界</option>
+          <option value="outflow">流出境界</option>
+        </select>
+        <div class="hint" id="boundary-1d-description"></div>
+      </div>
+
+      <div id="boundary-2d-group" style="display:none">
+        <div class="group">
+          <label for="boundary-x">x方向の境界条件</label>
+          <select id="boundary-x">
+            <option value="periodic">周期境界</option>
+            <option value="neumann">Neumann境界</option>
+            <option value="dirichlet">Dirichlet境界</option>
+            <option value="outflow">流出境界</option>
+          </select>
+          <div class="hint" id="boundary-x-description"></div>
+        </div>
+
+        <div class="group">
+          <label for="boundary-y">y方向の境界条件</label>
+          <select id="boundary-y">
+            <option value="periodic">周期境界</option>
+            <option value="neumann">Neumann境界</option>
+            <option value="dirichlet">Dirichlet境界</option>
+            <option value="outflow">流出境界</option>
+          </select>
+          <div class="hint" id="boundary-y-description"></div>
+        </div>
+      </div>
+
+      <div id="dirichlet-1d-values" style="display:none">
+        <div class="group">
+          <label for="dirichlet-left">左境界値</label>
+          <input id="dirichlet-left" type="number" value="0" step="0.1">
+        </div>
+        <div class="group">
+          <label for="dirichlet-right">右境界値</label>
+          <input id="dirichlet-right" type="number" value="0" step="0.1">
+        </div>
+      </div>
+
+      <div id="dirichlet-2d-values" style="display:none">
+        <div class="group">
+          <label for="dirichlet-xmin">x最小側の境界値</label>
+          <input id="dirichlet-xmin" type="number" value="0" step="0.1">
+        </div>
+        <div class="group">
+          <label for="dirichlet-xmax">x最大側の境界値</label>
+          <input id="dirichlet-xmax" type="number" value="0" step="0.1">
+        </div>
+        <div class="group">
+          <label for="dirichlet-ymin">y最小側の境界値</label>
+          <input id="dirichlet-ymin" type="number" value="0" step="0.1">
+        </div>
+        <div class="group">
+          <label for="dirichlet-ymax">y最大側の境界値</label>
+          <input id="dirichlet-ymax" type="number" value="0" step="0.1">
+        </div>
+      </div>
+    </div>
+
     <div class="group" id="width-group">
       <label for="width">初期分布の幅 σ</label>
       <input id="width" type="number" value="0.65" min="0.05" max="20" step="0.05">
@@ -227,6 +294,23 @@ var E={
   initial:document.getElementById("initial"),
   advectionScheme:document.getElementById("advection-scheme"),
   schemeGroup:document.getElementById("scheme-group"),
+  boundaryControls:document.getElementById("boundary-controls"),
+  boundary1dGroup:document.getElementById("boundary-1d-group"),
+  boundary2dGroup:document.getElementById("boundary-2d-group"),
+  boundary1d:document.getElementById("boundary-1d"),
+  boundaryX:document.getElementById("boundary-x"),
+  boundaryY:document.getElementById("boundary-y"),
+  boundary1dDescription:document.getElementById("boundary-1d-description"),
+  boundaryXDescription:document.getElementById("boundary-x-description"),
+  boundaryYDescription:document.getElementById("boundary-y-description"),
+  dirichlet1dValues:document.getElementById("dirichlet-1d-values"),
+  dirichlet2dValues:document.getElementById("dirichlet-2d-values"),
+  dirichletLeft:document.getElementById("dirichlet-left"),
+  dirichletRight:document.getElementById("dirichlet-right"),
+  dirichletXmin:document.getElementById("dirichlet-xmin"),
+  dirichletXmax:document.getElementById("dirichlet-xmax"),
+  dirichletYmin:document.getElementById("dirichlet-ymin"),
+  dirichletYmax:document.getElementById("dirichlet-ymax"),
   width:document.getElementById("width"),
   widthGroup:document.getElementById("width-group"),
   calculate:document.getElementById("calculate"),
@@ -254,6 +338,31 @@ function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 function num(node,fallback){var v=Number(node.value);return isFinite(v)?v:fallback;}
 function css(name){return getComputedStyle(document.documentElement).getPropertyValue(name).trim();}
 
+function boundaryDescription(type){
+  if(type==="periodic")return "周期境界：反対側の境界とつながっています。右端から出た分布は左端へ、上端から出た分布は下端へ戻ります。";
+  if(type==="neumann")return "Neumann境界：境界の法線方向勾配を 0 とします。拡散では境界を横切るフラックスが 0 になる壁として扱います。";
+  if(type==="dirichlet")return "Dirichlet境界：境界上の値を指定した一定値に固定します。";
+  return "流出境界：境界に到達した分布がそのまま領域外へ出ることを想定し、外向き方向ではゼロ勾配に近い近似を用います。";
+}
+
+function updateBoundaryUI(){
+  var isConv=(E.equationType.value==="convection");
+  var is2=E.dimension.value==="2d";
+
+  E.boundaryControls.style.display=isConv?"none":"block";
+  if(isConv)return;
+
+  E.boundary1dGroup.style.display=is2?"none":"grid";
+  E.boundary2dGroup.style.display=is2?"block":"none";
+
+  E.boundary1dDescription.textContent=boundaryDescription(E.boundary1d.value);
+  E.boundaryXDescription.textContent=boundaryDescription(E.boundaryX.value);
+  E.boundaryYDescription.textContent=boundaryDescription(E.boundaryY.value);
+
+  E.dirichlet1dValues.style.display=(!is2&&E.boundary1d.value==="dirichlet")?"block":"none";
+  E.dirichlet2dValues.style.display=(is2&&(E.boundaryX.value==="dirichlet"||E.boundaryY.value==="dirichlet"))?"block":"none";
+}
+
 function updateModeUI(){
   var type=E.equationType.value;
   var isConv=(type==="convection");
@@ -274,6 +383,8 @@ function updateModeUI(){
   E.convectionControls.style.display=isConv?"block":"none";
   E.initial.parentElement.style.display=isConv?"none":"grid";
   E.widthGroup.style.display=isConv?"none":(E.initial.value==="step"?"none":"grid");
+
+  updateBoundaryUI();
 
   if(isConv){
     E.equation.textContent="∂T/∂t + u·∇T = κ∇²T　/　∂ω/∂t + u·∇ω = ν∇²ω + gβ ∂T/∂x";
@@ -331,7 +442,16 @@ function readParams(){
     type:E.initial.value,
     mode:E.dimension.value,
     equationType:type,
-    advectionScheme:E.advectionScheme.value
+    advectionScheme:E.advectionScheme.value,
+    boundary1d:E.boundary1d.value,
+    boundaryX:E.boundaryX.value,
+    boundaryY:E.boundaryY.value,
+    dirichletLeft:num(E.dirichletLeft,0),
+    dirichletRight:num(E.dirichletRight,0),
+    dirichletXmin:num(E.dirichletXmin,0),
+    dirichletXmax:num(E.dirichletXmax,0),
+    dirichletYmin:num(E.dirichletYmin,0),
+    dirichletYmax:num(E.dirichletYmax,0)
   };
 
   if(p.sigma>p.L)p.sigma=p.L;
@@ -360,10 +480,8 @@ function init1D(type,N,L,sigma,dx){
 }
 
 function calc1D(p){
-  var N=181,dx=p.L/N,frameCount=320,displayDt=p.T/(frameCount-1);
-  var periodic=(p.equationType==="advection"||p.equationType==="advection-diffusion");
-
-  if(!periodic)dx=p.L/(N-1);
+  var N=181,periodic=(p.boundary1d==="periodic");
+  var dx=periodic?p.L/N:p.L/(N-1),frameCount=320,displayDt=p.T/(frameCount-1);
 
   var diffLimit=(p.D>0)?0.45*dx*dx/p.D:1e99;
   var advLimit=(Math.abs(p.u)>0)?0.9*dx/Math.abs(p.u):1e99;
@@ -374,46 +492,69 @@ function calc1D(p){
 
   var dt=displayDt/micro;
   var c=init1D(p.type,N,p.L,p.sigma,dx),next=new Float64Array(N);
-  var f,m,i,tmp,diff,im,ip;
+  var f,m,i,tmp,diff,im,ip,adv,grad;
   frames=[new Float64Array(c)];times=[0];
 
   for(f=1;f<frameCount;f++){
     for(m=0;m<micro;m++){
+
       if(periodic){
         var a=p.u*dt/dx;
-
         for(i=0;i<N;i++){
           im=(i===0)?N-1:i-1;
           ip=(i===N-1)?0:i+1;
+          diff=(p.D>0)?p.D*(c[ip]-2*c[i]+c[im])/(dx*dx):0;
 
-          diff=(p.D>0)
-            ?p.D*(c[ip]-2*c[i]+c[im])/(dx*dx)
-            :0;
-
-          if(p.advectionScheme==="lax-wendroff"){
+          if(p.advectionScheme==="lax-wendroff" && Math.abs(p.u)>0){
             next[i]=c[i]
               -0.5*a*(c[ip]-c[im])
               +0.5*a*a*(c[ip]-2*c[i]+c[im])
               +dt*diff;
           }else{
-            var adv=0,grad=0;
-            if(p.u>0){
-              grad=(c[i]-c[im])/dx;
-              adv=-p.u*grad;
-            }else if(p.u<0){
-              grad=(c[ip]-c[i])/dx;
-              adv=-p.u*grad;
-            }
+            adv=0;
+            if(p.u>0){grad=(c[i]-c[im])/dx;adv=-p.u*grad;}
+            else if(p.u<0){grad=(c[ip]-c[i])/dx;adv=-p.u*grad;}
             next[i]=c[i]+dt*(adv+diff);
           }
         }
       }else{
         for(i=1;i<N-1;i++){
-          diff=p.D*(c[i+1]-2*c[i]+c[i-1])/(dx*dx);
-          next[i]=c[i]+dt*diff;
+          diff=(p.D>0)?p.D*(c[i+1]-2*c[i]+c[i-1])/(dx*dx):0;
+          adv=0;
+
+          if(Math.abs(p.u)>0){
+            if(p.advectionScheme==="lax-wendroff"){
+              var a2=p.u*dt/dx;
+              adv=(-0.5*a2*(c[i+1]-c[i-1])+0.5*a2*a2*(c[i+1]-2*c[i]+c[i-1]))/dt;
+            }else if(p.u>0){
+              adv=-p.u*(c[i]-c[i-1])/dx;
+            }else{
+              adv=-p.u*(c[i+1]-c[i])/dx;
+            }
+          }
+
+          next[i]=c[i]+dt*(adv+diff);
         }
-        next[0]=next[1];
-        next[N-1]=next[N-2];
+
+        if(p.boundary1d==="dirichlet"){
+          next[0]=p.dirichletLeft;
+          next[N-1]=p.dirichletRight;
+        }else if(p.boundary1d==="neumann"){
+          next[0]=next[1];
+          next[N-1]=next[N-2];
+        }else{
+          // Outflow: use interior extrapolation / zero-gradient on outward side.
+          if(p.u>0){
+            next[0]=c[0];
+            next[N-1]=next[N-2];
+          }else if(p.u<0){
+            next[0]=next[1];
+            next[N-1]=c[N-1];
+          }else{
+            next[0]=next[1];
+            next[N-1]=next[N-2];
+          }
+        }
       }
 
       tmp=c;c=next;next=tmp;
@@ -454,12 +595,12 @@ function init2D(type,N,L,sigma,dx){
 }
 
 function calc2D(p){
-  var N=51,periodic=(p.equationType==="advection"||p.equationType==="advection-diffusion");
-  var dx=periodic?p.L/N:p.L/(N-1),frameCount=160,displayDt=p.T/(frameCount-1);
+  var N=51,px=(p.boundaryX==="periodic"),py=(p.boundaryY==="periodic");
+  var dx=p.L/(N-1),frameCount=160,displayDt=p.T/(frameCount-1);
 
-  var diffLimit=(p.D>0)?0.22*dx*dx/p.D:1e99;
+  var diffLimit=(p.D>0)?0.20*dx*dx/p.D:1e99;
   var speedSum=Math.abs(p.ux)+Math.abs(p.uy);
-  var advLimit=(speedSum>0)?0.9*dx/speedSum:1e99;
+  var advLimit=(speedSum>0)?0.85*dx/speedSum:1e99;
   var stable=Math.min(diffLimit,advLimit);
   var micro=Math.max(1,Math.ceil(displayDt/stable));
 
@@ -467,75 +608,93 @@ function calc2D(p){
 
   var dt=displayDt/micro;
   var c=init2D(p.type,N,p.L,p.sigma,dx),next=new Float64Array(N*N);
-  var f,m,i,j,k,tmp,diff,gx,gy,im,ip,jm,jp;
+  var f,m,i,j,k,tmp,diff,gx,gy,im,ip,jm,jp,advx,advy;
   frames=[new Float64Array(c)];times=[0];
 
   for(f=1;f<frameCount;f++){
     for(m=0;m<micro;m++){
-      if(periodic){
-        var ax=p.ux*dt/dx;
-        var ay=p.uy*dt/dx;
 
-        for(j=0;j<N;j++){
-          jm=(j===0)?N-1:j-1;
-          jp=(j===N-1)?0:j+1;
+      for(j=0;j<N;j++){
+        jm=(j===0)?(py?N-1:0):j-1;
+        jp=(j===N-1)?(py?0:N-1):j+1;
 
-          for(i=0;i<N;i++){
-            im=(i===0)?N-1:i-1;
-            ip=(i===N-1)?0:i+1;
-            k=j*N+i;
+        for(i=0;i<N;i++){
+          im=(i===0)?(px?N-1:0):i-1;
+          ip=(i===N-1)?(px?0:N-1):i+1;
+          k=j*N+i;
 
-            diff=(p.D>0)
-              ?p.D*(c[j*N+ip]+c[j*N+im]+c[jp*N+i]+c[jm*N+i]-4*c[k])/(dx*dx)
-              :0;
+          if(!px && (i===0||i===N-1))continue;
+          if(!py && (j===0||j===N-1))continue;
 
-            if(p.advectionScheme==="lax-wendroff"){
-              var advLW =
-                -0.5*ax*(c[j*N+ip]-c[j*N+im])
-                +0.5*ax*ax*(c[j*N+ip]-2*c[k]+c[j*N+im])
-                -0.5*ay*(c[jp*N+i]-c[jm*N+i])
-                +0.5*ay*ay*(c[jp*N+i]-2*c[k]+c[jm*N+i]);
+          diff=(p.D>0)?p.D*(c[j*N+ip]+c[j*N+im]+c[jp*N+i]+c[jm*N+i]-4*c[k])/(dx*dx):0;
 
-              next[k]=c[k]+advLW+dt*diff;
+          if(p.advectionScheme==="lax-wendroff"){
+            var ax=p.ux*dt/dx, ay=p.uy*dt/dx;
+            var advLW=
+              -0.5*ax*(c[j*N+ip]-c[j*N+im])
+              +0.5*ax*ax*(c[j*N+ip]-2*c[k]+c[j*N+im])
+              -0.5*ay*(c[jp*N+i]-c[jm*N+i])
+              +0.5*ay*ay*(c[jp*N+i]-2*c[k]+c[jm*N+i]);
+            next[k]=c[k]+advLW+dt*diff;
+          }else{
+            advx=0;advy=0;
+
+            if(p.ux>0)advx=-p.ux*(c[k]-c[j*N+im])/dx;
+            else if(p.ux<0)advx=-p.ux*(c[j*N+ip]-c[k])/dx;
+
+            if(p.uy>0)advy=-p.uy*(c[k]-c[jm*N+i])/dx;
+            else if(p.uy<0)advy=-p.uy*(c[jp*N+i]-c[k])/dx;
+
+            next[k]=c[k]+dt*(advx+advy+diff);
+          }
+        }
+      }
+
+      // X boundaries
+      for(j=0;j<N;j++){
+        if(!px){
+          if(p.boundaryX==="dirichlet"){
+            next[j*N]=p.dirichletXmin;
+            next[j*N+N-1]=p.dirichletXmax;
+          }else if(p.boundaryX==="neumann"){
+            next[j*N]=next[j*N+1];
+            next[j*N+N-1]=next[j*N+N-2];
+          }else{
+            if(p.ux>0){
+              next[j*N]=c[j*N];
+              next[j*N+N-1]=next[j*N+N-2];
+            }else if(p.ux<0){
+              next[j*N]=next[j*N+1];
+              next[j*N+N-1]=c[j*N+N-1];
             }else{
-              var advx=0,advy=0;
-
-              if(p.ux>0){
-                gx=(c[k]-c[j*N+im])/dx;
-                advx=-p.ux*gx;
-              }else if(p.ux<0){
-                gx=(c[j*N+ip]-c[k])/dx;
-                advx=-p.ux*gx;
-              }
-
-              if(p.uy>0){
-                gy=(c[k]-c[jm*N+i])/dx;
-                advy=-p.uy*gy;
-              }else if(p.uy<0){
-                gy=(c[jp*N+i]-c[k])/dx;
-                advy=-p.uy*gy;
-              }
-
-              next[k]=c[k]+dt*(advx+advy+diff);
+              next[j*N]=next[j*N+1];
+              next[j*N+N-1]=next[j*N+N-2];
             }
           }
         }
-      }else{
-        for(j=1;j<N-1;j++){
-          for(i=1;i<N-1;i++){
-            k=j*N+i;
-            diff=p.D*(c[k+1]+c[k-1]+c[k+N]+c[k-N]-4*c[k])/(dx*dx);
-            next[k]=c[k]+dt*diff;
-          }
-        }
+      }
 
-        for(i=1;i<N-1;i++){
-          next[i]=next[N+i];
-          next[(N-1)*N+i]=next[(N-2)*N+i];
-        }
-        for(j=0;j<N;j++){
-          next[j*N]=next[j*N+1];
-          next[j*N+N-1]=next[j*N+N-2];
+      // Y boundaries
+      for(i=0;i<N;i++){
+        if(!py){
+          if(p.boundaryY==="dirichlet"){
+            next[i]=p.dirichletYmin;
+            next[(N-1)*N+i]=p.dirichletYmax;
+          }else if(p.boundaryY==="neumann"){
+            next[i]=next[N+i];
+            next[(N-1)*N+i]=next[(N-2)*N+i];
+          }else{
+            if(p.uy>0){
+              next[i]=c[i];
+              next[(N-1)*N+i]=next[(N-2)*N+i];
+            }else if(p.uy<0){
+              next[i]=next[N+i];
+              next[(N-1)*N+i]=c[(N-1)*N+i];
+            }else{
+              next[i]=next[N+i];
+              next[(N-1)*N+i]=next[(N-2)*N+i];
+            }
+          }
         }
       }
 
@@ -546,7 +705,7 @@ function calc2D(p){
     times.push(f*displayDt);
   }
 
-  state={mode:"2d",L:p.L,N:N,dx:dx,periodic:periodic};
+  state={mode:"2d",L:p.L,N:N,dx:dx,periodic:(px&&py)};
   E.dx.textContent="Δx = Δy = "+dx.toPrecision(4);
   E.dt.textContent="Δt = "+dt.toPrecision(4);
   E.mass.textContent="総量 = "+mass2D(frames[0],dx).toPrecision(5);
@@ -988,6 +1147,16 @@ E.dimension.addEventListener("change",function(){
 
 E.equationType.addEventListener("change",function(){
   stop();
+  var type=E.equationType.value;
+  if(type==="diffusion"){
+    E.boundary1d.value="neumann";
+    E.boundaryX.value="neumann";
+    E.boundaryY.value="neumann";
+  }else if(type==="advection"||type==="advection-diffusion"){
+    E.boundary1d.value="periodic";
+    E.boundaryX.value="periodic";
+    E.boundaryY.value="periodic";
+  }
   updateModeUI();
   calculate();
 });
@@ -997,6 +1166,26 @@ E.advectionScheme.addEventListener("change",function(){
     calculate();
   }
 });
+
+E.boundary1d.addEventListener("change",function(){
+  updateBoundaryUI();
+  calculate();
+});
+E.boundaryX.addEventListener("change",function(){
+  updateBoundaryUI();
+  calculate();
+});
+E.boundaryY.addEventListener("change",function(){
+  updateBoundaryUI();
+  calculate();
+});
+
+E.dirichletLeft.addEventListener("change",calculate);
+E.dirichletRight.addEventListener("change",calculate);
+E.dirichletXmin.addEventListener("change",calculate);
+E.dirichletXmax.addEventListener("change",calculate);
+E.dirichletYmin.addEventListener("change",calculate);
+E.dirichletYmax.addEventListener("change",calculate);
 
 E.convInitial.addEventListener("change",function(){
   if(E.equationType.value==="convection")calculate();
