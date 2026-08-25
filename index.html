@@ -133,6 +133,7 @@ canvas{display:block;width:100%;height:430px}
         <option value="reaction-diffusion">反応拡散（Gray–Scott, 2D）</option>
         <option value="burgers-2d">2D Burgers方程式</option>
         <option value="cahn-hilliard">Cahn–Hilliard方程式（2D）</option>
+        <option value="shallow-water-1d">浅水方程式（1D）</option>
         <option value="shallow-water">浅水方程式（2D）</option>
       </select>
     </div>
@@ -197,7 +198,7 @@ canvas{display:block;width:100%;height:430px}
           <option value="on">擾乱あり</option>
         </select>
         <div class="hint">
-          拡散・移流・移流拡散・波動・Burgers・反応拡散で使用できます。
+          拡散・移流・移流拡散・波動・Burgers・反応拡散・Cahn–Hilliard・浅水方程式で使用できます。
           「擾乱あり」では、再現可能な滑らかな低波数擾乱を初期場に加えます。「擾乱なし」では追加擾乱を加えません。
         </div>
       </div>
@@ -294,7 +295,16 @@ canvas{display:block;width:100%;height:430px}
       <div class="group">
         <label for="burgers2d-nu">2D Burgers 粘性係数 ν</label>
         <input id="burgers2d-nu" type="number" value="0.02" min="0" max="2" step="0.005">
-        <div class="hint">ベクトル Burgers 系 ∂u/∂t+∇·(u⊗u)=ν∇²u を周期境界で解きます。</div>
+        <div class="hint">ベクトル Burgers 系 ∂u/∂t+(u·∇)u=ν∇²u を周期境界で解きます。</div>
+      </div>
+      <div class="group">
+        <label for="burgers2d-initial-vector">初期速度2成分の作り方</label>
+        <select id="burgers2d-initial-vector">
+          <option value="same">同じ分布：uₓ = uᵧ = 初期分布</option>
+          <option value="x-only">x成分のみ：uₓ = 初期分布, uᵧ = 0</option>
+          <option value="shifted">ずらした2成分（比較用）</option>
+        </select>
+        <div class="hint" id="burgers2d-initial-vector-description">デフォルトでは両成分を同じ初期分布にするため、Gaussianやリングは選択した形のまま1つ表示されます。</div>
       </div>
       <div class="group">
         <label for="burgers2d-view">表示</label>
@@ -336,7 +346,7 @@ canvas{display:block;width:100%;height:430px}
       <div class="group">
         <label for="shallow-h0">基準水深 h₀</label>
         <input id="shallow-h0" type="number" value="1.0" min="0.05" max="100" step="0.1">
-        <div class="hint">保存形の浅水方程式を周期境界・Rusanovフラックスで解きます。</div>
+        <div class="hint" id="shallow-method-hint">保存形の浅水方程式を周期境界・Rusanovフラックスで解きます。</div>
       </div>
       <div class="group">
         <label for="shallow-view">表示</label>
@@ -747,6 +757,8 @@ var E={
   reactionViewDescription:document.getElementById("reaction-view-description"),
   burgers2dControls:document.getElementById("burgers2d-controls"),
   burgers2dNu:document.getElementById("burgers2d-nu"),
+  burgers2dInitialVector:document.getElementById("burgers2d-initial-vector"),
+  burgers2dInitialVectorDescription:document.getElementById("burgers2d-initial-vector-description"),
   burgers2dView:document.getElementById("burgers2d-view"),
   cahnControls:document.getElementById("cahn-controls"),
   cahnM:document.getElementById("cahn-M"),
@@ -755,6 +767,7 @@ var E={
   shallowControls:document.getElementById("shallow-controls"),
   shallowG:document.getElementById("shallow-g"),
   shallowH0:document.getElementById("shallow-h0"),
+  shallowMethodHint:document.getElementById("shallow-method-hint"),
   shallowView:document.getElementById("shallow-view"),
   convectionControls:document.getElementById("convection-controls"),
   nu:document.getElementById("nu"),
@@ -892,10 +905,12 @@ function updateBoundaryUI(){
   var eqType=E.equationType.value;
   var isConv=(eqType==="convection");
   var isReaction=(eqType==="reaction-diffusion");
+  var fixedPeriodic=(eqType==="burgers-2d"||eqType==="cahn-hilliard"||
+                     eqType==="shallow-water"||eqType==="shallow-water-1d");
   var is2=E.dimension.value==="2d";
 
-  E.boundaryControls.style.display=(isConv||isReaction)?"none":"block";
-  if(isConv||isReaction)return;
+  E.boundaryControls.style.display=(isConv||isReaction||fixedPeriodic)?"none":"block";
+  if(isConv||isReaction||fixedPeriodic)return;
 
   E.boundary1dGroup.style.display=is2?"none":"grid";
   E.boundary2dGroup.style.display=is2?"block":"none";
@@ -976,9 +991,11 @@ function updateGridWarning(){
   var isBurgers2D=(type==="burgers-2d");
   var isCahn=(type==="cahn-hilliard");
   var isShallow=(type==="shallow-water");
+  var isShallow1D=(type==="shallow-water-1d");
   var force2D=isConv||isReaction||isBurgers2D||isCahn||isShallow;
   var isBurgers=(type==="burgers");
-  var is2=(isReaction?true:(isBurgers?false:E.dimension.value==="2d"));
+  var force1D=isBurgers||isShallow1D;
+  var is2=(force2D?true:(force1D?false:E.dimension.value==="2d"));
   var N=isConv
     ?Math.round(num(E.gridConvection,41))
     :(is2?Math.round(num(E.grid2d,51)):Math.round(num(E.grid1d,181)));
@@ -1263,6 +1280,40 @@ function active2DViewMode(){
   if(state.equationKind==="scalar")return E.transportViewMode.value;
   return "scalar";
 }
+function updateBurgers2DInitialVectorUI(){
+  var mode=E.burgers2dInitialVector.value;
+  if(mode==="same"){
+    E.burgers2dInitialVectorDescription.textContent=
+      "uₓ と uᵧ に同じ初期分布を与えます。Gaussianやリングを選んだ場合、|u|でも同じ位置に1つの形として表示されます。";
+  }else if(mode==="x-only"){
+    E.burgers2dInitialVectorDescription.textContent=
+      "uₓ のみに選択した初期分布を与え、uᵧ=0から開始します。主にx方向の非線形移流を観察しやすい設定です。";
+  }else{
+    E.burgers2dInitialVectorDescription.textContent=
+      "uᵧ をuₓから少しずらして与えます。2成分の相互作用を強調する比較用設定で、|u|では2つの形が重なって見えます。";
+  }
+}
+
+function updateShallowViewUI(is1D){
+  var options=is1D
+    ?[
+      ["height","水深 h"],
+      ["velocity-1d","流速 u"],
+      ["momentum-1d","単位幅流量 hu"],
+      ["froude-1d","Froude数 |u|/√(gh)"]
+    ]
+    :[
+      ["height","水深 h"],
+      ["speed","流速の大きさ"],
+      ["height-vector","水深＋流速ベクトル"],
+      ["vorticity","渦度"]
+    ];
+  setSelectOptions(E.shallowView,options,E.shallowView.value);
+  E.shallowMethodHint.textContent=is1D
+    ?"1D保存形浅水方程式を周期境界・Rusanovフラックスで解きます。各内部ステップで |u|+√(gh) を再評価してCFL条件を更新します。"
+    :"2D保存形浅水方程式を周期境界・Rusanovフラックスで解きます。各内部ステップで |u|+√(gh), |v|+√(gh) を再評価してCFL条件を更新します。";
+}
+
 function updateModeUI(){
   updateLargeDomainWarning();
 
@@ -1274,17 +1325,19 @@ function updateModeUI(){
   var isBurgers2D=(type==="burgers-2d");
   var isCahn=(type==="cahn-hilliard");
   var isShallow=(type==="shallow-water");
+  var isShallow1D=(type==="shallow-water-1d");
   var force2D=(isConv||isReaction||isBurgers2D||isCahn||isShallow);
+  var force1D=(isBurgers||isShallow1D);
 
   if(force2D && E.dimension.value!=="2d")E.dimension.value="2d";
-  if(isBurgers && E.dimension.value!=="1d")E.dimension.value="1d";
+  if(force1D && E.dimension.value!=="1d")E.dimension.value="1d";
 
   var is2=E.dimension.value==="2d";
   var useDiff=(type==="diffusion"||type==="advection-diffusion");
   var useAdv=(type==="advection"||type==="advection-diffusion");
-  var special=(isConv||isWave||isBurgers||isReaction||isBurgers2D||isCahn||isShallow);
+  var special=(isConv||isWave||isBurgers||isReaction||isBurgers2D||isCahn||isShallow||isShallow1D);
 
-  E.dimension.disabled=(force2D||isBurgers);
+  E.dimension.disabled=(force2D||force1D);
 
   E.DGroup.style.display=(useDiff||isConv)?"grid":"none";
   E.D.disabled=!(useDiff||isConv);
@@ -1295,7 +1348,9 @@ function updateModeUI(){
   E.reactionControls.style.display=isReaction?"block":"none";
   E.burgers2dControls.style.display=isBurgers2D?"block":"none";
   E.cahnControls.style.display=isCahn?"block":"none";
-  E.shallowControls.style.display=isShallow?"block":"none";
+  E.shallowControls.style.display=(isShallow||isShallow1D)?"block":"none";
+  if(isBurgers2D)updateBurgers2DInitialVectorUI();
+  if(isShallow||isShallow1D)updateShallowViewUI(isShallow1D);
   if(isReaction)applyReactionPreset(false);
 
   E.grid1dGroup.style.display=(!isConv&&!isReaction&&!is2)?"grid":"none";
@@ -1386,6 +1441,14 @@ function updateModeUI(){
     E.note.textContent="周期境界。連続方程式では平均φが保存され、自由エネルギーは非増加です。数値計算では非線形項を含む安定刻みを用い、各保存フレームで自由エネルギーの増加を監視します。";
     E.legend.style.display="flex"; return;
   }
+  if(isShallow1D){
+    E.equation.innerHTML=
+      "∂h/∂t + ∂(hu)/∂x = 0" +
+      "<br>∂(hu)/∂t + ∂(hu² + gh²/2)/∂x = 0";
+    E.subtitle.textContent="1D浅水方程式：水深と単位幅流量の保存則から重力波・dam-break型の伝播を観察します。";
+    E.note.textContent="周期境界。Rusanov数値流束による有限体積型の保存形更新です。各内部ステップで |u|+√(gh) を再評価してCFL条件を更新します。正水深保護が作動した場合は警告します。";
+    E.legend.style.display="none"; return;
+  }
   if(isShallow){
     E.equation.innerHTML="∂h/∂t+∇·(h<b>u</b>)=0<br>∂(h<b>u</b>)/∂t+∇·[h<b>u</b>⊗<b>u</b>+(gh²/2)I]=0";
     E.subtitle.textContent="2D浅水方程式：水深と水平運動量の保存則から重力波・dam-break型の伝播を観察します。";
@@ -1428,6 +1491,7 @@ function readParams(){
     reactionKill:clamp(num(E.reactionKill,.0510),0,1),
     reactionInitial:E.reactionInitial.value,
     burgers2dNu:clamp(num(E.burgers2dNu,.02),0,2),
+    burgers2dInitialVector:E.burgers2dInitialVector.value,
     cahnM:clamp(num(E.cahnM,.20),.0001,10),
     cahnKappa:clamp(num(E.cahnKappa,.05),.0001,10),
     shallowG:clamp(num(E.shallowG,1),.0001,100),
@@ -3656,6 +3720,61 @@ function nextPaint(){
 
 
 
+function shallow1DDisplayData(frameIndex,mode){
+  var h=frames[frameIndex],m=state.momentumFrames[frameIndex];
+  var data=new Float64Array(h.length),label="h(x,t)";
+  if(mode==="velocity-1d"){
+    label="u(x,t)";
+    for(var i=0;i<h.length;i++)data[i]=m[i]/h[i];
+  }else if(mode==="momentum-1d"){
+    label="hu(x,t)";
+    data.set(m);
+  }else if(mode==="froude-1d"){
+    label="Fr(x,t)";
+    for(var j=0;j<h.length;j++){
+      data[j]=Math.abs(m[j]/h[j])/Math.sqrt(state.shallowG*h[j]);
+    }
+  }else{
+    data.set(h);
+  }
+  return {data:data,label:label};
+}
+
+function shallow1DViewRange(mode){
+  if(!state.shallow1DViewRanges)state.shallow1DViewRanges={};
+  if(state.shallow1DViewRanges[mode])return state.shallow1DViewRanges[mode];
+
+  var mn=Infinity,mx=-Infinity;
+  for(var f=0;f<frames.length;f++){
+    var d=shallow1DDisplayData(f,mode).data;
+    for(var i=0;i<d.length;i++){mn=Math.min(mn,d[i]);mx=Math.max(mx,d[i]);}
+  }
+  if(!Number.isFinite(mn)||!Number.isFinite(mx)){mn=0;mx=1;}
+  if(Math.abs(mx-mn)<1e-14){
+    var a=Math.max(.5,Math.abs(mx)*.2);
+    mn-=a;mx+=a;
+  }
+  state.shallow1DViewRanges[mode]=[mn,mx];
+  return state.shallow1DViewRanges[mode];
+}
+
+function drawShallow1D(){
+  var mode=E.shallowView.value;
+  var display=shallow1DDisplayData(current,mode);
+  var range=shallow1DViewRange(mode);
+
+  var original=frames[current];
+  var oldLabel=state.fieldAxisLabel,oldMin=state.plotMin,oldMax=state.plotMax;
+  frames[current]=display.data;
+  state.fieldAxisLabel=display.label;
+  state.plotMin=range[0];
+  state.plotMax=range[1];
+  draw1D();
+  frames[current]=original;
+  state.fieldAxisLabel=oldLabel;
+  state.plotMin=oldMin;
+  state.plotMax=oldMax;
+}
 function drawNew2D(){
   var sz=canvasSize(),w=sz.w,hc=sz.h;ctx.clearRect(0,0,w,hc);
   var N=state.N,mode,data,vecx=null,vecy=null,k,i,j,signed=false,quantity="";
@@ -3730,9 +3849,12 @@ function buildHistorySeries(){
   }else if(state.equationKind==="cahn"){
     series.push({label:"平均φ",values:state.meanPhiFrames||frames.map(a=>a.reduce((x,y)=>x+y,0)/a.length)});
     series.push({label:"自由エネルギー",values:state.freeEnergyFrames||frames.map(a=>cahnFreeEnergy(a,state.N,state.dx,state.cahnKappa))});
-  }else if(state.equationKind==="shallow"){
+  }else if(state.equationKind==="shallow"||state.equationKind==="shallow1d"){
     var sh=state.shallowHistory||[];
     series.push({label:"総水量",values:sh.map(x=>x.mass)});
+    if(state.equationKind==="shallow1d"){
+      series.push({label:"総運動量",values:sh.map(x=>x.momentum)});
+    }
     series.push({label:"全エネルギー",values:sh.map(x=>x.energy)});
   }else if(state.mode==="convection"){
     var means=[],ke=[];
@@ -3826,6 +3948,7 @@ function draw(){
   if(!frames.length)return;
   updateCurrentDiagnostics();
   if(state.mode==="convection")drawConvection();
+  else if(state.equationKind==="shallow1d")drawShallow1D();
   else if(state.equationKind==="burgers2d"||state.equationKind==="cahn"||state.equationKind==="shallow")drawNew2D();
   else if(state.mode==="2d")draw2D();
   else draw1D();
@@ -3994,15 +4117,24 @@ async function calcBurgers2D(p,serial){
   var base=init2D(p.type,N,p.L,p.sigma,dx,dy);
   var u=new Float64Array(base.length),v=new Float64Array(base.length),k;
 
-  // Use related but shifted component fields so both nonlinear couplings
-  // u∂/∂x and v∂/∂y are visible from the start.
+  // By default use the same spatial distribution for both velocity
+  // components. This keeps a selected Gaussian/ring visually identical
+  // at t=0 when displaying |u|. Alternative component constructions are
+  // available explicitly in the UI for comparison.
   for(var j=0;j<N;j++){
     for(var i=0;i<N;i++){
       k=j*N+i;
       u[k]=base[k];
-      var is=(i+Math.floor(N/7))%N;
-      var js=(j+Math.floor(N/9))%N;
-      v[k]=0.65*base[js*N+is];
+
+      if(p.burgers2dInitialVector==="x-only"){
+        v[k]=0;
+      }else if(p.burgers2dInitialVector==="shifted"){
+        var is=(i+Math.floor(N/7))%N;
+        var js=(j+Math.floor(N/9))%N;
+        v[k]=0.65*base[js*N+is];
+      }else{
+        v[k]=base[k];
+      }
     }
   }
 
@@ -4104,6 +4236,116 @@ async function calcBurgers2D(p,serial){
   E.dt.textContent="Δt ≈ "+lastDt.toPrecision(4);
   E.mass.textContent="初期 ∫u dA = "+history[0].u.toPrecision(5);
 }
+function sw1DFlux(h,m,g){
+  var u=m/h;
+  return [m,m*u+0.5*g*h*h];
+}
+
+function shallow1DIntegrals(h,m,g,dx){
+  var mass=0,momentum=0,energy=0;
+  for(var i=0;i<h.length;i++){
+    mass+=h[i];
+    momentum+=m[i];
+    energy+=0.5*m[i]*m[i]/h[i]+0.5*g*h[i]*h[i];
+  }
+  return {mass:mass*dx,momentum:momentum*dx,energy:energy*dx};
+}
+
+async function calcShallowWater1D(p,serial){
+  var N=p.grid1d,dx=p.L/N,fc=180,disp=p.T/(fc-1);
+  var shape=init1D(p.type,N,p.L,p.sigma,dx);
+  if(p.genericPerturbationMode==="on"){
+    shape=applyGenericPerturbation1D(
+      shape,p.L,dx,p.genericPerturbationAmplitude
+    );
+  }
+  var h=new Float64Array(N),m=new Float64Array(N),i,k;
+
+  var amp=0.20*p.shallowH0;
+  for(i=0;i<N;i++)h[i]=p.shallowH0+amp*shape[i];
+
+  var hFloor=Math.max(1e-12,1e-8*p.shallowH0);
+  for(i=0;i<N;i++){
+    if(h[i]<=hFloor)throw new Error("1D浅水方程式の初期水深が0以下です。基準水深または初期条件を見直してください。");
+  }
+
+  frames=[new Float64Array(h)];
+  times=[0];
+  var momentumFrames=[new Float64Array(m)];
+  var history=[shallow1DIntegrals(h,m,p.shallowG,dx)];
+  var floorHits=0,massInjected=0,lastDt=0,totalSubsteps=0;
+
+  for(var f=1;f<fc;f++){
+    var elapsed=0;
+
+    while(elapsed<disp-1e-14){
+      var maxSpeed=0;
+      for(i=0;i<N;i++){
+        var ui=m[i]/h[i],ci=Math.sqrt(p.shallowG*h[i]);
+        maxSpeed=Math.max(maxSpeed,Math.abs(ui)+ci);
+      }
+      var stable=maxSpeed>0?0.46*dx/maxSpeed:(disp-elapsed);
+      var dt=Math.min(disp-elapsed,stable);
+      if(dt<=1e-13)throw new Error("1D浅水方程式の時間刻みが小さくなりすぎました。");
+      lastDt=dt;
+
+      var hn=new Float64Array(N),mn=new Float64Array(N);
+      var fluxH=new Float64Array(N),fluxM=new Float64Array(N);
+
+      // Face i is between cell i and i+1 (periodic).
+      for(i=0;i<N;i++){
+        var ip=(i+1)%N;
+        var FL=sw1DFlux(h[i],m[i],p.shallowG);
+        var FR=sw1DFlux(h[ip],m[ip],p.shallowG);
+        var sL=Math.abs(m[i]/h[i])+Math.sqrt(p.shallowG*h[i]);
+        var sR=Math.abs(m[ip]/h[ip])+Math.sqrt(p.shallowG*h[ip]);
+        var a=Math.max(sL,sR);
+        fluxH[i]=0.5*(FL[0]+FR[0])-0.5*a*(h[ip]-h[i]);
+        fluxM[i]=0.5*(FL[1]+FR[1])-0.5*a*(m[ip]-m[i]);
+      }
+
+      for(i=0;i<N;i++){
+        var im=(i+N-1)%N;
+        hn[i]=h[i]-(dt/dx)*(fluxH[i]-fluxH[im]);
+        mn[i]=m[i]-(dt/dx)*(fluxM[i]-fluxM[im]);
+
+        if(hn[i]<=hFloor){
+          massInjected+=(hFloor-hn[i])*dx;
+          hn[i]=hFloor;mn[i]=0;floorHits++;
+        }
+      }
+
+      h=hn;m=mn;elapsed+=dt;totalSubsteps++;
+
+      for(i=0;i<N;i++){
+        if(!Number.isFinite(h[i])||!Number.isFinite(m[i])){
+          throw new Error("1D浅水方程式で非有限値が発生しました。設定を見直してください。");
+        }
+      }
+
+      if(totalSubsteps%40===0)await maybeYieldToBrowser(serial,false);
+      if(totalSubsteps>3000000)throw new Error("1D浅水方程式の内部時間ステップ数が多すぎます。");
+    }
+
+    frames.push(new Float64Array(h));
+    momentumFrames.push(new Float64Array(m));
+    history.push(shallow1DIntegrals(h,m,p.shallowG,dx));
+    times.push(f*disp);
+    updateCalculationProgress(100*f/(fc-1));
+  }
+
+  state={
+    mode:"1d",equationKind:"shallow1d",fieldLabel:"h",fieldAxisLabel:"h(x,t)",
+    L:p.L,N:N,dx:dx,periodic:true,
+    momentumFrames:momentumFrames,shallowG:p.shallowG,
+    shallowHistory:history,shallowFloorHits:floorHits,
+    shallowMassInjected:massInjected
+  };
+  E.dx.textContent="N = "+N+"　Δx = "+dx.toPrecision(4);
+  E.dt.textContent="Δt ≈ "+lastDt.toPrecision(4);
+  E.mass.textContent="総水量 = "+history[0].mass.toPrecision(5);
+}
+
 function swFluxX(h,hu,hv,g){
   var u=hu/h,v=hv/h;
   return [hu,hu*u+0.5*g*h*h,hu*v];
@@ -4124,6 +4366,11 @@ function shallowIntegrals(h,hu,hv,g,dx){
 async function calcShallowWater(p,serial){
   var N=p.grid2d,dx=p.L/N,dy=dx,fc=180,disp=p.T/(fc-1);
   var shape=init2D(p.type,N,p.L,p.sigma,dx,dy),n=N*N,k;
+  if(p.genericPerturbationMode==="on"){
+    shape=applyGenericPerturbation2D(
+      shape,N,p.L,dx,dy,p.genericPerturbationAmplitude
+    );
+  }
 
   var h=new Float64Array(n),hu=new Float64Array(n),hv=new Float64Array(n);
   // Scale the height perturbation with h0 so all generic initial conditions,
@@ -4252,7 +4499,7 @@ async function calculate(){
       (p.equationType==="wave")?"波エネルギー = —":
       (p.equationType==="reaction-diffusion")?"平均V = —":
       (p.equationType==="cahn-hilliard")?"平均φ = —":
-      (p.equationType==="shallow-water")?"総水量 = —":
+      (p.equationType==="shallow-water"||p.equationType==="shallow-water-1d")?"総水量 = —":
       (p.equationType==="burgers-2d")?"2D Burgers":
       "総量 = —";
 
@@ -4280,6 +4527,8 @@ async function calculate(){
       await calcBurgers2D(p,serial);
     }else if(p.equationType==="cahn-hilliard"){
       await calcCahnHilliard(p,serial);
+    }else if(p.equationType==="shallow-water-1d"){
+      await calcShallowWater1D(p,serial);
     }else if(p.equationType==="shallow-water"){
       await calcShallowWater(p,serial);
     }else if(p.mode==="1d"){
@@ -4373,6 +4622,11 @@ E.equationType.addEventListener("change",function(){
   }else if(type==="reaction-diffusion"){
     if(Math.abs(num(E.duration,10)-10)<1e-12)E.duration.value="400";
     applyReactionPreset(false);
+  }else if(type==="burgers-2d"||type==="cahn-hilliard"||
+           type==="shallow-water"||type==="shallow-water-1d"){
+    E.boundary1d.value="periodic";
+    E.boundaryX.value="periodic";
+    E.boundaryY.value="periodic";
   }
   updateModeUI();
   calculate();
@@ -4546,9 +4800,19 @@ E.duration.addEventListener("input",updateLargeDomainWarning);
 E.initial.addEventListener("change",function(){
   E.widthGroup.style.display=E.initial.value==="step"?"none":"grid";
 });
+E.burgers2dInitialVector.addEventListener("change",function(){
+  updateBurgers2DInitialVectorUI();
+  if(E.equationType.value==="burgers-2d")calculate();
+});
 E.burgers2dView.addEventListener("change",draw);
 E.cahnView.addEventListener("change",draw);
 E.shallowView.addEventListener("change",draw);
+E.shallowG.addEventListener("change",function(){
+  if(E.equationType.value==="shallow-water"||E.equationType.value==="shallow-water-1d")calculate();
+});
+E.shallowH0.addEventListener("change",function(){
+  if(E.equationType.value==="shallow-water"||E.equationType.value==="shallow-water-1d")calculate();
+});
 E.transportViewMode.addEventListener("change",function(){
   E.transportViewDescription.textContent=scalarViewDescription(E.transportViewMode.value);
   draw();
