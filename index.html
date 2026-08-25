@@ -146,6 +146,16 @@ canvas{display:block;width:100%;height:430px}
     background:var(--soft,#f3f4f6);font-size:12px
   }
 
+
+  .shallow-validity{
+    margin-top:10px;padding:11px 12px;border-radius:12px;
+    border:1px solid var(--border);font-size:12px;line-height:1.6
+  }
+  .shallow-validity.ok{background:rgba(34,197,94,.08);border-color:rgba(34,197,94,.35)}
+  .shallow-validity.caution{background:rgba(245,158,11,.10);border-color:rgba(245,158,11,.45)}
+  .shallow-validity.warn{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.40)}
+  .shallow-validity b{color:var(--text)}
+
 </style>
 </head>
 <body>
@@ -406,12 +416,36 @@ canvas{display:block;width:100%;height:430px}
       </div>
       <div class="group" id="shallow-terrain-amplitude-group">
         <label for="shallow-terrain-amplitude">地形振幅 / h₀</label>
-        <input id="shallow-terrain-amplitude" type="number" value="0.35" min="0" max="0.8" step="0.05">
+        <input id="shallow-terrain-amplitude" type="number" value="0.35" min="0" max="0.95" step="0.05">
+        <div class="hint">0.95 まで設定できます。海山・浅瀬を高くしすぎると局所水深が非常に小さくなるため、長波仮定や数値安定性の警告が表示されます。</div>
       </div>
+
+      <div class="group" id="shallow-terrain-position-x-group">
+        <label for="shallow-terrain-position-x">地形中心 x / L</label>
+        <input id="shallow-terrain-position-x" type="number" value="0.60" min="0" max="1" step="0.02">
+        <div class="hint">0 が領域左端、1 が右端です。周期境界なので端付近に置くと反対側にも連続します。</div>
+      </div>
+
+      <div class="group" id="shallow-terrain-position-y-group">
+        <label for="shallow-terrain-position-y">地形中心 y / L</label>
+        <input id="shallow-terrain-position-y" type="number" value="0.50" min="0" max="1" step="0.02">
+      </div>
+
+      <div class="group" id="shallow-terrain-width-group">
+        <label for="shallow-terrain-width">地形の代表幅 ℓ / L</label>
+        <input id="shallow-terrain-width" type="number" value="0.12" min="0.01" max="0.50" step="0.01">
+        <div class="hint">小さくすると急峻で局所的な地形になります。周期起伏では、おおよその1波長として使います。</div>
+      </div>
+
       <div class="group">
         <label for="shallow-tsunami-amplitude">初期水面変位振幅 / h₀</label>
         <input id="shallow-tsunami-amplitude" type="number" value="0.08" min="-0.8" max="0.8" step="0.01">
         <div class="hint">浅水方程式では初期条件を自由水面 η=h+b の擾乱として与えます。「津波：局所隆起」「津波：隆起＋沈降」プリセットで特に利用します。</div>
+      </div>
+
+      <div id="shallow-validity-warning" class="shallow-validity ok">
+        <b>長波仮定チェック</b><br>
+        設定を変更すると、代表水深 H と水平スケール Lc の比 H/Lc を目安に妥当性を表示します。
       </div>
       <div class="group">
         <label for="shallow-view">表示</label>
@@ -885,7 +919,14 @@ var E={
   shallowTerrain:document.getElementById("shallow-terrain"),
   shallowTerrainAmplitudeGroup:document.getElementById("shallow-terrain-amplitude-group"),
   shallowTerrainAmplitude:document.getElementById("shallow-terrain-amplitude"),
+  shallowTerrainPositionXGroup:document.getElementById("shallow-terrain-position-x-group"),
+  shallowTerrainPositionYGroup:document.getElementById("shallow-terrain-position-y-group"),
+  shallowTerrainWidthGroup:document.getElementById("shallow-terrain-width-group"),
+  shallowTerrainPositionX:document.getElementById("shallow-terrain-position-x"),
+  shallowTerrainPositionY:document.getElementById("shallow-terrain-position-y"),
+  shallowTerrainWidth:document.getElementById("shallow-terrain-width"),
   shallowTsunamiAmplitude:document.getElementById("shallow-tsunami-amplitude"),
+  shallowValidityWarning:document.getElementById("shallow-validity-warning"),
   shallowView:document.getElementById("shallow-view"),
   convectionControls:document.getElementById("convection-controls"),
   nu:document.getElementById("nu"),
@@ -1442,8 +1483,108 @@ function updateBurgers2DInitialVectorUI(){
 }
 
 function updateShallowTerrainUI(){
-  E.shallowTerrainAmplitudeGroup.style.display=
-    E.shallowTerrain.value==="flat"?"none":"grid";
+  var kind=E.shallowTerrain.value;
+  var flat=(kind==="flat");
+  var ripple=(kind==="ripple");
+  var is2=E.dimension.value==="2d";
+
+  E.shallowTerrainAmplitudeGroup.style.display=flat?"none":"grid";
+  E.shallowTerrainWidthGroup.style.display=flat?"none":"grid";
+  E.shallowTerrainPositionXGroup.style.display=(flat||ripple)?"none":"grid";
+  E.shallowTerrainPositionYGroup.style.display=(flat||ripple||!is2)?"none":"grid";
+
+  updateShallowValidityWarning();
+}
+
+function shallowCharacteristicScaleEstimate(){
+  var L=Math.max(1e-12,num(E.length,10));
+  var h0=Math.max(1e-12,num(E.shallowH0,1));
+  var terrain=E.shallowTerrain.value;
+  var terrainWidth=Math.max(.01,Math.min(.5,num(E.shallowTerrainWidth,.12)))*L;
+  var sigma=Math.max(1e-12,num(E.width,.65));
+  var init=E.initial.value;
+
+  var scales=[];
+
+  if(terrain!=="flat")scales.push(terrainWidth);
+
+  if(init==="sine"){
+    // For a single sin(2πx/L) mode, 1/k=L/(2π) is the gradient scale.
+    scales.push(L/(2*Math.PI));
+  }else if(init==="gaussian"||init==="double-gaussian"||init==="triple-gaussian"||
+           init==="triangle"||init==="ring"||init==="positive-negative"||
+           init==="multi-spots"||init==="tsunami-uplift"||init==="tsunami-dipole"){
+    // The tsunami presets enforce a minimum width internally.
+    scales.push(Math.max(sigma,.04*L));
+  }else if(init==="pulse"||init==="step"||init==="left-right"||
+           init==="checkerboard"||init==="circle"){
+    // Discontinuous profiles have no resolved physical long-wave scale at the edge.
+    scales.push(Math.max(E.dimension.value==="2d"?L/Math.max(3,num(E.grid2d,51)):
+                                               L/Math.max(3,num(E.grid1d,181)),
+                         1e-12));
+  }else if(init==="random"){
+    scales.push(Math.max(E.dimension.value==="2d"?L/Math.max(3,num(E.grid2d,51)):
+                                             L/Math.max(3,num(E.grid1d,181)),
+                         1e-12));
+  }
+
+  if(!scales.length)scales.push(L);
+  var Lc=Math.min.apply(null,scales);
+
+  var terrAmp=(terrain==="flat")?0:Math.max(0,num(E.shallowTerrainAmplitude,.35));
+  var etaAmp=Math.abs(num(E.shallowTsunamiAmplitude,.08));
+
+  // Conservative representative/max-depth estimate.
+  var depthFactor=1+etaAmp;
+  if(terrain==="trench"||terrain==="ripple")depthFactor+=terrAmp;
+  var H=h0*depthFactor;
+
+  var ratio=H/Math.max(1e-12,Lc);
+
+  var discontinuous=(init==="pulse"||init==="step"||init==="left-right"||
+                     init==="checkerboard"||init==="circle"||init==="random");
+
+  // A simple free-surface nonlinearity indicator; nonlinear SWE can handle
+  // finite amplitude, but very large A/H is a warning for breaking/vertical motion.
+  var ampRatio=etaAmp;
+
+  return {H:H,Lc:Lc,ratio:ratio,discontinuous:discontinuous,ampRatio:ampRatio};
+}
+
+function updateShallowValidityWarning(){
+  if(!E.shallowValidityWarning)return;
+  var isShallow=(E.equationType.value==="shallow-water"||
+                 E.equationType.value==="shallow-water-1d");
+  if(!isShallow)return;
+
+  var v=shallowCharacteristicScaleEstimate();
+  var ratio=v.ratio;
+  var cls="ok",headline="長波仮定は概ね妥当そうです";
+
+  if(ratio>0.20){
+    cls="warn";headline="注意：長波（浅水）仮定から外れやすい設定です";
+  }else if(ratio>0.10){
+    cls="caution";headline="注意：長波仮定がやや弱い設定です";
+  }
+
+  var extra=[];
+  if(v.discontinuous){
+    if(cls==="ok")cls="caution";
+    extra.push("初期条件に不連続・格子スケール構造があり、その近傍では長波近似の物理的解釈が限定的です。");
+  }
+  if(v.ampRatio>0.30){
+    if(cls==="ok")cls="caution";
+    extra.push("自由水面変位が基準水深に対して大きく、強非線形・砕波・鉛直運動が重要になる可能性があります。");
+  }
+
+  E.shallowValidityWarning.className="shallow-validity "+cls;
+  E.shallowValidityWarning.innerHTML=
+    "<b>"+headline+"</b><br>"+
+    "目安：H/Lc ≈ "+ratio.toPrecision(3)+
+    "（代表水深 H≈"+v.H.toPrecision(3)+
+    "、最小の代表水平スケール Lc≈"+v.Lc.toPrecision(3)+"）。"+
+    "浅水方程式は H/Lc≪1 を前提とし、0.1・0.2 は厳密な境界ではなく注意のための目安です。"+
+    (extra.length?"<br>"+extra.join("<br>"):"");
 }
 
 function updateShallowViewUI(is1D){
@@ -1767,7 +1908,10 @@ function readParams(){
     shallowG:clamp(num(E.shallowG,1),.0001,100),
     shallowH0:clamp(num(E.shallowH0,1),.05,100),
     shallowTerrain:E.shallowTerrain.value,
-    shallowTerrainAmplitude:clamp(num(E.shallowTerrainAmplitude,.35),0,.8),
+    shallowTerrainAmplitude:clamp(num(E.shallowTerrainAmplitude,.35),0,.95),
+    shallowTerrainPositionX:clamp(num(E.shallowTerrainPositionX,.60),0,1),
+    shallowTerrainPositionY:clamp(num(E.shallowTerrainPositionY,.50),0,1),
+    shallowTerrainWidth:clamp(num(E.shallowTerrainWidth,.12),.01,.50),
     shallowTsunamiAmplitude:clamp(num(E.shallowTsunamiAmplitude,.08),-.8,.8),
     genericPerturbationMode:E.genericPerturbationMode.value,
     genericPerturbationAmplitude:clamp(num(E.genericPerturbationAmplitude,.01),0,1),
@@ -3583,12 +3727,14 @@ function equationTermExplanation(type,dim){
     add("−gh ∂b/∂x","海底の傾斜によって生じる重力の水平成分に相当する地形ソース項です。");
     add("η=h+b","自由水面 η は、基準面から測った海底高度 b に、その地点の水深 h を足した高さです。したがって h はグラフ上では海底曲線 b と自由水面曲線 η の鉛直距離です。");
     add("c=√(gh)","線形近似した浅水重力波の代表的な波速です。水深が浅いほど遅くなります。");
+    add("長波（浅水）仮定","代表水深 H が波・地形の代表水平スケール Lc より十分小さい H/Lc≪1 を仮定します。圧力はほぼ静水圧、鉛直加速度は小さいとみなします。極端に細い地形、短波、砕波・転倒する波では成立しにくくなります。");
   }else if(type==="shallow-water"){
     add("∇·(hu)","水深と流速の積 hu が運ぶ水量の流入・流出です。");
     add("hu⊗u","流れ自身によって水平運動量が運ばれる非線形移流フラックスです。");
     add("gh²I/2","静水圧による水平圧力フラックスで、水面を平らに戻そうとする重力の復元作用を表します。");
     add("−gh∇b","海底地形の勾配による重力の水平成分に相当するソース項です。");
     add("c=√(gh)","浅水重力波の局所的な代表波速です。海底が浅くなると波速が下がり、波面の屈折や浅水化が起こり得ます。");
+    add("長波（浅水）仮定","代表水深 H が波・地形の代表水平スケール Lc より十分小さい H/Lc≪1 を仮定します。鉛直速度構造・強い分散・砕波が重要な条件では浅水方程式だけでは不十分です。");
   }
   return rows.length?'<div class="definition-text" style="margin-top:10px">'+rows.join("<br><br>")+"</div>":"";
 }
@@ -3679,6 +3825,19 @@ function renderDefinitions(){
     var bdx=boundaryDefinition(bx),bdy=boundaryDefinition(by);
     html+=defSection("x方向境界："+bdx.title,bdx.f,bdx.t);
     html+=defSection("y方向境界："+bdy.title,bdy.f,bdy.t);
+  }
+
+  if(type==="shallow-water"||type==="shallow-water-1d"){
+    var vv=shallowCharacteristicScaleEstimate();
+    var terrainText=
+      "海底高度 b は上向きを正とします。現在の地形："+escDef(E.shallowTerrain.options[E.shallowTerrain.selectedIndex].textContent)+
+      "。振幅="+num(E.shallowTerrainAmplitude,.35).toPrecision(3)+" h₀"+
+      "、中心 x/L="+num(E.shallowTerrainPositionX,.60).toPrecision(3)+
+      (dim==="2d"?"、中心 y/L="+num(E.shallowTerrainPositionY,.50).toPrecision(3):"")+
+      "、代表幅 ℓ/L="+num(E.shallowTerrainWidth,.12).toPrecision(3)+"。<br>"+
+      "長波仮定の簡易指標は H/Lc≈"+vv.ratio.toPrecision(3)+
+      " です。H/Lc≪1 が基本条件で、0.1・0.2 はこのアプリで注意を促すための目安であり、厳密な適用限界ではありません。";
+    html+=defSection("海底地形と長波仮定","η=h+b",terrainText);
   }
 
   html+=defSection("解析解との比較","相対誤差ノルムで比較",analyticalDefinition());
@@ -5432,41 +5591,79 @@ async function calcBurgers2D(p,serial){
   E.dt.textContent="Δt ≈ "+lastDt.toPrecision(4);
   E.mass.textContent="初期 ∫u dA = "+history[0].u.toPrecision(5);
 }
-function shallowTerrain1D(kind,N,L,dx,h0,relativeAmplitude){
+function periodicDelta(x,x0,L){
+  var d=x-x0;
+  d-=Math.round(d/L)*L;
+  return d;
+}
+
+function shallowTerrain1D(kind,N,L,dx,h0,relativeAmplitude,positionX,widthFraction){
   var b=new Float64Array(N),A=relativeAmplitude*h0;
+  var x0=positionX*L;
+  var width=Math.max(.01,widthFraction)*L;
+
+  if(kind==="ripple"){
+    var nWave=Math.max(1,Math.round(L/width));
+    for(var ir=0;ir<N;ir++){
+      var xr=ir*dx;
+      b[ir]=.5*A*(1-Math.cos(2*Math.PI*nWave*xr/L));
+    }
+    return b;
+  }
+
   for(var i=0;i<N;i++){
-    var x=i*dx,q;
+    var x=i*dx;
+    var d=periodicDelta(x,x0,L),q=d/width;
+
     if(kind==="seamount"){
-      q=(x-.58*L)/(.12*L); b[i]=A*Math.exp(-.5*q*q);
+      b[i]=A*Math.exp(-.5*q*q);
     }else if(kind==="trench"){
-      q=(x-.58*L)/(.12*L); b[i]=-Math.abs(A)*Math.exp(-.5*q*q);
+      b[i]=-A*Math.exp(-.5*q*q);
     }else if(kind==="shoal"){
-      q=(x-.62*L)/(.22*L); b[i]=A*Math.exp(-.5*Math.pow(q,4));
-    }else if(kind==="ripple"){
-      b[i]=A*.5*(Math.cos(4*Math.PI*x/L)-1)*(-1);
-    }else b[i]=0;
+      b[i]=A*Math.exp(-.5*Math.pow(q,4));
+    }else{
+      b[i]=0;
+    }
   }
   return b;
 }
 
-function shallowTerrain2D(kind,N,L,dx,dy,h0,relativeAmplitude){
-  var b=new Float64Array(N*N),A=relativeAmplitude*h0,mid=.5*L;
+function shallowTerrain2D(kind,N,L,dx,dy,h0,relativeAmplitude,positionX,positionY,widthFraction){
+  var b=new Float64Array(N*N),A=relativeAmplitude*h0;
+  var x0=positionX*L,y0=positionY*L;
+  var width=Math.max(.01,widthFraction)*L;
+
+  if(kind==="ripple"){
+    var nWave=Math.max(1,Math.round(L/width));
+    for(var jr=0;jr<N;jr++){
+      var yr=jr*dy;
+      for(var ir=0;ir<N;ir++){
+        var xr=ir*dx,kr=jr*N+ir;
+        b[kr]=.25*A*(2-Math.cos(2*Math.PI*nWave*xr/L)-
+                       Math.cos(2*Math.PI*nWave*yr/L));
+      }
+    }
+    return b;
+  }
+
   for(var j=0;j<N;j++){
-    var y=j*dy;
+    var y=j*dy,dy0=periodicDelta(y,y0,L);
     for(var i=0;i<N;i++){
-      var x=i*dx,k=j*N+i,qx,qy;
+      var x=i*dx,k=j*N+i;
+      var dx0=periodicDelta(x,x0,L);
+      var qx=dx0/width,qy=dy0/width;
+
       if(kind==="seamount"){
-        qx=(x-.60*L)/(.12*L);qy=(y-.52*L)/(.16*L);
         b[k]=A*Math.exp(-.5*(qx*qx+qy*qy));
       }else if(kind==="trench"){
-        qx=(x-.58*L)/(.10*L);qy=(y-.50*L)/(.30*L);
-        b[k]=-Math.abs(A)*Math.exp(-.5*(qx*qx+qy*qy));
+        b[k]=-A*Math.exp(-.5*(qx*qx+qy*qy));
       }else if(kind==="shoal"){
-        qx=(x-.68*L)/(.24*L);qy=(y-.50*L)/(.34*L);
-        b[k]=A*Math.exp(-.5*(Math.pow(qx,4)+Math.pow(qy,4)));
-      }else if(kind==="ripple"){
-        b[k]=A*.25*(2-Math.cos(4*Math.PI*x/L)-Math.cos(4*Math.PI*y/L));
-      }else b[k]=0;
+        // Slightly elongated broad shoal while preserving the chosen x scale.
+        var qys=dy0/(1.5*width);
+        b[k]=A*Math.exp(-.5*(Math.pow(qx,4)+Math.pow(qys,4)));
+      }else{
+        b[k]=0;
+      }
     }
   }
   return b;
@@ -5519,7 +5716,8 @@ async function calcShallowWater1D(p,serial){
   }
 
   var bottom=shallowTerrain1D(
-    p.shallowTerrain,N,p.L,dx,p.shallowH0,p.shallowTerrainAmplitude
+    p.shallowTerrain,N,p.L,dx,p.shallowH0,p.shallowTerrainAmplitude,
+    p.shallowTerrainPositionX,p.shallowTerrainWidth
   );
   var h=new Float64Array(N),m=new Float64Array(N),i;
 
@@ -5610,6 +5808,9 @@ async function calcShallowWater1D(p,serial){
     L:p.L,N:N,dx:dx,periodic:true,
     momentumFrames:momentumFrames,shallowG:p.shallowG,
     shallowBottom:bottom,shallowTerrain:p.shallowTerrain,
+    shallowTerrainPositionX:p.shallowTerrainPositionX,
+    shallowTerrainWidth:p.shallowTerrainWidth,
+    shallowValidity:shallowCharacteristicScaleEstimate(),
     shallowHistory:history,shallowFloorHits:floorHits,
     shallowMassInjected:massInjected
   };
@@ -5687,7 +5888,8 @@ async function calcShallowWater(p,serial){
   }
 
   var bottom=shallowTerrain2D(
-    p.shallowTerrain,N,p.L,dx,dy,p.shallowH0,p.shallowTerrainAmplitude
+    p.shallowTerrain,N,p.L,dx,dy,p.shallowH0,p.shallowTerrainAmplitude,
+    p.shallowTerrainPositionX,p.shallowTerrainPositionY,p.shallowTerrainWidth
   );
   var h=new Float64Array(n),hu=new Float64Array(n),hv=new Float64Array(n);
 
@@ -5799,6 +6001,10 @@ async function calcShallowWater(p,serial){
     L:p.L,N:N,dx:dx,dy:dy,px:true,py:true,
     huFrames:huFrames,hvFrames:hvFrames,shallowG:p.shallowG,
     shallowBottom:bottom,shallowTerrain:p.shallowTerrain,
+    shallowTerrainPositionX:p.shallowTerrainPositionX,
+    shallowTerrainPositionY:p.shallowTerrainPositionY,
+    shallowTerrainWidth:p.shallowTerrainWidth,
+    shallowValidity:shallowCharacteristicScaleEstimate(),
     shallowHistory:history,shallowFloorHits:floorHits,
     shallowMassInjected:massInjected
   };
@@ -6273,16 +6479,18 @@ E.perturbationAmplitude.addEventListener("change",function(){
 E.viewMode.addEventListener("change",function(){
   if(state.mode==="convection")draw();
 });
-E.grid1d.addEventListener("input",updateGridWarning);
-E.grid2d.addEventListener("input",updateGridWarning);
+E.grid1d.addEventListener("input",function(){updateGridWarning();updateShallowValidityWarning();});
+E.grid2d.addEventListener("input",function(){updateGridWarning();updateShallowValidityWarning();});
 E.gridConvection.addEventListener("input",updateGridWarning);
 
-E.length.addEventListener("input",updateLargeDomainWarning);
+E.length.addEventListener("input",function(){updateLargeDomainWarning();updateShallowValidityWarning();});
 E.duration.addEventListener("input",updateLargeDomainWarning);
 
 E.initial.addEventListener("change",function(){
   E.widthGroup.style.display=E.initial.value==="step"?"none":"grid";
+  updateShallowValidityWarning();
 });
+E.width.addEventListener("input",updateShallowValidityWarning);
 E.burgers2dInitialVector.addEventListener("change",function(){
   updateBurgers2DInitialVectorUI();
   if(E.equationType.value==="burgers-2d")calculate();
@@ -6295,15 +6503,24 @@ E.shallowTerrain.addEventListener("change",function(){
   if(E.equationType.value==="shallow-water"||E.equationType.value==="shallow-water-1d")calculate();
 });
 E.shallowTerrainAmplitude.addEventListener("change",function(){
+  updateShallowValidityWarning();
   if(E.equationType.value==="shallow-water"||E.equationType.value==="shallow-water-1d")calculate();
 });
+[E.shallowTerrainPositionX,E.shallowTerrainPositionY,E.shallowTerrainWidth].forEach(function(el){
+  el.addEventListener("change",function(){
+    updateShallowValidityWarning();
+    if(E.equationType.value==="shallow-water"||E.equationType.value==="shallow-water-1d")calculate();
+  });
+});
 E.shallowTsunamiAmplitude.addEventListener("change",function(){
+  updateShallowValidityWarning();
   if(E.equationType.value==="shallow-water"||E.equationType.value==="shallow-water-1d")calculate();
 });
 E.shallowG.addEventListener("change",function(){
   if(E.equationType.value==="shallow-water"||E.equationType.value==="shallow-water-1d")calculate();
 });
 E.shallowH0.addEventListener("change",function(){
+  updateShallowValidityWarning();
   if(E.equationType.value==="shallow-water"||E.equationType.value==="shallow-water-1d")calculate();
 });
 E.transportViewMode.addEventListener("change",function(){
