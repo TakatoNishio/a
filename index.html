@@ -114,6 +114,38 @@ canvas{display:block;width:100%;height:430px}
 .analysis-toggle-button{min-width:150px;padding-left:18px!important;padding-right:18px!important;font-weight:700}
 .analysis-toggle-button.active{outline:2px solid var(--accent);outline-offset:1px}
 .playback-buttons{flex-wrap:wrap}
+
+  .definition-toggle-button{min-width:112px}
+  .definition-modal{
+    position:fixed;inset:0;z-index:9999;display:none;
+    background:rgba(15,23,42,.36);padding:18px;overflow:auto;
+    -webkit-overflow-scrolling:touch
+  }
+  .definition-modal.open{display:flex;align-items:flex-start;justify-content:center}
+  .definition-sheet{
+    width:min(760px,100%);max-height:calc(100vh - 36px);overflow:auto;
+    margin:auto;background:var(--card,#fff);color:var(--text,#111827);
+    border:1px solid var(--border,#d1d5db);border-radius:22px;
+    box-shadow:0 20px 60px rgba(15,23,42,.24);padding:20px
+  }
+  .definition-head{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .definition-head h2{font-size:20px;margin:0}
+  .definition-close{width:auto;min-width:76px}
+  .definition-section{padding:14px 0;border-top:1px solid var(--border,#e5e7eb)}
+  .definition-section:first-of-type{border-top:0}
+  .definition-section h3{font-size:16px;margin:0 0 8px}
+  .definition-formula{
+    font-family:"Times New Roman",serif;font-size:17px;line-height:1.65;
+    padding:10px 12px;border-radius:12px;background:var(--soft,#f3f4f6);
+    overflow-x:auto
+  }
+  .definition-text{font-size:14px;line-height:1.7;color:var(--muted,#4b5563)}
+  .definition-text b{color:var(--text,#111827)}
+  .definition-tag{
+    display:inline-block;margin:2px 5px 2px 0;padding:3px 8px;border-radius:999px;
+    background:var(--soft,#f3f4f6);font-size:12px
+  }
+
 </style>
 </head>
 <body>
@@ -728,6 +760,7 @@ canvas{display:block;width:100%;height:430px}
       <button id="pause" type="button">一時停止</button>
       <button id="play" type="button">再生</button>
       <button id="analytical-toggle" class="analysis-toggle-button" type="button">解析解と比較</button>
+      <button id="definition-toggle" class="definition-toggle-button" type="button">定義・式</button>
     </div>
     <input id="time-slider" type="range" min="0" max="100" value="0" step="1">
     <output id="time-output">t = 0.000</output>
@@ -776,6 +809,17 @@ canvas{display:block;width:100%;height:430px}
   <div class="status" id="status"></div>
 </section>
 </div>
+
+<div class="definition-modal" id="definition-modal" aria-hidden="true">
+  <div class="definition-sheet" role="dialog" aria-modal="true" aria-labelledby="definition-title">
+    <div class="definition-head">
+      <h2 id="definition-title">定義・式</h2>
+      <button id="definition-close" class="definition-close" type="button">閉じる</button>
+    </div>
+    <div id="definition-content"></div>
+  </div>
+</div>
+
 </main>
 
 <script>
@@ -3401,6 +3445,185 @@ function canvasSize(){
 }
 function clearCanvas(){var s=canvasSize();ctx.clearRect(0,0,s.w,s.h);}
 
+
+function escDef(v){
+  return String(v==null?"":v).replace(/[&<>"']/g,function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+  });
+}
+
+function defSection(title,formula,text){
+  return '<section class="definition-section"><h3>'+title+'</h3>'+
+    (formula?'<div class="definition-formula">'+formula+'</div>':'')+
+    (text?'<div class="definition-text">'+text+'</div>':'')+'</section>';
+}
+
+function equationDefinition(type,dim){
+  var d={};
+  if(type==="diffusion") d={
+    title:"拡散方程式",
+    f:dim==="1d"?"∂φ/∂t = ∂/∂x (D ∂φ/∂x)":"∂φ/∂t = ∇·(D∇φ)",
+    t:"φ は輸送されるスカラー量、D は拡散係数です。濃度・温度などの空間的不均一をならす過程を表します。D が一定なら D∇²φ と同値です。"
+  };
+  else if(type==="advection") d={
+    title:"移流方程式",
+    f:dim==="1d"?"∂φ/∂t + ∂(uφ)/∂x = 0":"∂φ/∂t + ∇·(uφ) = 0",
+    t:"φ を速度場 u が運ぶ保存則です。非圧縮流 ∇·u=0 では ∂φ/∂t+u·∇φ=0 と同値です。"
+  };
+  else if(type==="advection-diffusion") d={
+    title:"移流拡散方程式",
+    f:dim==="1d"?"∂φ/∂t + ∂(uφ−D∂φ/∂x)/∂x = 0":"∂φ/∂t + ∇·(uφ−D∇φ) = 0",
+    t:"移流フラックス uφ と拡散フラックス −D∇φ を同時に扱います。境界を通る流束がなければ総量保存と整合する保存形です。"
+  };
+  else if(type==="wave") d={
+    title:"波動方程式",
+    f:dim==="1d"
+      ?"∂p/∂t + c∂q/∂x = 0<br>∂q/∂t + c∂p/∂x = 0<br>⇒ ∂²p/∂t² = c²∂²p/∂x²"
+      :"∂p/∂t + c∇·Q = 0<br>∂Q/∂t + c∇p = 0<br>⇒ ∂²p/∂t² = c²∇²p",
+    t:"p は波動変数、q または Q は波動フラックス、c は波速です。このアプリでは二階の波動方程式を一階の保存形システムとして解きます。"
+  };
+  else if(type==="burgers") d={
+    title:"Burgers方程式",
+    f:"∂u/∂t + ∂/∂x (u²/2 − ν∂u/∂x) = 0",
+    t:"u 自身が u を運ぶ非線形移流と、粘性 ν による拡散が競合します。非線形項は波形を急峻化し、粘性項はそれを平滑化します。"
+  };
+  else if(type==="burgers-2d") d={
+    title:"2D Burgers方程式",
+    f:"∂u/∂t + u∂u/∂x + v∂u/∂y = ν∇²u<br>∂v/∂t + u∂v/∂x + v∂v/∂y = ν∇²v",
+    t:"速度ベクトル (u,v) が自分自身を移流する非線形方程式です。この形は一般には単純なスカラー保存則ではなく、実装では保存的移流フラックスと ∇·u に対応する補正を組み合わせています。"
+  };
+  else if(type==="reaction-diffusion") d={
+    title:"Gray–Scott反応拡散系",
+    f:"∂U/∂t = Dᵤ∇²U − UV² + F(1−U)<br>∂V/∂t = Dᵥ∇²V + UV² − (F+k)V",
+    t:"U,V は2成分の濃度、Dᵤ,Dᵥ は拡散係数、UV² は非線形反応、F は供給率、k は除去率です。反応と拡散の競合によりスポットや迷路状パターンが形成されます。ソース項があるため全体は単純な保存則ではありません。"
+  };
+  else if(type==="cahn-hilliard") d={
+    title:"Cahn–Hilliard方程式",
+    f:"∂φ/∂t = ∇·(M∇μ)<br>μ = φ³−φ−κ∇²φ",
+    t:"φ は組成を表す保存秩序変数、μ は化学ポテンシャル、M は移動度、κ は界面エネルギーに関係する係数です。相分離と界面の粗大化を表し、適切な境界条件では φ の空間積分が保存されます。"
+  };
+  else if(type==="convection") d={
+    title:"Boussinesq自然対流",
+    f:"∂T/∂t + ∇·(uT) = κ∇²T<br>∂ω/∂t + ∇·(uω) = ν∇²ω + gβ ∂T/∂x<br>∇²ψ = −ω,　u=∂ψ/∂y,　v=−∂ψ/∂x",
+    t:"温度 T の差が浮力を生み、渦度 ω と流速場 u を作り、その流れが再び温度を輸送します。κ は熱拡散率、ν は動粘性係数、β は熱膨張係数です。"
+  };
+  else if(type==="shallow-water-1d") d={
+    title:"1D浅水方程式",
+    f:"∂h/∂t + ∂(hu)/∂x = 0<br>∂(hu)/∂t + ∂(hu² + gh²/2)/∂x = −gh ∂b/∂x",
+    t:"h は水深、u は深さ平均流速、hu は単位幅あたりの流量、g は重力加速度、b は海底高度です。津波など、水平スケールが水深より十分大きい長波の伝播を記述できます。"
+  };
+  else if(type==="shallow-water") d={
+    title:"2D浅水方程式",
+    f:"∂h/∂t + ∇·(hu) = 0<br>∂(hu)/∂t + ∇·(hu⊗u + gh²I/2) = −gh∇b",
+    t:"h は水深、u=(u,v) は深さ平均流速です。質量保存と水平運動量保存を組み合わせた双曲型系で、海底地形 b による重力ソースを含みます。"
+  };
+  else d={title:"方程式",f:"—",t:"現在の選択に対応する定義情報がありません。"};
+  return d;
+}
+
+function initialDefinition(type,dim){
+  var map={
+    "gaussian":["Gaussian","φ = A exp(−r²/(2σ²))","中心付近に滑らかな山を置く初期条件です。1Dでは r=|x−x₀|、2Dでは中心からの距離を使います。"],
+    "pulse":["中央パルス","中心付近で φ=A、それ以外で低い値","有限幅のトップハット状パルスです。鋭い端を持つため、数値拡散や分散を観察しやすい初期条件です。"],
+    "step":["ステップ分布","φ = φL (x<x₀),　φR (x≥x₀)","不連続を持つ初期条件です。移流法の数値拡散やBurgers方程式の急峻化を見るのに適しています。"],
+    "double-gaussian":["2つの Gaussian","φ = Σₙ Aₙ exp(−rₙ²/(2σ²))","2個の滑らかな局在分布を重ねます。"],
+    "triple-gaussian":["3つの Gaussian","φ = Σₙ Aₙ exp(−rₙ²/(2σ²))","3個の滑らかな局在分布を重ねます。"],
+    "triangle":["三角形分布","中心で最大、中心からの距離に対して線形に減少","Gaussianより角を持ち、ステップより連続な初期形状です。"],
+    "sine":["正弦波",dim==="1d"?"φ = φ₀ + A sin(2πx/L)":"φ = φ₀ + A sin(2πx/L) sin(2πy/L)","単一の低波数モードです。Fourier解析や解析解比較に特に適しています。"],
+    "ring":["リング","φ = φ₀ + A exp(−(r−r₀)²/(2σ²))","2Dで環状の分布を与えます。半径方向の変形や輸送を観察できます。"],
+    "random":["不規則分布","φ = φ₀ + 再現可能な空間擾乱","乱数シードを固定した再現可能な不規則初期場です。"],
+    "positive-negative":["正負の Gaussian 対","φ = +G₁ − G₂","正の山と負の谷を組み合わせ、符号を持つ場の輸送を観察します。"],
+    "checkerboard":["チェッカーボード","高値・低値を格子状に交互配置","多数の鋭い界面を含む2D初期条件です。"],
+    "circle":["円形トップハット","円内で高値、円外で低値","2Dの不連続な円形パッチです。"],
+    "multi-spots":["複数スポット","複数の局在スポットを配置","再現可能な複数の局在構造を初期場に与えます。"],
+    "left-right":["左右2領域","左領域と右領域で異なる値","Riemann問題に似た不連続初期条件です。"],
+    "tsunami-uplift":["津波：局所水面隆起","η(x,y,0)=η₀+A exp(−r²/(2σ²))","浅水方程式用。自由水面 η=h+b を局所的に持ち上げ、そこから重力波が伝播します。"],
+    "tsunami-dipole":["津波：隆起＋沈降","η(x,y,0)=η₀+G₊−G₋","浅水方程式用。海底変動を模した隆起域と沈降域の組を自由水面に与えます。"]
+  };
+  var a=map[type]||["初期条件","—","現在の初期条件に対応する説明がありません。"];
+  return {title:a[0],f:a[1],t:a[2]};
+}
+
+function boundaryDefinition(type){
+  var map={
+    periodic:["周期境界","φ(0,t)=φ(L,t)","領域の両端を接続します。片側から出た分布は反対側から入ります。"],
+    neumann:["Neumann境界","∂φ/∂n = 0","境界法線方向の勾配を0とする条件です。拡散問題ではゼロ拡散流束に対応します。"],
+    dirichlet:["Dirichlet境界","φ|境界 = 指定値","境界上の場の値そのものを固定します。"],
+    robin:["Robin境界","aφ + b∂φ/∂n = c","値と法線微分を線形結合した境界条件です。Dirichlet・Neumannを一般化します。"],
+    outflow:["開放境界","流出側：外挿／ゼロ勾配　流入側：指定値","移流を含む問題で、領域外へ出る流れをできるだけ反射させず扱うための境界です。"]
+  };
+  var a=map[type]||["境界条件","—",""];
+  return {title:a[0],f:a[1],t:a[2]};
+}
+
+function analyticalDefinition(){
+  var info=(typeof analyticalSupportInfo==="function")?analyticalSupportInfo():{ok:false,reason:"未計算"};
+  var body=
+    "<b>比較指標</b><br>"+
+    "相対 L1 = Σ|u_num−u_exact| / Σ|u_exact|<br>"+
+    "相対 L2 = √Σ(u_num−u_exact)² / √Σu_exact²<br>"+
+    "相対 L∞ = max|u_num−u_exact| / max|u_exact|<br><br>"+
+    "L1 は全体的なずれ、L2 は大きなずれをより強く反映し、L∞ は局所的な最大ずれを表します。"+
+    "いずれも0に近いほど解析解に近く、0.01 はおおよそ1%です。解析解の対応ノルムがほぼ0の場合、その指標のみ絶対誤差へ切り替えます。";
+  if(info.ok) body="<b>現在の比較法：</b>"+escDef(info.description)+"<br><br>"+body;
+  else body="<b>現在の設定：</b>"+escDef(info.reason||"解析解比較対象外です。")+"<br><br>"+body;
+  return body;
+}
+
+function renderDefinitions(){
+  var dim=document.getElementById("dimension").value;
+  var type=document.getElementById("equation-type").value;
+  var init=document.getElementById("initial").value;
+  var eq=equationDefinition(type,dim);
+  var ic=initialDefinition(init,dim);
+
+  var html=defSection("現在の方程式："+eq.title,eq.f,eq.t);
+  html+=defSection("現在の初期条件："+ic.title,ic.f,ic.t);
+
+  if(dim==="1d"){
+    var b=document.getElementById("boundary-1d").value;
+    var bd=boundaryDefinition(b);
+    html+=defSection("境界条件："+bd.title,bd.f,bd.t);
+  }else{
+    var bx=document.getElementById("boundary-x").value;
+    var by=document.getElementById("boundary-y").value;
+    var bdx=boundaryDefinition(bx),bdy=boundaryDefinition(by);
+    html+=defSection("x方向境界："+bdx.title,bdx.f,bdx.t);
+    html+=defSection("y方向境界："+bdy.title,bdy.f,bdy.t);
+  }
+
+  html+=defSection("解析解との比較","相対誤差ノルムで比較",analyticalDefinition());
+  html+=defSection("記号",
+    "∇：勾配　　∇·：発散　　∇²：Laplacian",
+    "式中の記号は選択した方程式に応じて意味が変わります。各節で主要な変数と係数の意味を説明しています。");
+
+  document.getElementById("definition-content").innerHTML=html;
+}
+
+function openDefinitions(){
+  renderDefinitions();
+  var m=document.getElementById("definition-modal");
+  m.classList.add("open");m.setAttribute("aria-hidden","false");
+  document.body.style.overflow="hidden";
+}
+function closeDefinitions(){
+  var m=document.getElementById("definition-modal");
+  m.classList.remove("open");m.setAttribute("aria-hidden","true");
+  document.body.style.overflow="";
+}
+
+function bindDefinitionUI(){
+  var open=document.getElementById("definition-toggle");
+  var close=document.getElementById("definition-close");
+  var modal=document.getElementById("definition-modal");
+  if(open)open.addEventListener("click",openDefinitions);
+  if(close)close.addEventListener("click",closeDefinitions);
+  if(modal)modal.addEventListener("click",function(e){if(e.target===modal)closeDefinitions();});
+  document.addEventListener("keydown",function(e){if(e.key==="Escape"&&modal&&modal.classList.contains("open"))closeDefinitions();});
+}
+bindDefinitionUI();
+
+
 function analyticalSupportInfo(){
   if(!frames.length)return {ok:false,reason:"先に計算してください。"};
 
@@ -5920,6 +6143,9 @@ updateModeUI();
 calculate();
 
 })();
+
+
+
 </script>
 </body>
 </html>
