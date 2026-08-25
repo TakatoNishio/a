@@ -164,6 +164,28 @@ canvas.shallow-1d-wide{height:300px}
   canvas.shallow-1d-wide{height:240px}
 }
 
+
+.comparison-start-button{
+  width:100%;margin:10px 0 4px;padding:11px 14px;border-radius:10px;
+  border:1px solid var(--accent);background:var(--accent);color:white;
+  font-weight:700;cursor:pointer
+}
+.comparison-start-button:disabled{opacity:.55;cursor:default}
+.comparison-status{font-size:12px;line-height:1.55;margin:5px 0 10px;color:var(--muted)}
+
+
+.availability-toast{
+  position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(12px);
+  max-width:min(620px,calc(100vw - 28px));padding:10px 14px;border-radius:10px;
+  background:#1f2937;color:#fff;font-size:13px;line-height:1.5;z-index:9999;
+  opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;
+  box-shadow:0 8px 28px rgba(0,0,0,.2)
+}
+.availability-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+button.soft-disabled,select.soft-disabled,input.soft-disabled{
+  opacity:.58;
+}
+
 </style>
 </head>
 <body>
@@ -196,7 +218,7 @@ canvas.shallow-1d-wide{height:300px}
         <option value="reaction-diffusion">反応拡散（Gray–Scott）</option>
         <option value="burgers-2d">Burgers方程式</option>
         <option value="cahn-hilliard">Cahn–Hilliard方程式</option>
-      </select>
+      </select><div class="hint" id="equation-availability-hint">選択中の次元で使用できる方程式のみ表示しています。</div>
     </div>
 
     <div class="group" id="D-group">
@@ -423,11 +445,11 @@ canvas.shallow-1d-wide{height:300px}
     </div>
 
     <div id="shallow-controls" style="display:none">
-      <div class="group">
+      <div class="group" id="legacy-shallow-g-group">
         <label for="shallow-g">重力加速度 g</label>
         <input id="shallow-g" type="number" value="1.0" min="0.0001" max="100" step="0.1">
       </div>
-      <div class="group">
+      <div class="group" id="legacy-shallow-h0-group">
         <label for="shallow-h0">基準水深 h₀</label>
         <input id="shallow-h0" type="number" value="1.0" min="0.05" max="100" step="0.1">
         <div class="hint" id="shallow-method-hint">保存形の浅水方程式を周期境界・Rusanovフラックスで解きます。</div>
@@ -849,7 +871,7 @@ canvas.shallow-1d-wide{height:300px}
 
   <div class="analysis-box" id="comparison-box">
     <div class="analysis-title">方程式比較モード</div>
-    <div class="analysis-text">同じ次元・初期形状・領域で、拡散・移流・移流＋拡散・波動を並べて比較します。比較計算では公平な比較のため周期境界を用います。</div>
+    <div class="analysis-text">選択した3つの方程式を、同じ次元・初期形状・領域で比較します。比較計算は周期境界に統一します。「比較開始」を押すと比較用の3計算を実行し、同じ時刻の結果を並べて表示します。通常の再生ボタンを押す必要はありません。</div>
     <div class="group" style="margin-top:10px">
       <label for="comparison-enabled">比較表示</label>
       <select id="comparison-enabled">
@@ -861,6 +883,8 @@ canvas.shallow-1d-wide{height:300px}
       <div class="group"><label for="comparison-eq1">比較1</label><select id="comparison-eq1"></select></div>
       <div class="group"><label for="comparison-eq2">比較2</label><select id="comparison-eq2"></select></div>
       <div class="group"><label for="comparison-eq3">比較3</label><select id="comparison-eq3"></select></div>
+      <button id="comparison-start" class="comparison-start-button" type="button">比較開始</button>
+      <div id="comparison-status" class="comparison-status">比較する方程式を選び、「比較開始」を押してください。</div>
       <div class="compare-grid">
         <div class="compare-card"><div class="compare-card-title" id="compare-title-1"></div><canvas id="compare-canvas-1" width="360" height="190"></canvas></div>
         <div class="compare-card"><div class="compare-card-title" id="compare-title-2"></div><canvas id="compare-canvas-2" width="360" height="190"></canvas></div>
@@ -872,6 +896,8 @@ canvas.shallow-1d-wide{height:300px}
   <div class="status" id="status"></div>
 </section>
 </div>
+
+<div id="availability-toast" class="availability-toast" role="status" aria-live="polite"></div>
 
 <div class="definition-modal" id="definition-modal" aria-hidden="true">
   <div class="definition-sheet" role="dialog" aria-modal="true" aria-labelledby="definition-title">
@@ -890,6 +916,7 @@ canvas.shallow-1d-wide{height:300px}
 "use strict";
 
 var E={
+  availabilityToast:document.getElementById("availability-toast"),
   dimension:document.getElementById("dimension"),
   equationType:document.getElementById("equation-type"),
   D:document.getElementById("D"),
@@ -949,6 +976,8 @@ var E={
   cahnKappa:document.getElementById("cahn-kappa"),
   cahnView:document.getElementById("cahn-view"),
   shallowControls:document.getElementById("shallow-controls"),
+  legacyShallowGGroup:document.getElementById("legacy-shallow-g-group"),
+  legacyShallowH0Group:document.getElementById("legacy-shallow-h0-group"),
   shallowG:document.getElementById("shallow-g"),
   shallowH0:document.getElementById("shallow-h0"),
   shallowMethodHint:document.getElementById("shallow-method-hint"),
@@ -1060,6 +1089,8 @@ var E={
   comparisonEq1:document.getElementById("comparison-eq1"),
   comparisonEq2:document.getElementById("comparison-eq2"),
   comparisonEq3:document.getElementById("comparison-eq3"),
+  comparisonStart:document.getElementById("comparison-start"),
+  comparisonStatus:document.getElementById("comparison-status"),
   compareTitle1:document.getElementById("compare-title-1"),
   compareTitle2:document.getElementById("compare-title-2"),
   compareTitle3:document.getElementById("compare-title-3"),
@@ -1078,6 +1109,46 @@ var analyticalCache=null;
 var analyticalCacheKey="";
 var loadingTimer=null,loadingIndex=0,calculationSerial=0,lastCalculationYield=0;
 var state={mode:"1d",L:10,N:181,dx:0,velocityFrames:[],vorticityFrames:[]};
+
+
+var availabilityToastTimer=null;
+function showAvailabilityMessage(message){
+  if(!E.availabilityToast)return;
+  E.availabilityToast.textContent=message;
+  E.availabilityToast.classList.add("show");
+  if(availabilityToastTimer)clearTimeout(availabilityToastTimer);
+  availabilityToastTimer=setTimeout(function(){
+    E.availabilityToast.classList.remove("show");
+  },2800);
+}
+function softDisable(el,message){
+  if(!el)return;
+  el.dataset.unavailableMessage=message||"現在の設定では使用できません。";
+  el.classList.add("soft-disabled");
+  el.setAttribute("data-soft-disabled","true");
+}
+function softEnable(el){
+  if(!el)return;
+  delete el.dataset.unavailableMessage;
+  el.classList.remove("soft-disabled");
+  el.removeAttribute("data-soft-disabled");
+}
+// Native disabled controls do not receive clicks consistently, so unavailable
+// controls use aria-disabled and intercept interaction here.
+document.addEventListener("click",function(ev){
+  var el=ev.target.closest("[data-unavailable-message]");
+  if(!el)return;
+  ev.preventDefault();ev.stopPropagation();
+  showAvailabilityMessage(el.dataset.unavailableMessage);
+},true);
+document.addEventListener("keydown",function(ev){
+  var el=ev.target.closest&&ev.target.closest("[data-unavailable-message]");
+  if(!el)return;
+  if(ev.key==="Enter"||ev.key===" "){
+    ev.preventDefault();ev.stopPropagation();
+    showAvailabilityMessage(el.dataset.unavailableMessage);
+  }
+},true);
 
 function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 function num(node,fallback){var v=Number(node.value);return isFinite(v)?v:fallback;}
@@ -1122,7 +1193,8 @@ function updateBoundaryUI(){
   var isConv=(eqType==="convection");
   var isReaction=(eqType==="reaction-diffusion");
   var fixedPeriodic=(eqType==="burgers-2d"||eqType==="cahn-hilliard"||
-                     eqType==="shallow-water"||eqType==="shallow-water-1d");
+                     eqType==="shallow-water"||eqType==="shallow-water-1d"||
+                     (eqType==="wave"&&E.waveModel.value!=="generic"));
   var is2=E.dimension.value==="2d";
 
   E.boundaryControls.style.display=(isConv||isReaction||fixedPeriodic)?"none":"block";
@@ -1741,6 +1813,9 @@ function updateComparisonUI(){
   if(!enabled){
     comparisonRuns=[];
     clearComparisonCanvases();
+    E.comparisonStatus.textContent="比較表示はオフです。";
+  }else if(comparisonRuns.length!==3){
+    E.comparisonStatus.textContent="比較する方程式を選び、「比較開始」を押してください。";
   }
 }
 
@@ -1835,6 +1910,14 @@ function applyWaveModelPreset(model){
 }
 
 function updateWaveModelUI(){
+  var deepOpt=E.waveModel.querySelector('option[value="deep"]');
+  if(deepOpt){
+    deepOpt.disabled=(E.dimension.value==="2d");
+    deepOpt.title=(E.dimension.value==="2d")?"深水極限は現在、1次元設定時のみ使用できます。":"";
+  }
+  E.waveModel.title=(E.dimension.value==="2d")
+    ?"深水極限は現在、1次元設定時のみ使用できます。":"";
+  if(E.dimension.value==="2d"&&E.waveModel.value==="deep")E.waveModel.value="generic";
   var model=E.waveModel.value;
   E.genericWaveSpeedGroup.style.display=model==="generic"?"grid":"none";
   E.waterWaveControls.style.display=model==="generic"?"none":"block";
@@ -1843,7 +1926,7 @@ function updateWaveModelUI(){
   }else if(model==="shallow"){
     E.waveModelDescription.textContent="浅水方程式を使用します。水量・水平運動量を保存形で発展させ、c≈√(gH) の長波を表します。";
   }else{
-    E.waveModelDescription.textContent="深水重力波の分散関係 ω²=g|k| を用いて、1D周期領域をFourierモードごとに時間発展させます。";
+    E.waveModelDescription.textContent="深水極限の線形重力波分散関係 ω²=g|k| を用い、1D周期領域をFourierモードごとに時間発展させます。";
   }
   updateWaveRegimeWarning();
 }
@@ -1878,10 +1961,18 @@ function updateModeUI(){
   E.reactionControls.style.display=isReaction?"block":"none";
   E.burgers2dControls.style.display=isBurgers2D?"block":"none";
   E.cahnControls.style.display=isCahn?"block":"none";
-  E.shallowControls.style.display=(isShallow||isShallow1D)?"block":"none";
+  var isWaveShallow=(isWave&&E.waveModel.value==="shallow");
+  E.shallowControls.style.display=(isShallow||isShallow1D||isWaveShallow)?"block":"none";
+  E.legacyShallowGGroup.style.display=isWaveShallow?"none":"grid";
+  E.legacyShallowH0Group.style.display=isWaveShallow?"none":"grid";
+  E.shallowValidityWarning.style.display=isWaveShallow?"none":"block";
+  if(isWaveShallow){
+    E.shallowG.value=E.waveWaterG.value;
+    E.shallowH0.value=E.waveWaterDepth.value;
+  }
   if(isBurgers2D)updateBurgers2DInitialVectorUI();
-  if(isShallow||isShallow1D){
-    updateShallowViewUI(isShallow1D);
+  if(isShallow||isShallow1D||isWaveShallow){
+    updateShallowViewUI(!is2);
     updateShallowTerrainUI();
   }
   if(isReaction)applyReactionPreset(false);
@@ -1938,7 +2029,7 @@ function updateModeUI(){
           "<br>∂(h<b>u</b>)/∂t + ∇·[h<b>u</b>⊗<b>u</b>+(gh²/2)I] = 0";
       }
       E.subtitle.textContent="水面重力波：浅水極限。波長が水深より十分長い場合の長波を表します。";
-      E.note.textContent="浅水方程式を保存形Rusanov流束で解きます。この波動モードでは平坦海底を使い、通常の波動方程式との違いを水深依存の波速と非線形性として観察できます。";
+      E.note.textContent="浅水方程式を保存形Rusanov流束で解きます。海底地形 b(x,y) を設定でき、地形ありでは水深変化による波速・波形の変化も観察できます。境界は周期境界です。";
       E.legend.style.display=is2?"flex":"none";
     }else if(wm==="deep"){
       E.equation.innerHTML=
@@ -3021,9 +3112,7 @@ function inverseDeepFrame(re0,im0,t,g,L){
 
 async function calcWaveShallow1D(p,serial){
   var q=Object.assign({},p,{
-    shallowG:p.waveWaterG,shallowH0:p.waveWaterDepth,
-    shallowTerrain:"flat",shallowTerrainAmplitude:0,
-    shallowTsunamiAmplitude:.08
+    shallowG:p.waveWaterG,shallowH0:p.waveWaterDepth
   });
   await calcShallowWater1D(q,serial);
   state.waveModel="shallow";
@@ -3031,9 +3120,7 @@ async function calcWaveShallow1D(p,serial){
 }
 async function calcWaveShallow2D(p,serial){
   var q=Object.assign({},p,{
-    shallowG:p.waveWaterG,shallowH0:p.waveWaterDepth,
-    shallowTerrain:"flat",shallowTerrainAmplitude:0,
-    shallowTsunamiAmplitude:.08
+    shallowG:p.waveWaterG,shallowH0:p.waveWaterDepth
   });
   await calcShallowWater(q,serial);
   state.waveModel="shallow";
@@ -4424,10 +4511,17 @@ function ensureAnalyticalCache(){
 function updateAnalyticalButton(){
   var support=analyticalSupportInfo();
   if(support.ok&&state.mode==="1d"&&state.N>401){
-    support={ok:false,reason:"解析比較はブラウザ負荷を抑えるため1D格子点数 N≤401 で利用できます。"};
+    support={ok:false,reason:"解析解との比較は、ブラウザ負荷を抑えるため1D格子点数 N≤401 の設定時のみ使用できます。"};
   }
-  E.analyticalToggle.disabled=!support.ok;
+  // Keep the button clickable so an unavailable-setting explanation can be shown.
+  E.analyticalToggle.disabled=false;
   E.analyticalToggle.title=support.ok?support.description:support.reason;
+  if(support.ok){
+    softEnable(E.analyticalToggle);
+  }else{
+    softDisable(E.analyticalToggle,
+      support.reason||"解析解との比較は、対応する方程式・初期条件・境界条件の設定時のみ使用できます。");
+  }
   if(!support.ok&&analyticalViewActive){
     analyticalViewActive=false;
     E.analyticalToggle.classList.remove("active");
@@ -6397,6 +6491,52 @@ function drawComparisons(){
   }
 }
 
+
+async function startComparison(){
+  if(E.comparisonEnabled.value!=="on"){
+    showAvailabilityMessage("「比較表示」を「使用する」に設定した時のみ比較開始を使用できます。");
+    return;
+  }
+
+  stop();
+  var serial=++calculationSerial;
+  E.comparisonStart.disabled=true;
+  E.play.disabled=true;
+  E.comparisonStatus.textContent="比較計算中です。お待ちください。";
+  startCalculationIndicator();
+
+  try{
+    // Current UI settings are the common comparison conditions.
+    var base=readParams();
+    await nextPaint();
+    lastCalculationYield=(typeof performance!=="undefined"&&performance.now)?performance.now():Date.now();
+
+    // calculateComparisons temporarily replaces global frames/state while each
+    // comparison case is calculated, then restores the main result.
+    await calculateComparisons(base,serial);
+    ensureCalculationActive(serial);
+
+    if(comparisonRuns.length===3){
+      current=0;
+      drawComparisons();
+      E.comparisonStatus.textContent=
+        "比較完了。3つの結果を t=0 で表示しています。時間スライダーを動かすと、3つとも同じ相対時刻へ更新されます。";
+    }else{
+      E.comparisonStatus.textContent="比較結果を作成できませんでした。";
+    }
+  }catch(err){
+    if(!(err&&err.isCalculationCancelled)){
+      E.comparisonStatus.textContent="比較計算エラー："+(err&&err.message?err.message:String(err));
+      console.error(err);
+    }
+  }finally{
+    stopCalculationIndicator();
+    E.comparisonStart.disabled=false;
+    E.play.disabled=false;
+    if(frames.length)draw();
+  }
+}
+
 async function calculate(){
   stop();
 
@@ -6471,9 +6611,8 @@ async function calculate(){
 
     ensureCalculationActive(serial);
 
-    await calculateComparisons(p,serial);
-    ensureCalculationActive(serial);
-
+    // 比較計算は「比較開始」ボタンから明示的に実行する。
+    // 通常計算や再生のたびに3本の比較計算をやり直さない。
     current=0;
     E.slider.min="0";
     E.slider.max=String(Math.max(0,frames.length-1));
@@ -6535,13 +6674,17 @@ function reset(){
 
 E.comparisonEnabled.addEventListener("change",function(){
   updateComparisonUI();
-  calculate();
 });
 [E.comparisonEq1,E.comparisonEq2,E.comparisonEq3].forEach(function(el){
   el.addEventListener("change",function(){
-    if(E.comparisonEnabled.value==="on")calculate();
+    if(E.comparisonEnabled.value==="on"){
+      comparisonRuns=[];
+      clearComparisonCanvases();
+      E.comparisonStatus.textContent="比較条件が変更されました。「比較開始」を押して再計算してください。";
+    }
   });
 });
+E.comparisonStart.addEventListener("click",startComparison);
 
 E.dimension.addEventListener("change",function(){
   stop();
@@ -6593,7 +6736,13 @@ E.waveModel.addEventListener("change",function(){
   calculate();
 });
 [E.waveWaterG,E.waveWaterDepth].forEach(function(el){
-  el.addEventListener("change",function(){updateWaveRegimeWarning();calculate();});
+  el.addEventListener("change",function(){
+    E.shallowG.value=E.waveWaterG.value;
+    E.shallowH0.value=E.waveWaterDepth.value;
+    updateWaveRegimeWarning();
+    updateShallowValidityWarning();
+    calculate();
+  });
 });
 E.width.addEventListener("input",function(){
   if(E.equationType.value==="wave")updateWaveRegimeWarning();
@@ -6816,6 +6965,10 @@ E.reactionViewMode.addEventListener("change",function(){
 });
 E.calculate.addEventListener("click",calculate);
 E.analyticalToggle.addEventListener("click",function(){
+  if(E.analyticalToggle.dataset.unavailableMessage){
+    showAvailabilityMessage(E.analyticalToggle.dataset.unavailableMessage);
+    return;
+  }
   var support=analyticalSupportInfo();
   if(!support.ok){E.status.textContent=support.reason;return;}
   stop();
