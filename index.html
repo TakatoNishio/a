@@ -1450,6 +1450,7 @@ function updateShallowViewUI(is1D){
   var options=is1D
     ?[
       ["height","水深 h"],
+      ["terrain-surface-1d","地形＋水面（b・η・h）"],
       ["surface-1d","自由水面 η=h+b"],
       ["bathymetry-1d","海底地形 b"],
       ["velocity-1d","流速 u"],
@@ -1466,7 +1467,7 @@ function updateShallowViewUI(is1D){
     ];
   setSelectOptions(E.shallowView,options,E.shallowView.value);
   E.shallowMethodHint.textContent=is1D
-    ?"1D保存形浅水方程式です。hu が質量の移流、hu² が運動量の非線形移流、gh²/2 が水面勾配による重力波を表します。周期境界・Rusanovフラックスで解き、各内部ステップで |u|+√(gh) を再評価してCFL条件を更新します。"
+    ?"1D保存形浅水方程式です。海底高度 b、海底から水面までの水深 h、自由水面 η=h+b を区別します。hu が質量の移流、hu² が運動量の非線形移流、gh²/2 が水面勾配による重力波を表します。周期境界・Rusanovフラックスで解きます。"
     :"2D保存形浅水方程式です。h u が質量の移流、h u⊗u が運動量の非線形移流、gh²/2 が水面勾配による重力波を表します。周期境界・Rusanovフラックスで解き、各内部ステップで |u|+√(gh), |v|+√(gh) を再評価してCFL条件を更新します。";
 }
 
@@ -3580,6 +3581,7 @@ function equationTermExplanation(type,dim){
     add("hu²","流体自身の運動によって水平運動量が運ばれる非線形移流フラックスです。");
     add("gh²/2","水面勾配による静水圧の水平作用を保存形で表した圧力フラックスです。津波の復元力を生む重力効果に対応します。");
     add("−gh ∂b/∂x","海底の傾斜によって生じる重力の水平成分に相当する地形ソース項です。");
+    add("η=h+b","自由水面 η は、基準面から測った海底高度 b に、その地点の水深 h を足した高さです。したがって h はグラフ上では海底曲線 b と自由水面曲線 η の鉛直距離です。");
     add("c=√(gh)","線形近似した浅水重力波の代表的な波速です。水深が浅いほど遅くなります。");
   }else if(type==="shallow-water"){
     add("∇·(hu)","水深と流速の積 hu が運ぶ水量の流入・流出です。");
@@ -4811,8 +4813,124 @@ function shallow1DViewRange(mode){
   return state.shallow1DViewRanges[mode];
 }
 
+function shallowTerrainSurfaceRange(){
+  if(state.shallowTerrainSurfaceRange)return state.shallowTerrainSurfaceRange;
+  var b=state.shallowBottom||new Float64Array(state.N);
+  var mn=Infinity,mx=-Infinity;
+
+  for(var i=0;i<b.length;i++){
+    if(b[i]<mn)mn=b[i];
+    if(b[i]>mx)mx=b[i];
+  }
+  for(var f=0;f<frames.length;f++){
+    var h=frames[f];
+    for(var j=0;j<h.length;j++){
+      var eta=h[j]+b[j];
+      if(eta<mn)mn=eta;
+      if(eta>mx)mx=eta;
+    }
+  }
+  if(!Number.isFinite(mn)||!Number.isFinite(mx)){mn=0;mx=1;}
+  if(Math.abs(mx-mn)<1e-14){mn-=.5;mx+=.5;}
+  var mar=.10*(mx-mn);
+  state.shallowTerrainSurfaceRange=[mn-mar,mx+mar];
+  return state.shallowTerrainSurfaceRange;
+}
+
+function drawShallowTerrainSurface1D(){
+  var sz=canvasSize(),w=sz.w,hc=sz.h;
+  ctx.clearRect(0,0,w,hc);
+
+  var pad={l:112,r:20,t:44,b:48};
+  var pw=w-pad.l-pad.r,ph=hc-pad.t-pad.b;
+  var h=frames[current];
+  var b=state.shallowBottom||new Float64Array(h.length);
+  var eta=new Float64Array(h.length);
+  for(var i=0;i<h.length;i++)eta[i]=h[i]+b[i];
+
+  var range=shallowTerrainSurfaceRange(),ymin=range[0],ymax=range[1];
+  function X(i){return pad.l+pw*i/Math.max(1,h.length-1);}
+  function Y(v){return pad.t+ph*(ymax-v)/(ymax-ymin);}
+
+  ctx.lineWidth=1;
+  ctx.strokeStyle=css('--grid');
+  ctx.fillStyle=css('--muted');
+  ctx.font='12px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif';
+
+  for(var gy=0;gy<=4;gy++){
+    var yy=pad.t+ph*gy/4;
+    ctx.beginPath();ctx.moveTo(pad.l,yy);ctx.lineTo(w-pad.r,yy);ctx.stroke();
+    var val=ymax-(ymax-ymin)*gy/4;
+    ctx.textAlign='right';ctx.fillText(val.toPrecision(3),pad.l-12,yy+4);ctx.textAlign='left';
+  }
+  for(var gx=0;gx<=5;gx++){
+    var xx=pad.l+pw*gx/5;
+    ctx.beginPath();ctx.moveTo(xx,pad.t);ctx.lineTo(xx,pad.t+ph);ctx.stroke();
+    ctx.fillText((state.L*gx/5).toFixed(1),xx-10,hc-20);
+  }
+
+  if(ymin<0&&ymax>0){
+    var yz=Y(0);
+    ctx.strokeStyle=css('--muted');ctx.setLineDash([3,4]);
+    ctx.beginPath();ctx.moveTo(pad.l,yz);ctx.lineTo(w-pad.r,yz);ctx.stroke();ctx.setLineDash([]);
+  }
+
+  // Water region: the physical water column lies between b and eta.
+  ctx.save();
+  ctx.globalAlpha=.13;
+  ctx.fillStyle=css('--accent');
+  ctx.beginPath();
+  ctx.moveTo(X(0),Y(eta[0]));
+  for(i=1;i<eta.length;i++)ctx.lineTo(X(i),Y(eta[i]));
+  for(i=b.length-1;i>=0;i--)ctx.lineTo(X(i),Y(b[i]));
+  ctx.closePath();ctx.fill();ctx.restore();
+
+  // Bathymetry b(x).
+  ctx.strokeStyle=css('--text');ctx.lineWidth=2.5;ctx.beginPath();
+  for(i=0;i<b.length;i++){
+    var xb=X(i),yb=Y(b[i]);
+    if(i===0)ctx.moveTo(xb,yb);else ctx.lineTo(xb,yb);
+  }
+  ctx.stroke();
+
+  // Free surface eta=h+b.
+  ctx.strokeStyle=css('--accent');ctx.lineWidth=3;ctx.beginPath();
+  for(i=0;i<eta.length;i++){
+    var xe=X(i),ye=Y(eta[i]);
+    if(i===0)ctx.moveTo(xe,ye);else ctx.lineTo(xe,ye);
+  }
+  ctx.stroke();
+
+  // Show h as the vertical distance between bottom and surface at a
+  // representative position. Choose the point of maximum water depth.
+  var sample=0,maxDepth=-Infinity;
+  for(i=0;i<h.length;i++)if(h[i]>maxDepth){maxDepth=h[i];sample=i;}
+  var xs=X(sample),yb0=Y(b[sample]),ye0=Y(eta[sample]);
+  ctx.strokeStyle=css('--muted');ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(xs,yb0);ctx.lineTo(xs,ye0);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(xs-5,yb0+7);ctx.lineTo(xs,yb0);ctx.lineTo(xs+5,yb0+7);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(xs-5,ye0-7);ctx.lineTo(xs,ye0);ctx.lineTo(xs+5,ye0-7);ctx.stroke();
+  ctx.fillStyle=css('--muted');ctx.font='12px sans-serif';
+  ctx.fillText('h = η − b',Math.min(w-pad.r-70,xs+8),(yb0+ye0)/2+4);
+
+  // Legend and current-value explanation.
+  ctx.font='12px sans-serif';
+  ctx.fillStyle=css('--accent');ctx.fillText('η = h + b：自由水面',pad.l,pad.t-24);
+  ctx.fillStyle=css('--text');ctx.fillText('b：海底地形',pad.l+155,pad.t-24);
+  ctx.fillStyle=css('--muted');ctx.fillText('色付き領域：水柱（厚さが h）',pad.l,pad.t-7);
+
+  ctx.fillStyle=css('--muted');
+  ctx.fillText('x',w-pad.r-4,hc-9);
+  ctx.save();ctx.translate(20,pad.t+ph/2);ctx.rotate(-Math.PI/2);ctx.textAlign='center';
+  ctx.fillText('基準面からの高さ  z',0,0);ctx.restore();
+}
+
 function drawShallow1D(){
   var mode=E.shallowView.value;
+  if(mode==="terrain-surface-1d"){
+    drawShallowTerrainSurface1D();
+    return;
+  }
   var display=shallow1DDisplayData(current,mode);
   var range=shallow1DViewRange(mode);
 
