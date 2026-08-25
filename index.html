@@ -156,6 +156,14 @@ canvas{display:block;width:100%;height:430px}
   .shallow-validity.warn{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.40)}
   .shallow-validity b{color:var(--text)}
 
+
+/* 1D浅水方程式は伝播方向を見やすくするため横長表示にする。
+   2D浅水方程式はx-y形状を歪めないため従来どおり正方形寄りを維持する。 */
+canvas.shallow-1d-wide{height:300px}
+@media(max-width:760px){
+  canvas.shallow-1d-wide{height:240px}
+}
+
 </style>
 </head>
 <body>
@@ -5290,6 +5298,11 @@ function drawHistory(){
 
 function draw(){
   if(!frames.length)return;
+
+  // 1D浅水方程式だけ横長のアスペクト比にする。
+  // 2D浅水方程式はx-y方向の幾何を歪めないため変更しない。
+  E.chart.classList.toggle("shallow-1d-wide",state.equationKind==="shallow1d");
+
   E.analyticalBox.style.display="none";
   updateAnalyticalButton();
   updateCurrentDiagnostics();
