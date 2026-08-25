@@ -186,13 +186,18 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
   opacity:.58;
 }
 
+
+#comparison-time-controls{margin:12px 0 14px}
+#comparison-time-controls input[type="range"]{width:100%;margin:8px 0 3px}
+#comparison-time-output{display:block;font-weight:700;font-size:14px}
+
 </style>
 </head>
 <body>
 <main class="app">
 <header class="header">
   <h1>1D / 2D 輸送シミュレータ</h1>
-  <p>拡散・移流・移流拡散・自然対流の時間発展を、条件を変更しながら確認できます。</p>
+  <p>拡散・移流・波動・自然対流・非線形方程式などの時間発展を、条件を変更しながら比較・観察できます。</p>
 </header>
 
 <div class="layout">
@@ -281,7 +286,7 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
           <option value="on">擾乱あり</option>
         </select>
         <div class="hint">
-          拡散・移流・移流拡散・波動・Burgers・反応拡散・Cahn–Hilliard・浅水方程式で使用できます。
+          拡散・移流・移流拡散・波動（浅水極限を含む）・Burgers・反応拡散・Cahn–Hilliardで使用できます。
           「擾乱あり」では、再現可能な滑らかな低波数擾乱を初期場に加えます。「擾乱なし」では追加擾乱を加えません。
         </div>
       </div>
@@ -871,7 +876,7 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
 
   <div class="analysis-box" id="comparison-box">
     <div class="analysis-title">方程式比較モード</div>
-    <div class="analysis-text">選択した3つの方程式を、同じ次元・初期形状・領域で比較します。比較計算は周期境界に統一します。「比較開始」を押すと比較用の3計算を実行し、同じ時刻の結果を並べて表示します。通常の再生ボタンを押す必要はありません。</div>
+    <div class="analysis-text">選択した3つの方程式を、同じ次元・初期形状・領域で比較します。「通常波動」は一定波速の非分散波動方程式です。比較計算は周期境界に統一します。「比較開始」を押すと比較用の3計算を実行し、同じ時刻の結果を並べて表示します。通常の再生ボタンを押す必要はありません。</div>
     <div class="group" style="margin-top:10px">
       <label for="comparison-enabled">比較表示</label>
       <select id="comparison-enabled">
@@ -885,6 +890,12 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
       <div class="group"><label for="comparison-eq3">比較3</label><select id="comparison-eq3"></select></div>
       <button id="comparison-start" class="comparison-start-button" type="button">比較開始</button>
       <div id="comparison-status" class="comparison-status">比較する方程式を選び、「比較開始」を押してください。</div>
+      <div id="comparison-time-controls" style="display:none">
+        <label for="comparison-time-slider"><b>比較時刻</b></label>
+        <input id="comparison-time-slider" type="range" min="0" max="1000" value="0" step="1">
+        <output id="comparison-time-output">t = 0.000</output>
+        <div class="hint">このスライダーだけで3つの比較結果を同じ計算時刻に同期して更新します。通常表示の再生・時間スライダーとは独立しています。</div>
+      </div>
       <div class="compare-grid">
         <div class="compare-card"><div class="compare-card-title" id="compare-title-1"></div><canvas id="compare-canvas-1" width="360" height="190"></canvas></div>
         <div class="compare-card"><div class="compare-card-title" id="compare-title-2"></div><canvas id="compare-canvas-2" width="360" height="190"></canvas></div>
@@ -1091,6 +1102,9 @@ var E={
   comparisonEq3:document.getElementById("comparison-eq3"),
   comparisonStart:document.getElementById("comparison-start"),
   comparisonStatus:document.getElementById("comparison-status"),
+  comparisonTimeControls:document.getElementById("comparison-time-controls"),
+  comparisonTimeSlider:document.getElementById("comparison-time-slider"),
+  comparisonTimeOutput:document.getElementById("comparison-time-output"),
   compareTitle1:document.getElementById("compare-title-1"),
   compareTitle2:document.getElementById("compare-title-2"),
   compareTitle3:document.getElementById("compare-title-3"),
@@ -1103,6 +1117,7 @@ var ctx=E.chart.getContext("2d");
 var hctx=E.historyChart.getContext("2d");
 var frames=[],times=[],current=0,playing=false,raf=null,lastTs=0;
 var comparisonRuns=[];
+var comparisonTimeFraction=0;
 var lastParams=null;
 var analyticalViewActive=false;
 var analyticalCache=null;
@@ -1791,7 +1806,7 @@ var comparisonEquationCatalog=[
   ["diffusion","拡散"],
   ["advection","移流"],
   ["advection-diffusion","移流＋拡散"],
-  ["wave","波動"]
+  ["wave","通常波動"]
 ];
 
 function updateComparisonUI(){
@@ -1812,9 +1827,12 @@ function updateComparisonUI(){
   }
   if(!enabled){
     comparisonRuns=[];
+    comparisonTimeFraction=0;
     clearComparisonCanvases();
+    E.comparisonTimeControls.style.display="none";
     E.comparisonStatus.textContent="比較表示はオフです。";
   }else if(comparisonRuns.length!==3){
+    E.comparisonTimeControls.style.display="none";
     E.comparisonStatus.textContent="比較する方程式を選び、「比較開始」を押してください。";
   }
 }
@@ -6423,10 +6441,40 @@ async function calculateComparisons(base,serial){
   }
 }
 
+function comparisonEndTime(){
+  if(comparisonRuns.length!==3)return 0;
+  var tEnd=Infinity;
+  for(var i=0;i<comparisonRuns.length;i++){
+    var ts=comparisonRuns[i].times;
+    if(!ts||!ts.length)return 0;
+    tEnd=Math.min(tEnd,ts[ts.length-1]);
+  }
+  return Number.isFinite(tEnd)?tEnd:0;
+}
+
+function comparisonTargetTime(){
+  return comparisonTimeFraction*comparisonEndTime();
+}
+
 function comparisonFrameIndex(run){
-  if(!run||!run.frames.length||!frames.length)return 0;
-  var frac=current/Math.max(1,frames.length-1);
-  return Math.min(run.frames.length-1,Math.round(frac*(run.frames.length-1)));
+  if(!run||!run.frames.length||!run.times.length)return 0;
+  var target=comparisonTargetTime();
+  var ts=run.times;
+  if(target<=ts[0])return 0;
+  if(target>=ts[ts.length-1])return ts.length-1;
+
+  // Find the stored frame nearest to the common physical time.
+  var lo=0,hi=ts.length-1;
+  while(hi-lo>1){
+    var mid=(lo+hi)>>1;
+    if(ts[mid]<target)lo=mid;else hi=mid;
+  }
+  return Math.abs(ts[lo]-target)<=Math.abs(ts[hi]-target)?lo:hi;
+}
+
+function updateComparisonTimeOutput(){
+  E.comparisonTimeOutput.value="t = "+comparisonTargetTime().toFixed(3);
+  E.comparisonTimeOutput.textContent=E.comparisonTimeOutput.value;
 }
 
 function drawComparison1D(run,canvas){
@@ -6458,9 +6506,12 @@ function drawComparison2D(run,canvas){
   var cc=canvas.getContext("2d"),w=canvas.width,hc=canvas.height;
   cc.clearRect(0,0,w,hc);
   var idx=comparisonFrameIndex(run),data=run.frames[idx],N=run.state.N;
+  var reference=run.frames[0];
   var pad=8,size=Math.min(w-2*pad,hc-2*pad),ox=(w-size)/2,oy=(hc-size)/2;
   var mn=Infinity,mx=-Infinity,k;
-  for(k=0;k<data.length;k++){mn=Math.min(mn,data[k]);mx=Math.max(mx,data[k]);}
+  // Keep the comparison color scale fixed from the initial state. Changing
+  // min/max at every comparison time would make amplitude changes misleading.
+  for(k=0;k<reference.length;k++){mn=Math.min(mn,reference[k]);mx=Math.max(mx,reference[k]);}
   var signed=run.state.equationKind==="wave";
   var pmin=mn,pmax=mx;
   if(signed){
@@ -6517,10 +6568,13 @@ async function startComparison(){
     ensureCalculationActive(serial);
 
     if(comparisonRuns.length===3){
-      current=0;
+      comparisonTimeFraction=0;
+      E.comparisonTimeSlider.value="0";
+      E.comparisonTimeControls.style.display="block";
+      updateComparisonTimeOutput();
       drawComparisons();
       E.comparisonStatus.textContent=
-        "比較完了。3つの結果を t=0 で表示しています。時間スライダーを動かすと、3つとも同じ相対時刻へ更新されます。";
+        "比較完了。3つの結果を t=0 で表示しています。下の「比較時刻」スライダーで3つを同じ計算時刻に更新できます。";
     }else{
       E.comparisonStatus.textContent="比較結果を作成できませんでした。";
     }
@@ -6679,12 +6733,23 @@ E.comparisonEnabled.addEventListener("change",function(){
   el.addEventListener("change",function(){
     if(E.comparisonEnabled.value==="on"){
       comparisonRuns=[];
+      comparisonTimeFraction=0;
       clearComparisonCanvases();
+      E.comparisonTimeControls.style.display="none";
       E.comparisonStatus.textContent="比較条件が変更されました。「比較開始」を押して再計算してください。";
     }
   });
 });
 E.comparisonStart.addEventListener("click",startComparison);
+E.comparisonTimeSlider.addEventListener("input",function(){
+  if(comparisonRuns.length!==3){
+    showAvailabilityMessage("比較時刻は、比較計算が完了した後に使用できます。");
+    return;
+  }
+  comparisonTimeFraction=clamp(Number(E.comparisonTimeSlider.value)/1000,0,1);
+  updateComparisonTimeOutput();
+  drawComparisons();
+});
 
 E.dimension.addEventListener("change",function(){
   stop();
