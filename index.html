@@ -743,6 +743,12 @@ canvas{display:block;width:100%;height:430px}
     <div class="analysis-title">解析解との比較</div>
     <div class="analysis-text" id="analytical-description"></div>
     <div class="analysis-text" id="analytical-errors"></div>
+    <div class="analysis-text" style="margin-top:8px;line-height:1.65">
+      <b>相対L1</b>：誤差の絶対値の総和を解析解の絶対値の総和で割った値。全体的なずれを表します。<br>
+      <b>相対L2</b>：誤差の二乗和平方根を解析解の二乗和平方根で割った値。大きなずれをL1より強く反映します。<br>
+      <b>相対L∞</b>：最大誤差を解析解の最大絶対値で割った値。局所的に最も悪いずれを表します。<br>
+      いずれも0に近いほど良く、0.01はおおよそ1%の相対誤差です。解析解のノルムがほぼ0になる場合のみ、その指標は絶対誤差へ自動的に切り替えます。
+    </div>
   </div>
 
   <div class="analysis-box" id="comparison-box">
@@ -3582,14 +3588,57 @@ function exact2DSineAt(t,kind){
 }
 
 function errorMetrics(numerical,exact){
-  var n=numerical.length,s1=0,s2=0,sinf=0;
-  for(var i=0;i<n;i++){
-    var e=numerical[i]-exact[i],ae=Math.abs(e);
-    s1+=ae;s2+=e*e;if(ae>sinf)sinf=ae;
-  }
-  return {L1:s1/n,L2:Math.sqrt(s2/n),Linf:sinf};
-}
+  var n=numerical.length;
+  var e1=0,e2=0,eInf=0;
+  var x1=0,x2=0,xInf=0;
 
+  for(var i=0;i<n;i++){
+    var e=numerical[i]-exact[i];
+    var ae=Math.abs(e),ax=Math.abs(exact[i]);
+
+    e1+=ae;
+    e2+=e*e;
+    if(ae>eInf)eInf=ae;
+
+    x1+=ax;
+    x2+=exact[i]*exact[i];
+    if(ax>xInf)xInf=ax;
+  }
+
+  var absL1=e1/n;
+  var absL2=Math.sqrt(e2/n);
+  var absLinf=eInf;
+
+  // Relative norm errors:
+  //   L1_rel   = ||e||_1 / ||u_exact||_1
+  //   L2_rel   = ||e||_2 / ||u_exact||_2
+  //   Linf_rel = ||e||_inf / ||u_exact||_inf
+  //
+  // We deliberately do NOT divide point-by-point by u_exact[i],
+  // because exact solutions often cross zero.
+  var norm1=x1;
+  var norm2=Math.sqrt(x2);
+  var normInf=xInf;
+
+  // Relative error is undefined when the exact solution norm is essentially
+  // zero. In that exceptional case, use the corresponding absolute norm.
+  var epsInf=1e-14;
+  var rel1Defined=norm1>epsInf*Math.max(1,n*normInf);
+  var rel2Defined=norm2>epsInf*Math.max(1,Math.sqrt(n)*normInf);
+  var relInfDefined=normInf>epsInf;
+
+  return {
+    L1:rel1Defined?e1/norm1:absL1,
+    L2:rel2Defined?Math.sqrt(e2)/norm2:absL2,
+    Linf:relInfDefined?eInf/normInf:absLinf,
+    relative1:rel1Defined,
+    relative2:rel2Defined,
+    relativeInf:relInfDefined,
+    absL1:absL1,
+    absL2:absL2,
+    absLinf:absLinf
+  };
+}
 function analyticalKey(){
   if(!frames.length)return "";
   return [state.mode,state.equationKind,state.equationType||"",state.N,state.L,
@@ -3627,9 +3676,25 @@ function buildAnalyticalCache(){
     else if(support.type==="sine2d-scalar")exact=exact2DSineAt(times[f],"scalar");
     else exact=exact2DSineAt(times[f],"wave");
     var m=errorMetrics(frames[f],exact);
-    values.push({t:times[f],L1:m.L1,L2:m.L2,Linf:m.Linf});
+    values.push({
+      t:times[f],
+      L1:m.L1,L2:m.L2,Linf:m.Linf,
+      relative1:m.relative1,relative2:m.relative2,relativeInf:m.relativeInf,
+      absL1:m.absL1,absL2:m.absL2,absLinf:m.absLinf
+    });
   }
-  return {ok:true,type:support.type,description:support.description,values:values};
+
+  var allRelative=true;
+  for(var vi=0;vi<values.length;vi++){
+    if(!values[vi].relative1||!values[vi].relative2||!values[vi].relativeInf){
+      allRelative=false;break;
+    }
+  }
+
+  return {
+    ok:true,type:support.type,description:support.description,
+    values:values,allRelative:allRelative
+  };
 }
 
 function ensureAnalyticalCache(){
@@ -3656,70 +3721,147 @@ function updateAnalyticalButton(){
 function drawAnalyticalErrorView(){
   var sz=canvasSize(),w=sz.w,h=sz.h;
   ctx.clearRect(0,0,w,h);
+
   var cache=ensureAnalyticalCache();
   if(!cache.ok){
-    ctx.fillStyle=css("--muted");ctx.font="14px sans-serif";
+    ctx.fillStyle=css("--muted");
+    ctx.font="14px sans-serif";
     ctx.fillText("解析解比較を利用できません。",28,48);
     ctx.fillText(cache.reason||"",28,74);
     return;
   }
 
-  var vals=cache.values,pad={l:66,r:18,t:82,b:46};
-  var pw=w-pad.l-pad.r,ph=h-pad.t-pad.b,ymax=0;
-  for(var q=0;q<vals.length;q++)ymax=Math.max(ymax,vals[q].L1,vals[q].L2,vals[q].Linf);
-  if(ymax<1e-14)ymax=1e-14;ymax*=1.08;
+  var vals=cache.values,pad={l:116,r:18,t:116,b:48};
+  var pw=w-pad.l-pad.r,ph=h-pad.t-pad.b;
+  var ymax=0,yminPositive=Infinity;
 
-  ctx.fillStyle=css("--text");ctx.font="700 14px sans-serif";
-  ctx.fillText("数値解と解析解の誤差履歴",pad.l,24);
+  for(var q=0;q<vals.length;q++){
+    var three=[vals[q].L1,vals[q].L2,vals[q].Linf];
+    for(var a=0;a<three.length;a++){
+      var vv=three[a];
+      if(vv>ymax)ymax=vv;
+      if(vv>0&&vv<yminPositive)yminPositive=vv;
+    }
+  }
+
+  if(ymax<1e-14)ymax=1e-14;
+  if(!Number.isFinite(yminPositive))yminPositive=1e-14;
+
+  // If the errors span at least three orders of magnitude, a logarithmic
+  // vertical axis is substantially easier to interpret.
+  var useLog=(ymax/yminPositive>=1000);
+  var yFloor=Math.max(1e-14,yminPositive*.8);
+  ymax*=1.08;
+
+  function yCoord(v){
+    if(useLog){
+      var lo=Math.log10(yFloor),hi=Math.log10(ymax);
+      var lv=Math.log10(Math.max(yFloor,v));
+      return pad.t+ph*(hi-lv)/(hi-lo);
+    }
+    return pad.t+ph*(1-v/ymax);
+  }
+
+  ctx.fillStyle=css("--text");
+  ctx.font="700 14px sans-serif";
+  ctx.fillText("数値解と解析解の相対誤差履歴",pad.l,24);
+
   var cur=vals[Math.min(current,vals.length-1)];
-  ctx.font="12px sans-serif";ctx.fillStyle=css("--muted");
-  ctx.fillText("t="+cur.t.toPrecision(5)+"   L1="+cur.L1.toExponential(3)+
-    "   L2="+cur.L2.toExponential(3)+"   L∞="+cur.Linf.toExponential(3),pad.l,47);
+  function pct(v){return (100*v).toPrecision(3)+"%";}
+
+  ctx.font="12px sans-serif";
+  ctx.fillStyle=css("--muted");
+  ctx.fillText(
+    "t="+cur.t.toPrecision(5)+
+    "   L1="+cur.L1.toExponential(3)+" ("+pct(cur.L1)+")"+
+    "   L2="+cur.L2.toExponential(3)+" ("+pct(cur.L2)+")"+
+    "   L∞="+cur.Linf.toExponential(3)+" ("+pct(cur.Linf)+")",
+    pad.l,47
+  );
 
   var desc=cache.description;
-  if(ctx.measureText(desc).width>w-pad.l-pad.r)desc=desc.slice(0,70)+"…";
-  ctx.fillText(desc,pad.l,67);
+  if(ctx.measureText(desc).width>w-pad.l-pad.r)desc=desc.slice(0,68)+"…";
+  ctx.fillText(desc,pad.l,68);
 
-  ctx.strokeStyle=css("--grid");ctx.lineWidth=1;
+  ctx.fillText("L1：全体的な相対ずれ　 L2：大きなずれを強く反映",pad.l,87);
+  ctx.fillText("L∞：最大の相対ずれ　 0.01 ≈ 1%（小さいほど良い）",pad.l,104);
+
+  if(!cache.allRelative){
+    ctx.fillStyle=css("--warning");
+    ctx.fillText("※解析解のノルムがほぼ0の時刻では、その指標のみ絶対誤差を表示します。",pad.l,121);
+    pad.t+=18;ph=h-pad.t-pad.b;
+  }
+
+  ctx.strokeStyle=css("--grid");
+  ctx.lineWidth=1;
+
   for(var gy=0;gy<=4;gy++){
     var yy=pad.t+ph*gy/4;
     ctx.beginPath();ctx.moveTo(pad.l,yy);ctx.lineTo(w-pad.r,yy);ctx.stroke();
-    ctx.fillStyle=css("--muted");ctx.fillText((ymax*(1-gy/4)).toExponential(1),5,yy+4);
+
+    var tick;
+    if(useLog){
+      var hiL=Math.log10(ymax),loL=Math.log10(yFloor);
+      tick=Math.pow(10,hiL-(hiL-loL)*gy/4);
+    }else{
+      tick=ymax*(1-gy/4);
+    }
+
+    ctx.fillStyle=css("--muted");
+    ctx.textAlign="right";
+    ctx.fillText(tick.toExponential(1),pad.l-14,yy+4);
+    ctx.textAlign="left";
   }
+
   for(var gx=0;gx<=5;gx++){
     var xx=pad.l+pw*gx/5;
     ctx.beginPath();ctx.moveTo(xx,pad.t);ctx.lineTo(xx,pad.t+ph);ctx.stroke();
+
     var tv=times[0]+(times[times.length-1]-times[0])*gx/5;
-    ctx.fillStyle=css("--muted");ctx.fillText(tv.toPrecision(3),xx-10,h-18);
+    ctx.fillStyle=css("--muted");
+    ctx.fillText(tv.toPrecision(3),xx-10,h-18);
   }
 
   var series=[["L1","L1"],["L2","L2"],["Linf","L∞"]];
   var colors=["#2563eb","#dc2626","#059669"];
+
   for(var si=0;si<series.length;si++){
-    ctx.strokeStyle=colors[si];ctx.lineWidth=2;ctx.beginPath();
+    ctx.strokeStyle=colors[si];
+    ctx.lineWidth=2;
+    ctx.beginPath();
+
     for(var j=0;j<vals.length;j++){
       var x=pad.l+pw*j/Math.max(1,vals.length-1);
-      var y=pad.t+ph*(1-vals[j][series[si][0]]/ymax);
+      var y=yCoord(vals[j][series[si][0]]);
       if(j===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
     }
-    ctx.stroke();ctx.fillStyle=colors[si];
+
+    ctx.stroke();
+    ctx.fillStyle=colors[si];
     ctx.fillText(series[si][1],pad.l+10+si*54,pad.t+13);
   }
 
   var cx=pad.l+pw*current/Math.max(1,vals.length-1);
-  ctx.strokeStyle=css("--text");ctx.setLineDash([4,4]);
+  ctx.strokeStyle=css("--text");
+  ctx.setLineDash([4,4]);
   ctx.beginPath();ctx.moveTo(cx,pad.t);ctx.lineTo(cx,pad.t+ph);ctx.stroke();
   ctx.setLineDash([]);
-  ctx.fillStyle=css("--muted");ctx.fillText("時間 t",w-pad.r-45,h-8);
-  ctx.save();ctx.translate(13,pad.t+ph/2);ctx.rotate(-Math.PI/2);
-  ctx.fillText("解析解との差",0,0);ctx.restore();
-}
 
+  ctx.fillStyle=css("--muted");
+  ctx.fillText("時間 t",w-pad.r-45,h-8);
+
+  ctx.save();
+  ctx.translate(20,pad.t+ph/2);
+  ctx.rotate(-Math.PI/2);
+  ctx.textAlign="center";
+  ctx.fillText(useLog?"相対誤差（対数軸）":"相対誤差",0,0);
+  ctx.restore();
+}
 function draw1D(){
   var sz=canvasSize(),w=sz.w,h=sz.h;
   ctx.clearRect(0,0,w,h);
 
-  var pad={l:62,r:18,t:18,b:44};
+  var pad={l:108,r:18,t:18,b:44};
   var pw=w-pad.l-pad.r,ph=h-pad.t-pad.b;
   var data=frames[current],initial=frames[0],i,j;
   var ymin=(Number.isFinite(state.plotMin)?state.plotMin:Infinity);
@@ -3748,7 +3890,7 @@ function draw1D(){
     var gy=pad.t+ph*j/4;
     ctx.beginPath();ctx.moveTo(pad.l,gy);ctx.lineTo(w-pad.r,gy);ctx.stroke();
     var yval=ymax-(ymax-ymin)*j/4;
-    ctx.fillText(yval.toPrecision(3),6,gy+4);
+    ctx.textAlign="right";ctx.fillText(yval.toPrecision(3),pad.l-12,gy+4);ctx.textAlign="left";
   }
   for(j=0;j<=5;j++){
     var gx=pad.l+pw*j/5;
@@ -3785,7 +3927,7 @@ function draw1D(){
   ctx.font="13px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif";
   ctx.fillText("x",w-pad.r-4,h-8);
   var axisLabel=state.fieldAxisLabel||"φ(x,t)";
-  ctx.save();ctx.translate(14,pad.t+ph/2);ctx.rotate(-Math.PI/2);ctx.fillText(axisLabel,0,0);ctx.restore();
+  ctx.save();ctx.translate(18,pad.t+ph/2);ctx.rotate(-Math.PI/2);ctx.textAlign="center";ctx.fillText(axisLabel,0,0);ctx.restore();
 }
 function colorMap(v){
   v=clamp(v,0,1);
@@ -3950,7 +4092,7 @@ function draw2D(){
   var sz=canvasSize(),w=sz.w,h=sz.h;
   ctx.clearRect(0,0,w,h);
 
-  var N=state.N,base=frames[current],data=base,initial=frames[0],pad={l:52,r:18,t:18,b:44};
+  var N=state.N,base=frames[current],data=base,initial=frames[0],pad={l:68,r:18,t:18,b:44};
   var aw=w-pad.l-pad.r,ah=h-pad.t-pad.b;
   var size=Math.max(120,Math.min(aw,ah));
   var ox=pad.l+(aw-size)/2,oy=pad.t+(ah-size)/2;
