@@ -226,6 +226,16 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
 #comparison-play{padding:7px 16px;border-radius:9px;border:1px solid var(--line);background:#fff;font-weight:700;cursor:pointer}
 #comparison-play.active{background:var(--accent);border-color:var(--accent);color:#fff}
 
+.playback-display-controls{
+  margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;
+  background:var(--chart);display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:9px 10px
+}
+.playback-display-item{min-width:0}
+.playback-display-item label{display:block;font-size:12px;font-weight:700;margin-bottom:5px}
+.playback-display-item select{width:100%}
+.playback-display-hint{grid-column:1/-1}
+#manual-scale-controls{margin-top:8px}
+@media(max-width:540px){.playback-display-controls{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -311,24 +321,6 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
       <label for="transport-view-mode">表示</label>
       <select id="transport-view-mode"></select>
       <div class="hint" id="transport-view-description"></div>
-    </div>
-
-    <div class="group" id="scale-controls" style="display:none">
-      <label for="scale-mode">軸・カラースケール</label>
-      <select id="scale-mode">
-        <option value="initial" selected>初期値固定</option>
-        <option value="auto">現在時刻に自動調整</option>
-        <option value="global">全時間固定</option>
-        <option value="manual">手動設定</option>
-      </select>
-      <div class="hint">ここから縦軸（1D）・カラースケール（2D）の範囲を変更できます。初期値固定では t=0 の表示範囲を全時刻で維持します。</div>
-      <div id="manual-scale-controls" style="display:none;margin-top:8px">
-        <div class="two">
-          <div><label for="manual-scale-min">最小値</label><input id="manual-scale-min" type="number" value="0" step="any"></div>
-          <div><label for="manual-scale-max">最大値</label><input id="manual-scale-max" type="number" value="1" step="any"></div>
-        </div>
-        <div class="hint" id="manual-scale-warning"></div>
-      </div>
     </div>
 
     <div id="generic-perturbation-controls">
@@ -945,6 +937,30 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
     <span>低</span><div class="gradient"></div><span>高</span>
   </div>
 
+  <div class="playback-display-controls" id="playback-display-controls">
+    <div class="playback-display-item" id="playback-quantity-group">
+      <label for="playback-display-quantity">表示する量</label>
+      <select id="playback-display-quantity"></select>
+    </div>
+    <div class="playback-display-item" id="scale-controls">
+      <label for="scale-mode">軸・カラースケール</label>
+      <select id="scale-mode">
+        <option value="initial" selected>初期値固定</option>
+        <option value="auto">現在時刻に自動調整</option>
+        <option value="global">全時間固定</option>
+        <option value="manual">手動設定</option>
+      </select>
+      <div id="manual-scale-controls" style="display:none">
+        <div class="two">
+          <div><label for="manual-scale-min">最小値</label><input id="manual-scale-min" type="number" value="0" step="any"></div>
+          <div><label for="manual-scale-max">最大値</label><input id="manual-scale-max" type="number" value="1" step="any"></div>
+        </div>
+        <div class="hint" id="manual-scale-warning"></div>
+      </div>
+    </div>
+    <div class="hint playback-display-hint">動画の表示量と縦軸・カラースケールはここから変更できます。カラースケールを変えても計算結果そのものは変わりません。</div>
+  </div>
+
   <div class="time-row">
     <div class="playback-buttons">
       <button id="pause" type="button">一時停止</button>
@@ -1106,6 +1122,9 @@ var E={
   u1dGroup:document.getElementById("u1d-group"),
   u2dGroup:document.getElementById("u2d-group"),
   transportViewGroup:document.getElementById("transport-view-group"),
+  playbackDisplayControls:document.getElementById("playback-display-controls"),
+  playbackQuantityGroup:document.getElementById("playback-quantity-group"),
+  playbackDisplayQuantity:document.getElementById("playback-display-quantity"),
   scaleControls:document.getElementById("scale-controls"),
   scaleMode:document.getElementById("scale-mode"),
   manualScaleControls:document.getElementById("manual-scale-controls"),
@@ -5223,12 +5242,46 @@ function selectedScaleRange(data,initial,allFrames,signed){
   }
   return paddedRange(r[0],r[1]);
 }
+function activeDisplaySelect(){
+  var t=E.equationType.value,is2=E.dimension.value==="2d";
+  if(t==="convection")return E.viewMode;
+  if(t==="reaction-diffusion")return E.reactionViewMode;
+  if(t==="burgers-2d")return E.burgers2dView;
+  if(t==="cahn-hilliard")return E.cahnView;
+  if(t==="shallow-water"||t==="shallow-water-1d"||(t==="wave"&&E.waveModel.value==="shallow"))return E.shallowView;
+  if(t==="wave"&&E.waveModel.value==="generic"&&is2)return E.waveViewMode;
+  if(is2&&(t==="diffusion"||t==="advection"||t==="advection-diffusion"))return E.transportViewMode;
+  return null;
+}
+function syncPlaybackDisplayUI(){
+  if(!E.playbackDisplayQuantity)return;
+  var src=activeDisplaySelect();
+  E.playbackQuantityGroup.style.display=src?"block":"none";
+  if(src){
+    var old=E.playbackDisplayQuantity.value;
+    E.playbackDisplayQuantity.innerHTML="";
+    Array.from(src.options).forEach(function(o){
+      if(o.disabled||o.hidden)return;
+      var n=document.createElement("option");n.value=o.value;n.textContent=o.textContent;E.playbackDisplayQuantity.appendChild(n);
+    });
+    E.playbackDisplayQuantity.value=src.value;
+  }
+  // Hide the original equation-setting display selector. The actual select
+  // remains in the DOM as the solver/rendering source of truth.
+  [E.transportViewGroup,E.waveViewGroup,E.reactionViewGroup].forEach(function(g){if(g)g.style.display="none";});
+  [E.viewMode,E.burgers2dView,E.cahnView,E.shallowView].forEach(function(sel){
+    if(sel&&sel.parentElement)sel.parentElement.style.display="none";
+  });
+}
+
 function updateScaleControlsUI(){
   if(!E.scaleControls)return;
   var type=E.equationType.value;
-  var show=type!=="convection" && type!=="reaction-diffusion";
-  E.scaleControls.style.display=show?"grid":"none";
+  var show=!(type==="reaction-diffusion"||type==="convection");
+  E.scaleControls.style.display=show?"block":"none";
   E.manualScaleControls.style.display=(show&&E.scaleMode.value==="manual")?"block":"none";
+  if(E.playbackDisplayControls)E.playbackDisplayControls.style.display=(show||activeDisplaySelect())?"grid":"none";
+  syncPlaybackDisplayUI();
 }
 
 function draw1D(){
@@ -6005,14 +6058,50 @@ function drawShallow1D(){
   state.plotMin=oldMin;
   state.plotMax=oldMax;
 }
+function burgers2DDisplayArray(frameIndex,mode){
+  var u=frames[frameIndex],v=state.vFrames[frameIndex],N=state.N,k;
+  if(mode==="u")return u;
+  if(mode==="v")return v;
+  if(mode==="vorticity"){
+    var gu=gradPeriodic(u,N,state.dx),gv=gradPeriodic(v,N,state.dx),om=new Float64Array(u.length);
+    for(k=0;k<om.length;k++)om[k]=gv[0][k]-gu[1][k];
+    return om;
+  }
+  var sp=new Float64Array(u.length);
+  for(k=0;k<sp.length;k++)sp[k]=Math.hypot(u[k],v[k]);
+  return sp;
+}
+function burgers2DScaleRange(mode,data,signed){
+  var sm=E.scaleMode.value;
+  if(sm==="manual")return selectedScaleRange(data,data,[data],signed);
+  if(sm==="auto")return selectedScaleRange(data,data,[data],signed);
+  if(!state.burgersScaleCache)state.burgersScaleCache={};
+  var key=mode+":"+sm;
+  if(state.burgersScaleCache[key])return state.burgersScaleCache[key];
+  var init=burgers2DDisplayArray(0,mode);
+  var range;
+  if(sm==="initial")range=selectedScaleRange(init,init,[init],signed);
+  else{
+    var mn=Infinity,mx=-Infinity;
+    for(var f=0;f<frames.length;f++){
+      var a=burgers2DDisplayArray(f,mode),r=arrayRange(a);mn=Math.min(mn,r[0]);mx=Math.max(mx,r[1]);
+    }
+    if(signed){var aa=Math.max(Math.abs(mn),Math.abs(mx),1e-12);range=[-aa,aa];}
+    else range=paddedRange(mn,mx);
+  }
+  state.burgersScaleCache[key]=range;return range;
+}
+
 function drawNew2D(){
   var sz=canvasSize(),w=sz.w,hc=sz.h;ctx.clearRect(0,0,w,hc);
   var N=state.N,mode,data,vecx=null,vecy=null,k,i,j,signed=false,quantity="";
   if(state.equationKind==="burgers2d"){
     mode=E.burgers2dView.value;var u=frames[current],v=state.vFrames[current];
-    if(mode==="u"){data=u;quantity="uₓ";signed=true;}else if(mode==="v"){data=v;quantity="uᵧ";signed=true;}
-    else if(mode==="vorticity"){data=new Float64Array(u.length);quantity="ω";signed=true;var gu=gradPeriodic(u,N,state.dx),gv=gradPeriodic(v,N,state.dx);for(k=0;k<data.length;k++)data[k]=gv[0][k]-gu[1][k];}
-    else{data=new Float64Array(u.length);quantity="|u|";for(k=0;k<data.length;k++)data[k]=Math.hypot(u[k],v[k]);if(mode==="speed-vector"){vecx=u;vecy=v;}}
+    data=burgers2DDisplayArray(current,mode);
+    if(mode==="u"){quantity="uₓ";signed=true;}
+    else if(mode==="v"){quantity="uᵧ";signed=true;}
+    else if(mode==="vorticity"){quantity="ω";signed=true;}
+    else{quantity="|u|";if(mode==="speed-vector"){vecx=u;vecy=v;}}
   }else if(state.equationKind==="cahn"){
     mode=E.cahnView.value;var ph=frames[current];
     if(mode==="mu"){data=state.muFrames[current];quantity="μ";signed=true;}
@@ -6036,10 +6125,8 @@ function drawNew2D(){
   for(k=0;k<data.length;k++){dataMin=Math.min(dataMin,data[k]);dataMax=Math.max(dataMax,data[k]);}
   if(!Number.isFinite(dataMin)||!Number.isFinite(dataMax)){dataMin=0;dataMax=0;}
   var mn=dataMin,mx=dataMax;
-  if(state.equationKind==="burgers2d"&&(mode==="u"||mode==="v")){
-    var initComponent=mode==="u"?frames[0]:state.vFrames[0];
-    var seriesComponent=mode==="u"?frames:state.vFrames;
-    var br=selectedScaleRange(data,initComponent,seriesComponent,true);mn=br[0];mx=br[1];
+  if(state.equationKind==="burgers2d"){
+    var br=burgers2DScaleRange(mode,data,signed);mn=br[0];mx=br[1];
   }else if(signed){
     var aa=Math.max(Math.abs(dataMin),Math.abs(dataMax),1e-12);mn=-aa;mx=aa;
   }else if(Math.abs(dataMax-dataMin)<1e-14){
@@ -7787,6 +7874,11 @@ E.physicsSupportActions.addEventListener("click",function(ev){
   applyRegimeSupportAction(btn.dataset.regimeAction);
 });
 
+E.playbackDisplayQuantity.addEventListener("change",function(){
+  var src=activeDisplaySelect();if(!src)return;
+  src.value=this.value;src.dispatchEvent(new Event("change",{bubbles:true}));
+  updateScaleControlsUI();draw();
+});
 E.scaleMode.addEventListener("change",function(){updateScaleControlsUI();draw();});
 E.manualScaleMin.addEventListener("input",function(){if(E.scaleMode.value==="manual")draw();});
 E.manualScaleMax.addEventListener("input",function(){if(E.scaleMode.value==="manual")draw();});
