@@ -43,7 +43,12 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .stats{display:flex;flex-wrap:wrap;gap:8px}.stat{background:var(--chip);border-radius:999px;padding:7px 10px;font-size:12px}
 .canvas-wrap{position:relative;width:100%;background:var(--chart);border:1px solid var(--border);border-radius:14px;padding:10px;overflow:hidden}
 canvas{display:block;width:100%;height:430px}
-.time-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;margin-top:14px}.playback-buttons{display:flex;gap:8px;align-items:center}
+.time-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;margin-top:14px}
+.history-wrap{margin-top:18px;border-top:1px solid var(--border);padding-top:14px}
+.history-title{font-size:13px;font-weight:700;margin-bottom:6px}
+.history-subtitle{font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.4}
+#history-chart{display:block;width:100%;height:220px;background:var(--chart);border:1px solid var(--border);border-radius:10px}
+.playback-buttons{display:flex;gap:8px;align-items:center}
 .time-row output{font-weight:700;font-variant-numeric:tabular-nums;min-width:92px;text-align:right}
 .status{min-height:20px;margin-top:10px;font-size:13px;color:var(--muted)}
 .note{margin-top:14px;padding:12px;border-radius:12px;background:var(--note);border:1px solid var(--border);font-size:13px;line-height:1.5;color:var(--muted)}
@@ -126,6 +131,9 @@ canvas{display:block;width:100%;height:430px}
         <option value="wave">波動方程式</option>
         <option value="burgers">Burgers方程式（1D）</option>
         <option value="reaction-diffusion">反応拡散（Gray–Scott, 2D）</option>
+        <option value="burgers-2d">2D Burgers方程式</option>
+        <option value="cahn-hilliard">Cahn–Hilliard方程式（2D）</option>
+        <option value="shallow-water">浅水方程式（2D）</option>
       </select>
     </div>
 
@@ -282,6 +290,65 @@ canvas{display:block;width:100%;height:430px}
         <div class="hint" id="reaction-view-description">Gray–Scott系の V 濃度を表示します。</div>
       </div></div>
 
+    <div id="burgers2d-controls" style="display:none">
+      <div class="group">
+        <label for="burgers2d-nu">2D Burgers 粘性係数 ν</label>
+        <input id="burgers2d-nu" type="number" value="0.02" min="0" max="2" step="0.005">
+        <div class="hint">ベクトル Burgers 系 ∂u/∂t+∇·(u⊗u)=ν∇²u を周期境界で解きます。</div>
+      </div>
+      <div class="group">
+        <label for="burgers2d-view">表示</label>
+        <select id="burgers2d-view">
+          <option value="speed">流速の大きさ</option>
+          <option value="vorticity">渦度</option>
+          <option value="u">uₓ</option>
+          <option value="v">uᵧ</option>
+          <option value="speed-vector">流速＋速度ベクトル</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="cahn-controls" style="display:none">
+      <div class="group">
+        <label for="cahn-M">移動度 M</label>
+        <input id="cahn-M" type="number" value="0.20" min="0.0001" max="10" step="0.01">
+      </div>
+      <div class="group">
+        <label for="cahn-kappa">界面係数 κ</label>
+        <input id="cahn-kappa" type="number" value="0.05" min="0.0001" max="10" step="0.005">
+        <div class="hint">∂φ/∂t = M∇²(φ³−φ−κ∇²φ)。周期境界で平均φを保存しながら相分離します。</div>
+      </div>
+      <div class="group">
+        <label for="cahn-view">表示</label>
+        <select id="cahn-view">
+          <option value="phi">秩序変数 φ</option>
+          <option value="mu">化学ポテンシャル μ</option>
+          <option value="grad">界面強度 |∇φ|</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="shallow-controls" style="display:none">
+      <div class="group">
+        <label for="shallow-g">重力加速度 g</label>
+        <input id="shallow-g" type="number" value="1.0" min="0.0001" max="100" step="0.1">
+      </div>
+      <div class="group">
+        <label for="shallow-h0">基準水深 h₀</label>
+        <input id="shallow-h0" type="number" value="1.0" min="0.05" max="100" step="0.1">
+        <div class="hint">保存形の浅水方程式を周期境界・Rusanovフラックスで解きます。</div>
+      </div>
+      <div class="group">
+        <label for="shallow-view">表示</label>
+        <select id="shallow-view">
+          <option value="height">水深 h</option>
+          <option value="speed">流速の大きさ</option>
+          <option value="height-vector">水深＋流速ベクトル</option>
+          <option value="vorticity">渦度</option>
+        </select>
+      </div>
+    </div>
+
     <div id="convection-controls" style="display:none">
       <div class="group">
         <label for="nu">動粘性係数 ν</label>
@@ -421,10 +488,16 @@ canvas{display:block;width:100%;height:430px}
         <option value="pulse">中央パルス</option>
         <option value="step">ステップ分布</option>
         <option value="double-gaussian">2つの Gaussian</option>
+        <option value="triple-gaussian">3つの Gaussian</option>
         <option value="triangle">三角形分布</option>
         <option value="sine">正弦波</option>
         <option value="ring">リング（2D）</option>
         <option value="random">不規則分布（再現可能）</option>
+        <option value="positive-negative">正負の Gaussian 対</option>
+        <option value="checkerboard">チェッカーボード（2D）</option>
+        <option value="circle">円形トップハット（2D）</option>
+        <option value="multi-spots">ランダム複数スポット（再現可能, 2D）</option>
+        <option value="left-right">左右2領域</option>
       </select>
     </div>
 
@@ -459,6 +532,7 @@ canvas{display:block;width:100%;height:430px}
         <select id="boundary-1d">
           <option value="periodic">周期境界</option>
           <option value="neumann">Neumann境界</option>
+          <option value="robin">Robin境界</option>
           <option value="dirichlet">Dirichlet境界</option>
           <option value="outflow">開放境界（流入/流出）</option>
         </select>
@@ -471,6 +545,7 @@ canvas{display:block;width:100%;height:430px}
           <select id="boundary-x">
             <option value="periodic">周期境界</option>
             <option value="neumann">Neumann境界</option>
+            <option value="robin">Robin境界</option>
             <option value="dirichlet">Dirichlet境界</option>
             <option value="outflow">開放境界（流入/流出）</option>
           </select>
@@ -482,6 +557,7 @@ canvas{display:block;width:100%;height:430px}
           <select id="boundary-y">
             <option value="periodic">周期境界</option>
             <option value="neumann">Neumann境界</option>
+            <option value="robin">Robin境界</option>
             <option value="dirichlet">Dirichlet境界</option>
             <option value="outflow">開放境界（流入/流出）</option>
           </select>
@@ -517,6 +593,25 @@ canvas{display:block;width:100%;height:430px}
           <label for="dirichlet-ymax">y最大側の境界値</label>
           <input id="dirichlet-ymax" type="number" value="0" step="0.1">
         </div>
+      </div>
+    </div>
+
+    <div id="robin-values" style="display:none">
+      <div class="group">
+        <label>Robin境界：αφ + β ∂φ/∂n = γ</label>
+        <div class="hint">外向き法線微分を用います。β=0 ならDirichlet型、α=0 ならNeumann型に対応します。拡散のみで選択できます。辺では一次精度片側差分、2D角点では隣接2辺の条件を対称に平均して扱います。</div>
+      </div>
+      <div class="group">
+        <label for="robin-alpha">α</label>
+        <input id="robin-alpha" type="number" value="1" step="0.1">
+      </div>
+      <div class="group">
+        <label for="robin-beta">β</label>
+        <input id="robin-beta" type="number" value="1" step="0.1">
+      </div>
+      <div class="group">
+        <label for="robin-gamma">γ</label>
+        <input id="robin-gamma" type="number" value="0" step="0.1">
       </div>
     </div>
 
@@ -592,6 +687,12 @@ canvas{display:block;width:100%;height:430px}
     <output id="time-output">t = 0.000</output>
   </div>
 
+  <div class="history-wrap" id="history-wrap">
+    <div class="history-title">代表的な積分量・エネルギー履歴</div>
+    <div class="history-subtitle" id="history-description">計算後に、方程式に応じた代表的な積分量・エネルギーを表示します。これらのすべてが保存量とは限りません。</div>
+    <canvas id="history-chart" width="900" height="220"></canvas>
+  </div>
+
   <div class="status" id="status"></div>
 </section>
 </div>
@@ -644,6 +745,17 @@ var E={
   reactionViewGroup:document.getElementById("reaction-view-group"),
   reactionViewMode:document.getElementById("reaction-view-mode"),
   reactionViewDescription:document.getElementById("reaction-view-description"),
+  burgers2dControls:document.getElementById("burgers2d-controls"),
+  burgers2dNu:document.getElementById("burgers2d-nu"),
+  burgers2dView:document.getElementById("burgers2d-view"),
+  cahnControls:document.getElementById("cahn-controls"),
+  cahnM:document.getElementById("cahn-M"),
+  cahnKappa:document.getElementById("cahn-kappa"),
+  cahnView:document.getElementById("cahn-view"),
+  shallowControls:document.getElementById("shallow-controls"),
+  shallowG:document.getElementById("shallow-g"),
+  shallowH0:document.getElementById("shallow-h0"),
+  shallowView:document.getElementById("shallow-view"),
   convectionControls:document.getElementById("convection-controls"),
   nu:document.getElementById("nu"),
   buoyancy:document.getElementById("buoyancy"),
@@ -701,6 +813,10 @@ var E={
   inflow1d:document.getElementById("inflow-1d"),
   inflowX:document.getElementById("inflow-x"),
   inflowY:document.getElementById("inflow-y"),
+  robinValues:document.getElementById("robin-values"),
+  robinAlpha:document.getElementById("robin-alpha"),
+  robinBeta:document.getElementById("robin-beta"),
+  robinGamma:document.getElementById("robin-gamma"),
   width:document.getElementById("width"),
   widthGroup:document.getElementById("width-group"),
   calculate:document.getElementById("calculate"),
@@ -722,10 +838,14 @@ var E={
   calculationMessage:document.getElementById("calculation-message"),
   calculationProgressTrack:document.getElementById("calculation-progress-track"),
   calculationProgressBar:document.getElementById("calculation-progress-bar"),
-  calculationProgressText:document.getElementById("calculation-progress-text")
+  calculationProgressText:document.getElementById("calculation-progress-text"),
+  historyWrap:document.getElementById("history-wrap"),
+  historyDescription:document.getElementById("history-description"),
+  historyChart:document.getElementById("history-chart")
 };
 
 var ctx=E.chart.getContext("2d");
+var hctx=E.historyChart.getContext("2d");
 var frames=[],times=[],current=0,playing=false,raf=null,lastTs=0;
 var loadingTimer=null,loadingIndex=0,calculationSerial=0,lastCalculationYield=0;
 var state={mode:"1d",L:10,N:181,dx:0,velocityFrames:[],vorticityFrames:[]};
@@ -737,28 +857,21 @@ function css(name){return getComputedStyle(document.documentElement).getProperty
 function updateOutflowAvailability(){
   var type=E.equationType.value;
   var allowOutflow=(type==="advection"||type==="advection-diffusion");
+  var allowRobin=(type==="diffusion");
 
-  function setOutflowOption(selectEl){
+  function setOption(selectEl,value,visible,fallback){
     var opt=null;
     for(var i=0;i<selectEl.options.length;i++){
-      if(selectEl.options[i].value==="outflow"){
-        opt=selectEl.options[i];
-        break;
-      }
+      if(selectEl.options[i].value===value){opt=selectEl.options[i];break;}
     }
     if(!opt)return;
-
-    opt.hidden=!allowOutflow;
-    opt.disabled=!allowOutflow;
-
-    if(!allowOutflow && selectEl.value==="outflow"){
-      selectEl.value="neumann";
-    }
+    opt.hidden=!visible;opt.disabled=!visible;
+    if(!visible&&selectEl.value===value)selectEl.value=fallback;
   }
-
-  setOutflowOption(E.boundary1d);
-  setOutflowOption(E.boundaryX);
-  setOutflowOption(E.boundaryY);
+  [E.boundary1d,E.boundaryX,E.boundaryY].forEach(function(el){
+    setOption(el,"outflow",allowOutflow,"neumann");
+    setOption(el,"robin",allowRobin,"neumann");
+  });
 }
 
 function boundaryDescription(type){
@@ -812,6 +925,11 @@ function updateBoundaryUI(){
 
   E.openYValueGroup.style.display=
     (is2&&E.boundaryY.value==="outflow")?"grid":"none";
+
+  E.robinValues.style.display=
+    ((!is2&&E.boundary1d.value==="robin") ||
+     (is2&&(E.boundaryX.value==="robin"||E.boundaryY.value==="robin")))
+      ?"block":"none";
 }
 
 function thermalBoundaryDescription(type){
@@ -855,6 +973,10 @@ function updateGridWarning(){
   var type=E.equationType.value;
   var isConv=(type==="convection");
   var isReaction=(type==="reaction-diffusion");
+  var isBurgers2D=(type==="burgers-2d");
+  var isCahn=(type==="cahn-hilliard");
+  var isShallow=(type==="shallow-water");
+  var force2D=isConv||isReaction||isBurgers2D||isCahn||isShallow;
   var isBurgers=(type==="burgers");
   var is2=(isReaction?true:(isBurgers?false:E.dimension.value==="2d"));
   var N=isConv
@@ -894,34 +1016,28 @@ function updateVelocityFieldUI(){
 
 function updateInitialOptions(){
   var is2=E.dimension.value==="2d";
+  var only2D={ring:true,checkerboard:true,circle:true,"multi-spots":true};
   for(var i=0;i<E.initial.options.length;i++){
     var opt=E.initial.options[i];
-    if(opt.value==="ring"){
-      opt.hidden=!is2;
-      opt.disabled=!is2;
-      if(!is2 && E.initial.value==="ring")E.initial.value="gaussian";
-    }
+    var hide=!!only2D[opt.value]&&!is2;
+    opt.hidden=hide;opt.disabled=hide;
+    if(hide&&E.initial.value===opt.value)E.initial.value="gaussian";
   }
 
   var labels1={
-    gaussian:"Gaussian",
-    pulse:"中央パルス",
-    step:"ステップ分布",
-    "double-gaussian":"2つの Gaussian",
-    triangle:"三角形分布",
-    sine:"正弦波",
-    ring:"リング（2D）",
-    random:"不規則分布（再現可能）"
+    gaussian:"Gaussian",pulse:"中央パルス",step:"ステップ分布",
+    "double-gaussian":"2つの Gaussian","triple-gaussian":"3つの Gaussian",
+    triangle:"三角形分布",sine:"正弦波",
+    random:"不規則分布（再現可能）","positive-negative":"正負の Gaussian 対",
+    "left-right":"左右2領域"
   };
   var labels2={
-    gaussian:"中央 Gaussian",
-    pulse:"中央正方形パルス",
-    step:"左右ステップ分布",
-    "double-gaussian":"2つの Gaussian",
-    triangle:"円錐状分布",
-    sine:"2D 正弦波",
-    ring:"リング",
-    random:"不規則分布（再現可能）"
+    gaussian:"中央 Gaussian",pulse:"中央正方形パルス",step:"左右ステップ分布",
+    "double-gaussian":"2つの Gaussian","triple-gaussian":"3つの Gaussian",
+    triangle:"円錐状分布",sine:"2D 正弦波",ring:"リング",
+    random:"不規則分布（再現可能）","positive-negative":"正負の Gaussian 対",
+    checkerboard:"チェッカーボード",circle:"円形トップハット",
+    "multi-spots":"複数 Gaussian スポット","left-right":"左右2領域"
   };
   var map=is2?labels2:labels1;
   for(var j=0;j<E.initial.options.length;j++){
@@ -929,7 +1045,6 @@ function updateInitialOptions(){
     if(map[o.value])o.textContent=map[o.value];
   }
 }
-
 function reactionPresetValues(name){
   // Values below were checked numerically with this app's default scaling
   // (L=10, N=51, Du:Dv=2:1) and remain spatially non-uniform at t≈400.
@@ -1156,16 +1271,20 @@ function updateModeUI(){
   var isWave=(type==="wave");
   var isBurgers=(type==="burgers");
   var isReaction=(type==="reaction-diffusion");
+  var isBurgers2D=(type==="burgers-2d");
+  var isCahn=(type==="cahn-hilliard");
+  var isShallow=(type==="shallow-water");
+  var force2D=(isConv||isReaction||isBurgers2D||isCahn||isShallow);
 
-  if((isConv||isReaction) && E.dimension.value!=="2d")E.dimension.value="2d";
+  if(force2D && E.dimension.value!=="2d")E.dimension.value="2d";
   if(isBurgers && E.dimension.value!=="1d")E.dimension.value="1d";
 
   var is2=E.dimension.value==="2d";
   var useDiff=(type==="diffusion"||type==="advection-diffusion");
   var useAdv=(type==="advection"||type==="advection-diffusion");
-  var special=(isConv||isWave||isBurgers||isReaction);
+  var special=(isConv||isWave||isBurgers||isReaction||isBurgers2D||isCahn||isShallow);
 
-  E.dimension.disabled=(isConv||isReaction||isBurgers);
+  E.dimension.disabled=(force2D||isBurgers);
 
   E.DGroup.style.display=(useDiff||isConv)?"grid":"none";
   E.D.disabled=!(useDiff||isConv);
@@ -1174,6 +1293,9 @@ function updateModeUI(){
   E.waveControls.style.display=isWave?"block":"none";
   E.burgersControls.style.display=isBurgers?"block":"none";
   E.reactionControls.style.display=isReaction?"block":"none";
+  E.burgers2dControls.style.display=isBurgers2D?"block":"none";
+  E.cahnControls.style.display=isCahn?"block":"none";
+  E.shallowControls.style.display=isShallow?"block":"none";
   if(isReaction)applyReactionPreset(false);
 
   E.grid1dGroup.style.display=(!isConv&&!isReaction&&!is2)?"grid":"none";
@@ -1208,7 +1330,7 @@ function updateModeUI(){
       "<br>∂ω/∂t + ∇·(<b>u</b>ω) = ν∇²ω + gβ ∂T/∂x" +
       "<br>∇²ψ = −ω,　u = ∂ψ/∂y,　v = −∂ψ/∂x";
     E.subtitle.textContent="Boussinesq近似による2D自然対流：温度差 → 浮力 → 渦度 → 流速場 → 温度輸送";
-    E.note.textContent="温度・渦度の輸送は保存形のフラックス差で離散化します。断熱壁では総熱量を保持します。";
+    E.note.textContent="温度・渦度の輸送は保存形のフラックス差で離散化します。完全断熱壁では連続系の総温度保存に合わせ、節点壁処理で生じる微小な総量ドリフトだけを空間一様補正で除去します。";
     E.legend.style.display="flex";
     return;
   }
@@ -1226,7 +1348,7 @@ function updateModeUI(){
         "<br>（⇒ ∂²p/∂t² = c²∇²p）";
     }
     E.subtitle.textContent="波動方程式を一階の保存形双曲型システムとして解きます。表示量は p です。";
-    E.note.textContent="保存形の2次精度Lax–Wendroff数値流束を用います。2Dでは各方向の保存形更新をStrang分割で組み合わせます。Rusanov法より数値散逸を抑え、波形と波エネルギーを保ちやすくしています。";
+    E.note.textContent="保存形の2次精度Lax–Wendroff数値流束を用います。2Dでは各方向の保存形更新をStrang分割で組み合わせます。Rusanov法より数値散逸が小さく、周期境界・十分な解像度では波形やエネルギーの数値減衰を抑えやすい方法ですが、離散エネルギーを厳密保存する手法ではありません。";
     E.legend.style.display=is2?"flex":"none";
     return;
   }
@@ -1248,6 +1370,27 @@ function updateModeUI(){
     E.note.textContent="拡散は保存形のフラックスで書けますが、反応・供給・除去がソース項なので、系全体はソースなしの保存則ではなく保存形＋ソース項のbalance lawです。";
     E.legend.style.display="flex";
     return;
+  }
+
+  if(isBurgers2D){
+    E.equation.innerHTML=
+      "∂u/∂t + u∂u/∂x + v∂u/∂y = ν∇²u" +
+      "<br>∂v/∂t + u∂v/∂x + v∂v/∂y = ν∇²v";
+    E.subtitle.textContent="2DベクトルBurgers方程式：非線形な自己移流による急峻化と粘性散逸を観察します。";
+    E.note.textContent="周期境界。移流項は q_t+∇·(uq)=q∇·u の恒等式を用い、Rusanov型の保存的移流フラックスと離散的な q∇·u 補正を組み合わせて、元の非保存形 (u·∇)q に一致させます。粘性項は保存的な拡散フラックスです。";
+    E.legend.style.display="flex"; return;
+  }
+  if(isCahn){
+    E.equation.innerHTML="∂φ/∂t = ∇·(M∇μ),　μ = φ³−φ−κ∇²φ";
+    E.subtitle.textContent="Cahn–Hilliard方程式：保存される秩序変数が相分離し、ドメインが粗大化します。";
+    E.note.textContent="周期境界。連続方程式では平均φが保存され、自由エネルギーは非増加です。数値計算では非線形項を含む安定刻みを用い、各保存フレームで自由エネルギーの増加を監視します。";
+    E.legend.style.display="flex"; return;
+  }
+  if(isShallow){
+    E.equation.innerHTML="∂h/∂t+∇·(h<b>u</b>)=0<br>∂(h<b>u</b>)/∂t+∇·[h<b>u</b>⊗<b>u</b>+(gh²/2)I]=0";
+    E.subtitle.textContent="2D浅水方程式：水深と水平運動量の保存則から重力波・dam-break型の伝播を観察します。";
+    E.note.textContent="周期境界。Rusanov数値流束による有限体積型の保存形更新です。各内部ステップで |u|+√(gh), |v|+√(gh) を再評価してCFL条件を更新します。非常時の正水深保護が作動した場合は、その旨を警告します。";
+    E.legend.style.display="flex"; return;
   }
 
   if(!is2){
@@ -1284,6 +1427,11 @@ function readParams(){
     reactionFeed:clamp(num(E.reactionFeed,.0220),0,1),
     reactionKill:clamp(num(E.reactionKill,.0510),0,1),
     reactionInitial:E.reactionInitial.value,
+    burgers2dNu:clamp(num(E.burgers2dNu,.02),0,2),
+    cahnM:clamp(num(E.cahnM,.20),.0001,10),
+    cahnKappa:clamp(num(E.cahnKappa,.05),.0001,10),
+    shallowG:clamp(num(E.shallowG,1),.0001,100),
+    shallowH0:clamp(num(E.shallowH0,1),.05,100),
     genericPerturbationMode:E.genericPerturbationMode.value,
     genericPerturbationAmplitude:clamp(num(E.genericPerturbationAmplitude,.01),0,1),
     u:useAdv?clamp(num(E.u,.5),-10,10):0,
@@ -1326,7 +1474,10 @@ function readParams(){
     dirichletYmax:num(E.dirichletYmax,0),
     inflow1d:num(E.inflow1d,0),
     inflowX:num(E.inflowX,0),
-    inflowY:num(E.inflowY,0)
+    inflowY:num(E.inflowY,0),
+    robinAlpha:num(E.robinAlpha,1),
+    robinBeta:num(E.robinBeta,1),
+    robinGamma:num(E.robinGamma,0)
   };
 
   if(p.sigma>p.L)p.sigma=p.L;
@@ -1370,6 +1521,12 @@ function init1D(type,N,L,sigma,dx){
       q1=(x-.32*L)/sigma;q2=(x-.68*L)/sigma;
       a[i]=Math.min(1,Math.exp(-.5*q1*q1)+Math.exp(-.5*q2*q2));
     }
+  }else if(type==="triple-gaussian"){
+    for(i=0;i<N;i++){
+      x=i*dx;
+      var qa=(x-.25*L)/sigma,qb=(x-.50*L)/sigma,qc=(x-.75*L)/sigma;
+      a[i]=Math.min(1,Math.exp(-.5*qa*qa)+.8*Math.exp(-.5*qb*qb)+.6*Math.exp(-.5*qc*qc));
+    }
   }else if(type==="triangle"){
     hw=Math.max(.15*L,2*sigma);
     for(i=0;i<N;i++){
@@ -1382,10 +1539,11 @@ function init1D(type,N,L,sigma,dx){
       a[i]=.5+.5*Math.sin(2*Math.PI*x/L);
     }
   }else if(type==="random"){
-    for(i=0;i<N;i++){
-      x=i*dx;
-      a[i]=clamp(deterministicNoise1D(x,L),0,1);
-    }
+    for(i=0;i<N;i++){x=i*dx;a[i]=clamp(deterministicNoise1D(x,L),0,1);}
+  }else if(type==="positive-negative"){
+    for(i=0;i<N;i++){x=i*dx;q1=(x-.35*L)/sigma;q2=(x-.65*L)/sigma;a[i]=Math.exp(-.5*q1*q1)-Math.exp(-.5*q2*q2);}
+  }else if(type==="left-right"){
+    for(i=0;i<N;i++){x=i*dx;a[i]=x<mid?1:-1;}
   }else{
     for(i=0;i<N;i++){x=i*dx;a[i]=x<mid?1:0;}
   }
@@ -1520,6 +1678,18 @@ function conservativeLaxWendroff1D(c,u,dt,dx,boundary,inflow,bcLeft,bcRight){
   return out;
 }
 
+function robinBoundaryValue(adjacent,dx,alpha,beta,gamma){
+  var den=alpha+beta/dx;
+  if(Math.abs(den)<1e-14)throw new Error("Robin境界で α + β/Δx が0に近すぎます。");
+  return (gamma+(beta/dx)*adjacent)/den;
+}
+
+function robinCornerAverage(adjacentX,adjacentY,dx,dy,alpha,beta,gamma){
+  var vx=robinBoundaryValue(adjacentX,dx,alpha,beta,gamma);
+  var vy=robinBoundaryValue(adjacentY,dy,alpha,beta,gamma);
+  return 0.5*(vx+vy);
+}
+
 async function calc1D(p,serial){
   var N=p.grid1d,periodic=(p.boundary1d==="periodic");
   if(N*320>1600000)throw new Error("1Dの格子点数が大きすぎます。保存フレームを含めるとメモリ使用量が過大になるため、格子点数を小さくしてください。");
@@ -1543,6 +1713,9 @@ async function calc1D(p,serial){
       c[0]=p.dirichletLeft;c[N-1]=p.dirichletRight;
     }else if(p.boundary1d==="neumann"){
       if(!(Math.abs(p.u)<1e-15 && p.D>0)){c[0]=c[1];c[N-1]=c[N-2];}
+    }else if(p.boundary1d==="robin"){
+      c[0]=robinBoundaryValue(c[1],dx,p.robinAlpha,p.robinBeta,p.robinGamma);
+      c[N-1]=robinBoundaryValue(c[N-2],dx,p.robinAlpha,p.robinBeta,p.robinGamma);
     }else{
       if(p.u>0)c[0]=p.inflow1d;
       else if(p.u<0)c[N-1]=p.inflow1d;
@@ -1587,6 +1760,9 @@ async function calc1D(p,serial){
           }else{
             next[0]=next[1];next[N-1]=next[N-2];
           }
+        }else if(p.boundary1d==="robin"){
+          next[0]=robinBoundaryValue(next[1],dx,p.robinAlpha,p.robinBeta,p.robinGamma);
+          next[N-1]=robinBoundaryValue(next[N-2],dx,p.robinAlpha,p.robinBeta,p.robinGamma);
         }else{
           if(p.u>0){next[0]=p.inflow1d;next[N-1]=next[N-2];}
           else if(p.u<0){next[0]=next[1];next[N-1]=p.inflow1d;}
@@ -1608,7 +1784,7 @@ async function calc1D(p,serial){
     updateCalculationProgress(100*f/(frameCount-1));
   }
 
-  state={mode:"1d",equationKind:"scalar",fieldLabel:"φ",fieldAxisLabel:"φ(x,t)",L:p.L,N:N,dx:dx,periodic:periodic};
+  state={mode:"1d",equationKind:"scalar",fieldLabel:"φ",fieldAxisLabel:"φ(x,t)",L:p.L,N:N,dx:dx,periodic:periodic,equationType:p.equationType};
   E.dx.textContent="N = "+N+"　Δx = "+dx.toPrecision(4);
   E.dt.textContent="Δt = "+dt.toPrecision(4);
   E.mass.textContent="総量 = "+mass1D(frames[0],dx,periodic).toPrecision(5);
@@ -1650,6 +1826,11 @@ function init2D(type,N,L,sigma,dx,dy){
         q1=((x-.32*L)*(x-.32*L)+(y-.5*L)*(y-.5*L))/(sigma*sigma);
         q2=((x-.68*L)*(x-.68*L)+(y-.5*L)*(y-.5*L))/(sigma*sigma);
         a[k]=Math.min(1,Math.exp(-.5*q1)+Math.exp(-.5*q2));
+      }else if(type==="triple-gaussian"){
+        var qa2=((x-.28*L)*(x-.28*L)+(y-.35*L)*(y-.35*L))/(sigma*sigma);
+        var qb2=((x-.52*L)*(x-.52*L)+(y-.68*L)*(y-.68*L))/(sigma*sigma);
+        var qc2=((x-.75*L)*(x-.75*L)+(y-.42*L)*(y-.42*L))/(sigma*sigma);
+        a[k]=Math.min(1,Math.exp(-.5*qa2)+.8*Math.exp(-.5*qb2)+.65*Math.exp(-.5*qc2));
       }else if(type==="triangle"){
         r=Math.hypot(x-mid,y-mid);
         hw=Math.max(.18*L,2*sigma);
@@ -1662,6 +1843,24 @@ function init2D(type,N,L,sigma,dx,dy){
         a[k]=Math.exp(-.5*Math.pow((r-r0)/w,2));
       }else if(type==="random"){
         a[k]=clamp(deterministicNoise2D(x,y,L),0,1);
+      }else if(type==="positive-negative"){
+        q1=((x-.35*L)*(x-.35*L)+(y-.5*L)*(y-.5*L))/(sigma*sigma);
+        q2=((x-.65*L)*(x-.65*L)+(y-.5*L)*(y-.5*L))/(sigma*sigma);
+        a[k]=Math.exp(-.5*q1)-Math.exp(-.5*q2);
+      }else if(type==="checkerboard"){
+        a[k]=((Math.floor(4*x/L)+Math.floor(4*y/L))%2===0)?1:0;
+      }else if(type==="circle"){
+        a[k]=Math.hypot(x-mid,y-mid)<=.22*L?1:0;
+      }else if(type==="multi-spots"){
+        var vv=0,centers=[[.18,.22],[.35,.72],[.52,.42],[.72,.68],[.82,.28],[.25,.50]];
+        for(var cc=0;cc<centers.length;cc++){
+          var ddx=(x-centers[cc][0]*L)/(Math.max(.035*L,.55*sigma));
+          var ddy=(y-centers[cc][1]*L)/(Math.max(.035*L,.55*sigma));
+          vv+=Math.exp(-.5*(ddx*ddx+ddy*ddy));
+        }
+        a[k]=Math.min(1,vv);
+      }else if(type==="left-right"){
+        a[k]=x<mid?1:-1;
       }else{
         a[k]=x<mid?1:0;
       }
@@ -1871,6 +2070,9 @@ async function calc2D(p,serial){
         if(!(advRate<1e-15&&p.D>0)){
           c[j*N]=c[j*N+1];c[j*N+N-1]=c[j*N+N-2];
         }
+      }else if(p.boundaryX==="robin"){
+        c[j*N]=robinBoundaryValue(c[j*N+1],dx,p.robinAlpha,p.robinBeta,p.robinGamma);
+        c[j*N+N-1]=robinBoundaryValue(c[j*N+N-2],dx,p.robinAlpha,p.robinBeta,p.robinGamma);
       }else if(p.ux>0)c[j*N]=p.inflowX;
       else if(p.ux<0)c[j*N+N-1]=p.inflowX;
     }
@@ -1882,6 +2084,9 @@ async function calc2D(p,serial){
         if(!(advRate<1e-15&&p.D>0)){
           c[i]=c[N+i];c[(N-1)*N+i]=c[(N-2)*N+i];
         }
+      }else if(p.boundaryY==="robin"){
+        c[i]=robinBoundaryValue(c[N+i],dy,p.robinAlpha,p.robinBeta,p.robinGamma);
+        c[(N-1)*N+i]=robinBoundaryValue(c[(N-2)*N+i],dy,p.robinAlpha,p.robinBeta,p.robinGamma);
       }else if(p.uy>0)c[i]=p.inflowY;
       else if(p.uy<0)c[(N-1)*N+i]=p.inflowY;
     }
@@ -2008,6 +2213,32 @@ async function calc2D(p,serial){
         next[N-1]=0.5*(p.dirichletXmax+p.dirichletYmin);
         next[(N-1)*N]=0.5*(p.dirichletXmin+p.dirichletYmax);
         next[N*N-1]=0.5*(p.dirichletXmax+p.dirichletYmax);
+      }
+
+      if(p.D>0){
+        if(!px&&p.boundaryX==="robin"){
+          for(j=0;j<N;j++){
+            next[j*N]=robinBoundaryValue(next[j*N+1],dx,p.robinAlpha,p.robinBeta,p.robinGamma);
+            next[j*N+N-1]=robinBoundaryValue(next[j*N+N-2],dx,p.robinAlpha,p.robinBeta,p.robinGamma);
+          }
+        }
+        if(!py&&p.boundaryY==="robin"){
+          for(i=0;i<N;i++){
+            next[i]=robinBoundaryValue(next[N+i],dy,p.robinAlpha,p.robinBeta,p.robinGamma);
+            next[(N-1)*N+i]=robinBoundaryValue(next[(N-2)*N+i],dy,p.robinAlpha,p.robinBeta,p.robinGamma);
+          }
+        }
+
+        // At a 2D corner two Robin conditions meet. The corner has zero
+        // measure in the continuum problem; use a symmetric average of the
+        // two one-sided edge formulas rather than letting one edge overwrite
+        // the other.
+        if(!px&&!py&&p.boundaryX==="robin"&&p.boundaryY==="robin"){
+          next[0]=robinCornerAverage(next[1],next[N],dx,dy,p.robinAlpha,p.robinBeta,p.robinGamma);
+          next[N-1]=robinCornerAverage(next[N-2],next[2*N-1],dx,dy,p.robinAlpha,p.robinBeta,p.robinGamma);
+          next[(N-1)*N]=robinCornerAverage(next[(N-1)*N+1],next[(N-2)*N],dx,dy,p.robinAlpha,p.robinBeta,p.robinGamma);
+          next[N*N-1]=robinCornerAverage(next[N*N-2],next[(N-1)*N-1],dx,dy,p.robinAlpha,p.robinBeta,p.robinGamma);
+        }
       }
 
       tmp=c;c=next;next=tmp;
@@ -3424,14 +3655,183 @@ function nextPaint(){
 }
 
 
+
+function drawNew2D(){
+  var sz=canvasSize(),w=sz.w,hc=sz.h;ctx.clearRect(0,0,w,hc);
+  var N=state.N,mode,data,vecx=null,vecy=null,k,i,j,signed=false,quantity="";
+  if(state.equationKind==="burgers2d"){
+    mode=E.burgers2dView.value;var u=frames[current],v=state.vFrames[current];
+    if(mode==="u"){data=u;quantity="uₓ";signed=true;}else if(mode==="v"){data=v;quantity="uᵧ";signed=true;}
+    else if(mode==="vorticity"){data=new Float64Array(u.length);quantity="ω";signed=true;var gu=gradPeriodic(u,N,state.dx),gv=gradPeriodic(v,N,state.dx);for(k=0;k<data.length;k++)data[k]=gv[0][k]-gu[1][k];}
+    else{data=new Float64Array(u.length);quantity="|u|";for(k=0;k<data.length;k++)data[k]=Math.hypot(u[k],v[k]);if(mode==="speed-vector"){vecx=u;vecy=v;}}
+  }else if(state.equationKind==="cahn"){
+    mode=E.cahnView.value;var ph=frames[current];
+    if(mode==="mu"){data=state.muFrames[current];quantity="μ";signed=true;}
+    else if(mode==="grad"){var gg=gradPeriodic(ph,N,state.dx);data=new Float64Array(ph.length);for(k=0;k<data.length;k++)data[k]=Math.hypot(gg[0][k],gg[1][k]);quantity="|∇φ|";}
+    else{data=ph;quantity="φ";signed=true;}
+  }else{
+    mode=E.shallowView.value;var hh=frames[current],hu=state.huFrames[current],hv=state.hvFrames[current],uu=new Float64Array(hh.length),vv=new Float64Array(hh.length);
+    for(k=0;k<hh.length;k++){uu[k]=hu[k]/hh[k];vv[k]=hv[k]/hh[k];}
+    if(mode==="height"){data=hh;quantity="h";}
+    else if(mode==="vorticity"){var gu2=gradPeriodic(uu,N,state.dx),gv2=gradPeriodic(vv,N,state.dx);data=new Float64Array(hh.length);for(k=0;k<data.length;k++)data[k]=gv2[0][k]-gu2[1][k];quantity="ω";signed=true;}
+    else{data=new Float64Array(hh.length);for(k=0;k<data.length;k++)data[k]=Math.hypot(uu[k],vv[k]);quantity="|u|";if(mode==="height-vector"){data=hh;quantity="h";vecx=uu;vecy=vv;}}
+  }
+  var pad={l:52,r:18,t:18,b:44},aw=w-pad.l-pad.r,ah=hc-pad.t-pad.b,size=Math.max(120,Math.min(aw,ah)),ox=pad.l+(aw-size)/2,oy=pad.t+(ah-size)/2;
+  var mn=Infinity,mx=-Infinity;for(k=0;k<data.length;k++){mn=Math.min(mn,data[k]);mx=Math.max(mx,data[k]);}if(signed){var aa=Math.max(Math.abs(mn),Math.abs(mx),1e-12);mn=-aa;mx=aa;}if(mx-mn<1e-14)mx=mn+1;
+  var off=document.createElement("canvas");off.width=N;off.height=N;var oc=off.getContext("2d"),img=oc.createImageData(N,N),rgb,pix;
+  for(j=0;j<N;j++)for(i=0;i<N;i++){k=j*N+i;rgb=signed?divergingColor(data[k],Math.max(Math.abs(mn),Math.abs(mx))):colorMap((data[k]-mn)/(mx-mn));pix=4*((N-1-j)*N+i);img.data[pix]=rgb[0];img.data[pix+1]=rgb[1];img.data[pix+2]=rgb[2];img.data[pix+3]=255;}
+  oc.putImageData(img,0,0);ctx.drawImage(off,ox,oy,size,size);ctx.strokeStyle=css("--muted");ctx.strokeRect(ox,oy,size,size);
+  if(vecx)drawArrayVectorOverlay(vecx,vecy,ox,oy,size);
+  ctx.fillStyle=css("--muted");ctx.font="12px sans-serif";ctx.fillText(quantity+" min="+mn.toPrecision(4),ox+5,oy+14);ctx.fillText(quantity+" max="+mx.toPrecision(4),ox+5,oy+30);
+}
+function integrateSquare1D(a,dx,periodic){
+  var sum=0;
+  for(var i=0;i<a.length;i++){
+    var w=periodic?1:((i===0||i===a.length-1)?.5:1);
+    sum+=w*a[i]*a[i];
+  }
+  return sum*dx;
+}
+function integrateSquare2D(a,dx,dy,px,py,N){
+  var sum=0;
+  for(var j=0;j<N;j++){
+    var wy=py?1:((j===0||j===N-1)?.5:1);
+    for(var i=0;i<N;i++){
+      var wx=px?1:((i===0||i===N-1)?.5:1);
+      var z=a[j*N+i];sum+=wx*wy*z*z;
+    }
+  }
+  return sum*dx*dy;
+}
+function cahnFreeEnergy(phi,N,dx,kappa){
+  var g=gradPeriodic(phi,N,dx),sum=0;
+  for(var k=0;k<phi.length;k++){
+    var bulk=.25*Math.pow(phi[k]*phi[k]-1,2);
+    var grad=.5*kappa*(g[0][k]*g[0][k]+g[1][k]*g[1][k]);
+    sum+=bulk+grad;
+  }
+  return sum*dx*dx;
+}
+function buildHistorySeries(){
+  var series=[];
+  if(!frames.length)return series;
+
+  if(state.equationKind==="wave"&&state.energyFrames){
+    series.push({label:"波エネルギー",values:state.energyFrames});
+  }else if(state.equationKind==="burgers2d"&&state.burgersHistory){
+    // For vector Burgers, component integrals are diagnostics, not general
+    // conservation laws because div(u) need not vanish.
+    series.push({label:"∫u dA（診断量）",values:state.burgersHistory.map(x=>x.u)});
+    series.push({label:"∫v dA（診断量）",values:state.burgersHistory.map(x=>x.v)});
+    series.push({label:"運動エネルギー",values:state.burgersHistory.map(x=>x.energy)});
+  }else if(state.equationKind==="reaction-diffusion"){
+    series.push({label:"平均U",values:state.meanUFrames});
+    series.push({label:"平均V",values:state.meanVFrames});
+  }else if(state.equationKind==="cahn"){
+    series.push({label:"平均φ",values:state.meanPhiFrames||frames.map(a=>a.reduce((x,y)=>x+y,0)/a.length)});
+    series.push({label:"自由エネルギー",values:state.freeEnergyFrames||frames.map(a=>cahnFreeEnergy(a,state.N,state.dx,state.cahnKappa))});
+  }else if(state.equationKind==="shallow"){
+    var sh=state.shallowHistory||[];
+    series.push({label:"総水量",values:sh.map(x=>x.mass)});
+    series.push({label:"全エネルギー",values:sh.map(x=>x.energy)});
+  }else if(state.mode==="convection"){
+    var means=[],ke=[];
+    for(var cf=0;cf<frames.length;cf++){
+      means.push(mass2D(frames[cf],state.dx,state.dy,false,false,state.N)/(state.L*state.L));
+      var vel=state.velocityFrames[cf],sk=0;
+      for(var kk=0;kk<vel.length;kk+=2)sk+=.5*(vel[kk]*vel[kk]+vel[kk+1]*vel[kk+1]);
+      ke.push(sk*state.dx*state.dy);
+    }
+    series.push({label:"平均T",values:means});series.push({label:"運動エネルギー",values:ke});
+  }else if(state.mode==="1d"){
+    var mass1=[],l21=[];
+    for(var f1=0;f1<frames.length;f1++){
+      mass1.push(mass1D(frames[f1],state.dx,!!state.periodic));
+      l21.push(.5*integrateSquare1D(frames[f1],state.dx,!!state.periodic));
+    }
+    series.push({label:"総量",values:mass1});series.push({label:"二乗積分/2",values:l21});
+  }else if(state.mode==="2d"){
+    var mass2=[],l22=[];
+    for(var f2=0;f2<frames.length;f2++){
+      mass2.push(mass2D(frames[f2],state.dx,state.dy,!!state.px,!!state.py,state.N));
+      l22.push(.5*integrateSquare2D(frames[f2],state.dx,state.dy,!!state.px,!!state.py,state.N));
+    }
+    series.push({label:"総量",values:mass2});series.push({label:"二乗積分/2",values:l22});
+  }
+  return series;
+}
+function drawHistory(){
+  var canvas=E.historyChart,rect=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1;
+  var W=Math.max(300,Math.round(rect.width*dpr)),H=Math.round(220*dpr);
+  if(canvas.width!==W||canvas.height!==H){canvas.width=W;canvas.height=H;}
+  hctx.setTransform(dpr,0,0,dpr,0,0);
+  var w=W/dpr,h=H/dpr;hctx.clearRect(0,0,w,h);
+
+  if(!state.historyCache)state.historyCache=buildHistorySeries();
+  var raw=state.historyCache;
+  if(!raw.length)return;
+
+  // Normalize each curve independently so conserved quantities and energies
+  // with different units can be compared on one educational plot.
+  var series=[];
+  for(var si=0;si<raw.length;si++){
+    var vals=raw[si].values,base=vals[0],scale;
+    if(Number.isFinite(base)&&Math.abs(base)>1e-12){
+      scale=Math.abs(base);
+    }else{
+      scale=0;
+      for(var qi=0;qi<vals.length;qi++)if(Number.isFinite(vals[qi]))scale=Math.max(scale,Math.abs(vals[qi]));
+      if(scale<1e-14)scale=1;
+    }
+    series.push({label:raw[si].label,values:vals.map(function(v){return v/scale;})});
+  }
+
+  var pad={l:48,r:18,t:18,b:32},pw=w-pad.l-pad.r,ph=h-pad.t-pad.b;
+  var ymin=Infinity,ymax=-Infinity;
+  for(si=0;si<series.length;si++)for(var q=0;q<series[si].values.length;q++){
+    var val=series[si].values[q];if(Number.isFinite(val)){ymin=Math.min(ymin,val);ymax=Math.max(ymax,val);}
+  }
+  if(!Number.isFinite(ymin)){ymin=0;ymax=1;}
+  if(Math.abs(ymax-ymin)<1e-14){var d=Math.max(1e-6,Math.abs(ymax)*.05);ymin-=d;ymax+=d;}
+  var margin=.06*(ymax-ymin);ymin-=margin;ymax+=margin;
+
+  var palette=["#2563eb","#dc2626","#059669","#7c3aed"];
+  hctx.strokeStyle=css("--border");hctx.strokeRect(pad.l,pad.t,pw,ph);
+  hctx.font="11px sans-serif";hctx.fillStyle=css("--muted");
+  hctx.fillText(ymax.toPrecision(4),4,pad.t+4);hctx.fillText(ymin.toPrecision(4),4,pad.t+ph);
+
+  for(si=0;si<series.length;si++){
+    var sv=series[si].values;
+    hctx.beginPath();hctx.strokeStyle=palette[si%palette.length];hctx.lineWidth=1.8;
+    for(q=0;q<sv.length;q++){
+      var x=pad.l+pw*q/Math.max(1,sv.length-1);
+      var y=pad.t+ph*(1-(sv[q]-ymin)/(ymax-ymin));
+      if(q===0)hctx.moveTo(x,y);else hctx.lineTo(x,y);
+    }
+    hctx.stroke();
+    hctx.fillStyle=palette[si%palette.length];
+    hctx.fillText(series[si].label,pad.l+8+(si%2)*150,pad.t+12+Math.floor(si/2)*13);
+  }
+
+  var cx=pad.l+pw*current/Math.max(1,frames.length-1);
+  hctx.strokeStyle=css("--text");hctx.setLineDash([3,3]);
+  hctx.beginPath();hctx.moveTo(cx,pad.t);hctx.lineTo(cx,pad.t+ph);hctx.stroke();hctx.setLineDash([]);
+  hctx.fillStyle=css("--muted");hctx.fillText("t",pad.l+pw+7,pad.t+ph+4);
+
+  E.historyDescription.textContent=
+    "各曲線は初期値（初期値がほぼ0なら代表スケール）で個別に規格化しています。したがって異なる曲線どうしの縦軸絶対値は直接比較できません。縦線は現在時刻です。保存量・診断量・エネルギーの時間変化を比較できます。";
+}
+
 function draw(){
   if(!frames.length)return;
   updateCurrentDiagnostics();
   if(state.mode==="convection")drawConvection();
+  else if(state.equationKind==="burgers2d"||state.equationKind==="cahn"||state.equationKind==="shallow")drawNew2D();
   else if(state.mode==="2d")draw2D();
   else draw1D();
   E.output.value="t = "+times[current].toFixed(3);
   E.slider.value=String(current);
+  drawHistory();
 }
 
 function step(ts){
@@ -3451,6 +3851,385 @@ function step(ts){
 
 
 
+
+function lapPeriodic(a,N,dx){
+  var out=new Float64Array(a.length),i,j,k,im,ip,jm,jp,d2=dx*dx;
+  for(j=0;j<N;j++){jm=(j+N-1)%N;jp=(j+1)%N;
+    for(i=0;i<N;i++){im=(i+N-1)%N;ip=(i+1)%N;k=j*N+i;
+      out[k]=(a[j*N+ip]+a[j*N+im]+a[jp*N+i]+a[jm*N+i]-4*a[k])/d2;
+    }
+  } return out;
+}
+function gradPeriodic(a,N,dx){
+  var gx=new Float64Array(a.length),gy=new Float64Array(a.length),i,j,k,im,ip,jm,jp;
+  for(j=0;j<N;j++){jm=(j+N-1)%N;jp=(j+1)%N;
+    for(i=0;i<N;i++){im=(i+N-1)%N;ip=(i+1)%N;k=j*N+i;
+      gx[k]=(a[j*N+ip]-a[j*N+im])/(2*dx);gy[k]=(a[jp*N+i]-a[jm*N+i])/(2*dx);
+    }
+  } return [gx,gy];
+}
+function cahnFreeEnergyRaw(phi,N,dx,kappa){
+  var g=gradPeriodic(phi,N,dx),sum=0;
+  for(var k=0;k<phi.length;k++){
+    var bulk=0.25*Math.pow(phi[k]*phi[k]-1,2);
+    var grad=0.5*kappa*(g[0][k]*g[0][k]+g[1][k]*g[1][k]);
+    sum+=bulk+grad;
+  }
+  return sum*dx*dx;
+}
+
+async function calcCahnHilliard(p,serial){
+  var N=p.grid2d,dx=p.L/N,fc=180,disp=p.T/(fc-1);
+  var phi=init2D(p.type,N,p.L,p.sigma,dx,dx);
+
+  // The symmetric double-well free energy has minima near phi=±1.
+  // Map ordinary 0..1 presets to -1..1 so phase separation is visible.
+  if(p.type!=="positive-negative"&&p.type!=="left-right"){
+    for(var k=0;k<phi.length;k++)phi[k]=2*phi[k]-1;
+  }
+  if(p.genericPerturbationMode==="on"){
+    phi=applyGenericPerturbation2D(phi,N,p.L,dx,dx,p.genericPerturbationAmplitude);
+  }
+
+  frames=[new Float64Array(phi)];times=[0];
+  var muFrames=[];
+  var freeEnergyFrames=[cahnFreeEnergyRaw(phi,N,dx,p.cahnKappa)];
+  var meanPhiFrames=[phi.reduce((a,b)=>a+b,0)/phi.length];
+  var energyWarning=false,lastDt=0;
+
+  var f,m,k,lapPhi,lapMu,mu,elapsed,dt;
+  var lambdaMax=8/(dx*dx); // largest magnitude of the 2D 5-point -Laplacian
+
+  for(f=1;f<fc;f++){
+    elapsed=0;
+
+    while(elapsed<disp-1e-14){
+      var nonlinearSlope=0;
+      for(k=0;k<phi.length;k++){
+        nonlinearSlope=Math.max(nonlinearSlope,Math.abs(3*phi[k]*phi[k]-1));
+      }
+
+      // Linearized explicit stability estimate for
+      // M ∇²[(3φ²−1)δφ − κ∇²δφ].
+      var spectralRate=p.cahnM*(nonlinearSlope*lambdaMax+p.cahnKappa*lambdaMax*lambdaMax);
+      var stable=spectralRate>0?0.12/spectralRate:(disp-elapsed);
+      dt=Math.min(disp-elapsed,stable);
+      if(dt<=1e-13)throw new Error("Cahn–Hilliardの時間刻みが小さくなりすぎました。M・κ・格子点数を見直してください。");
+      lastDt=dt;
+
+      lapPhi=lapPeriodic(phi,N,dx);
+      mu=new Float64Array(phi.length);
+      for(k=0;k<phi.length;k++){
+        mu[k]=phi[k]*phi[k]*phi[k]-phi[k]-p.cahnKappa*lapPhi[k];
+      }
+      lapMu=lapPeriodic(mu,N,dx);
+
+      var next=new Float64Array(phi.length);
+      for(k=0;k<phi.length;k++)next[k]=phi[k]+dt*p.cahnM*lapMu[k];
+      phi=next;elapsed+=dt;
+
+      for(k=0;k<phi.length;k++){
+        if(!Number.isFinite(phi[k])){
+          throw new Error("Cahn–Hilliardで非有限値が発生しました。設定を見直してください。");
+        }
+      }
+
+      if(Math.floor(elapsed/dt)%40===0)await maybeYieldToBrowser(serial,false);
+    }
+
+    lapPhi=lapPeriodic(phi,N,dx);
+    mu=new Float64Array(phi.length);
+    for(k=0;k<phi.length;k++)mu[k]=phi[k]*phi[k]*phi[k]-phi[k]-p.cahnKappa*lapPhi[k];
+
+    frames.push(new Float64Array(phi));
+    muFrames.push(mu);
+    times.push(f*disp);
+
+    var Ef=cahnFreeEnergyRaw(phi,N,dx,p.cahnKappa);
+    var Eprev=freeEnergyFrames[freeEnergyFrames.length-1];
+    if(Ef>Eprev+Math.max(1e-9,1e-6*Math.abs(Eprev)))energyWarning=true;
+    freeEnergyFrames.push(Ef);
+    meanPhiFrames.push(phi.reduce((a,b)=>a+b,0)/phi.length);
+
+    updateCalculationProgress(100*f/(fc-1));
+    if(f%4===0)await maybeYieldToBrowser(serial,false);
+  }
+
+  // Construct chemical potential for the initial frame.
+  var iphi=frames[0],il=lapPeriodic(iphi,N,dx),imu=new Float64Array(iphi.length);
+  for(k=0;k<iphi.length;k++)imu[k]=iphi[k]**3-iphi[k]-p.cahnKappa*il[k];
+  muFrames.unshift(imu);
+
+  state={
+    mode:"2d",equationKind:"cahn",fieldLabel:"φ",
+    L:p.L,N:N,dx:dx,dy:dx,px:true,py:true,
+    muFrames:muFrames,cahnKappa:p.cahnKappa,
+    freeEnergyFrames:freeEnergyFrames,meanPhiFrames:meanPhiFrames,
+    cahnEnergyWarning:energyWarning,
+    plotMin:-1.2,plotMax:1.2
+  };
+  E.dx.textContent="N = "+N+"×"+N+"　Δx = "+dx.toPrecision(4);
+  E.dt.textContent="Δt ≈ "+lastDt.toPrecision(4);
+  E.mass.textContent="平均φ = "+meanPhiFrames[0].toPrecision(5);
+}
+function burgersAdvectiveFlux(qL,qR,aL,aR){
+  // Rusanov flux for a transported scalar q with local face velocity a.
+  // This approximates ∂(a q)/∂x conservatively.
+  var smax=Math.max(Math.abs(aL),Math.abs(aR));
+  return 0.5*(aL*qL+aR*qR)-0.5*smax*(qR-qL);
+}
+
+function burgers2DIntegrals(u,v,dx){
+  var su=0,sv=0,e=0;
+  for(var k=0;k<u.length;k++){
+    su+=u[k];sv+=v[k];
+    e+=0.5*(u[k]*u[k]+v[k]*v[k]);
+  }
+  var area=dx*dx;
+  return {u:su*area,v:sv*area,energy:e*area};
+}
+
+async function calcBurgers2D(p,serial){
+  var N=p.grid2d,dx=p.L/N,dy=dx,fc=180,disp=p.T/(fc-1);
+  var base=init2D(p.type,N,p.L,p.sigma,dx,dy);
+  var u=new Float64Array(base.length),v=new Float64Array(base.length),k;
+
+  // Use related but shifted component fields so both nonlinear couplings
+  // u∂/∂x and v∂/∂y are visible from the start.
+  for(var j=0;j<N;j++){
+    for(var i=0;i<N;i++){
+      k=j*N+i;
+      u[k]=base[k];
+      var is=(i+Math.floor(N/7))%N;
+      var js=(j+Math.floor(N/9))%N;
+      v[k]=0.65*base[js*N+is];
+    }
+  }
+
+  if(p.genericPerturbationMode==="on"){
+    u=applyGenericPerturbation2D(u,N,p.L,dx,dy,p.genericPerturbationAmplitude);
+    v=applyGenericPerturbation2D(v,N,p.L,dx,dy,.7*p.genericPerturbationAmplitude);
+  }
+
+  frames=[new Float64Array(u)];
+  times=[0];
+  var vFrames=[new Float64Array(v)];
+  var history=[burgers2DIntegrals(u,v,dx)];
+
+  var f,i,j,m,k,im,ip,jm,jp,un,vn,elapsed,dt,lastDt=0;
+  var fxL_u,fxR_u,fyB_u,fyT_u,fxL_v,fxR_v,fyB_v,fyT_v;
+
+  for(f=1;f<fc;f++){
+    elapsed=0;
+
+    while(elapsed<disp-1e-14){
+      var maxU=0,maxV=0;
+      for(k=0;k<u.length;k++){
+        maxU=Math.max(maxU,Math.abs(u[k]));
+        maxV=Math.max(maxV,Math.abs(v[k]));
+      }
+
+      // Explicit 2D CFL: advection plus viscous diffusion.
+      var rate=maxU/dx+maxV/dy+2*p.burgers2dNu*(1/(dx*dx)+1/(dy*dy));
+      var stable=rate>0?0.36/rate:(disp-elapsed);
+      dt=Math.min(disp-elapsed,stable);
+      if(dt<=1e-12)throw new Error("2D Burgersの時間刻みが小さくなりすぎました。");
+      lastDt=dt;
+
+      un=new Float64Array(u.length);
+      vn=new Float64Array(v.length);
+
+      for(j=0;j<N;j++){
+        jm=(j+N-1)%N;jp=(j+1)%N;
+        for(i=0;i<N;i++){
+          im=(i+N-1)%N;ip=(i+1)%N;k=j*N+i;
+
+          // Conservative transport fluxes ∇·(U q).
+          fxL_u=burgersAdvectiveFlux(u[j*N+im],u[k],u[j*N+im],u[k]);
+          fxR_u=burgersAdvectiveFlux(u[k],u[j*N+ip],u[k],u[j*N+ip]);
+          fyB_u=burgersAdvectiveFlux(u[jm*N+i],u[k],v[jm*N+i],v[k]);
+          fyT_u=burgersAdvectiveFlux(u[k],u[jp*N+i],v[k],v[jp*N+i]);
+
+          fxL_v=burgersAdvectiveFlux(v[j*N+im],v[k],u[j*N+im],u[k]);
+          fxR_v=burgersAdvectiveFlux(v[k],v[j*N+ip],u[k],u[j*N+ip]);
+          fyB_v=burgersAdvectiveFlux(v[jm*N+i],v[k],v[jm*N+i],v[k]);
+          fyT_v=burgersAdvectiveFlux(v[k],v[jp*N+i],v[k],v[jp*N+i]);
+
+          // q_t + div(U q) = q div(U) is exactly equivalent to
+          // q_t + U·grad(q) = 0 in the continuum. Use a centered discrete
+          // divergence for the nonconservative correction.
+          var divU=(u[j*N+ip]-u[j*N+im])/(2*dx)
+                  +(v[jp*N+i]-v[jm*N+i])/(2*dy);
+
+          var lapU=(u[j*N+ip]+u[j*N+im]+u[jp*N+i]+u[jm*N+i]-4*u[k])/(dx*dx);
+          var lapV=(v[j*N+ip]+v[j*N+im]+v[jp*N+i]+v[jm*N+i]-4*v[k])/(dx*dx);
+
+          un[k]=u[k]
+            -dt*((fxR_u-fxL_u)/dx+(fyT_u-fyB_u)/dy)
+            +dt*u[k]*divU
+            +dt*p.burgers2dNu*lapU;
+
+          vn[k]=v[k]
+            -dt*((fxR_v-fxL_v)/dx+(fyT_v-fyB_v)/dy)
+            +dt*v[k]*divU
+            +dt*p.burgers2dNu*lapV;
+        }
+      }
+
+      u=un;v=vn;elapsed+=dt;
+
+      for(k=0;k<u.length;k++){
+        if(!Number.isFinite(u[k])||!Number.isFinite(v[k])){
+          throw new Error("2D Burgersで非有限値が発生しました。格子・時間・粘性を見直してください。");
+        }
+      }
+
+      if(Math.floor(elapsed/dt)%20===0)await maybeYieldToBrowser(serial,false);
+    }
+
+    frames.push(new Float64Array(u));
+    vFrames.push(new Float64Array(v));
+    history.push(burgers2DIntegrals(u,v,dx));
+    times.push(f*disp);
+    updateCalculationProgress(100*f/(fc-1));
+    if(f%4===0)await maybeYieldToBrowser(serial,false);
+  }
+
+  state={
+    mode:"2d",equationKind:"burgers2d",fieldLabel:"|u|",
+    L:p.L,N:N,dx:dx,dy:dy,px:true,py:true,
+    vFrames:vFrames,burgersHistory:history
+  };
+  E.dx.textContent="N = "+N+"×"+N+"　Δx = Δy = "+dx.toPrecision(4);
+  E.dt.textContent="Δt ≈ "+lastDt.toPrecision(4);
+  E.mass.textContent="初期 ∫u dA = "+history[0].u.toPrecision(5);
+}
+function swFluxX(h,hu,hv,g){
+  var u=hu/h,v=hv/h;
+  return [hu,hu*u+0.5*g*h*h,hu*v];
+}
+function swFluxY(h,hu,hv,g){
+  var u=hu/h,v=hv/h;
+  return [hv,hv*u,hv*v+0.5*g*h*h];
+}
+function shallowIntegrals(h,hu,hv,g,dx){
+  var mass=0,energy=0;
+  for(var k=0;k<h.length;k++){
+    mass+=h[k];
+    energy+=0.5*(hu[k]*hu[k]+hv[k]*hv[k])/h[k]+0.5*g*h[k]*h[k];
+  }
+  return {mass:mass*dx*dx,energy:energy*dx*dx};
+}
+
+async function calcShallowWater(p,serial){
+  var N=p.grid2d,dx=p.L/N,dy=dx,fc=180,disp=p.T/(fc-1);
+  var shape=init2D(p.type,N,p.L,p.sigma,dx,dy),n=N*N,k;
+
+  var h=new Float64Array(n),hu=new Float64Array(n),hv=new Float64Array(n);
+  // Scale the height perturbation with h0 so all generic initial conditions,
+  // including signed ones, start strictly wet without artificial clipping.
+  var amp=0.20*p.shallowH0;
+  for(k=0;k<n;k++)h[k]=p.shallowH0+amp*shape[k];
+
+  var hFloor=Math.max(1e-12,1e-8*p.shallowH0);
+  for(k=0;k<n;k++){
+    if(h[k]<=hFloor)throw new Error("浅水方程式の初期水深が0以下です。基準水深または初期条件を見直してください。");
+  }
+
+  frames=[new Float64Array(h)];times=[0];
+  var huFrames=[new Float64Array(hu)],hvFrames=[new Float64Array(hv)];
+  var history=[shallowIntegrals(h,hu,hv,p.shallowG,dx)];
+  var floorHits=0,massInjected=0,lastDt=0,totalSubsteps=0;
+
+  var f,i,j,k,im,ip,jm,jp,hn,hun,hvn,elapsed,dt;
+  for(f=1;f<fc;f++){
+    elapsed=0;
+
+    while(elapsed<disp-1e-14){
+      var maxRateX=0,maxRateY=0;
+      for(k=0;k<n;k++){
+        var uk=hu[k]/h[k],vk=hv[k]/h[k],ck=Math.sqrt(p.shallowG*h[k]);
+        maxRateX=Math.max(maxRateX,Math.abs(uk)+ck);
+        maxRateY=Math.max(maxRateY,Math.abs(vk)+ck);
+      }
+      var rate=maxRateX/dx+maxRateY/dy;
+      var stable=rate>0?0.42/rate:(disp-elapsed);
+      dt=Math.min(disp-elapsed,stable);
+      if(dt<=1e-13)throw new Error("浅水方程式の時間刻みが小さくなりすぎました。");
+      lastDt=dt;
+
+      hn=new Float64Array(n);hun=new Float64Array(n);hvn=new Float64Array(n);
+
+      for(j=0;j<N;j++){
+        jm=(j+N-1)%N;jp=(j+1)%N;
+        for(i=0;i<N;i++){
+          im=(i+N-1)%N;ip=(i+1)%N;k=j*N+i;
+          var ids=[[j*N+im,k],[k,j*N+ip],[jm*N+i,k],[k,jp*N+i]],flux=[];
+
+          for(var q=0;q<4;q++){
+            var a=ids[q][0],b=ids[q][1],isX=q<2;
+            var FA=isX?swFluxX(h[a],hu[a],hv[a],p.shallowG):swFluxY(h[a],hu[a],hv[a],p.shallowG);
+            var FB=isX?swFluxX(h[b],hu[b],hv[b],p.shallowG):swFluxY(h[b],hu[b],hv[b],p.shallowG);
+
+            var sa=isX
+              ?Math.abs(hu[a]/h[a])+Math.sqrt(p.shallowG*h[a])
+              :Math.abs(hv[a]/h[a])+Math.sqrt(p.shallowG*h[a]);
+            var sb=isX
+              ?Math.abs(hu[b]/h[b])+Math.sqrt(p.shallowG*h[b])
+              :Math.abs(hv[b]/h[b])+Math.sqrt(p.shallowG*h[b]);
+            var ss=Math.max(sa,sb);
+
+            flux[q]=[
+              0.5*(FA[0]+FB[0])-0.5*ss*(h[b]-h[a]),
+              0.5*(FA[1]+FB[1])-0.5*ss*(hu[b]-hu[a]),
+              0.5*(FA[2]+FB[2])-0.5*ss*(hv[b]-hv[a])
+            ];
+          }
+
+          hn[k]=h[k]-dt/dx*((flux[1][0]-flux[0][0])+(flux[3][0]-flux[2][0]));
+          hun[k]=hu[k]-dt/dx*((flux[1][1]-flux[0][1])+(flux[3][1]-flux[2][1]));
+          hvn[k]=hv[k]-dt/dx*((flux[1][2]-flux[0][2])+(flux[3][2]-flux[2][2]));
+
+          // Emergency positivity guard only. Under the dynamic CFL this should
+          // normally never trigger. If it does, record the mass change and warn.
+          if(hn[k]<=hFloor){
+            massInjected+=(hFloor-hn[k])*dx*dy;
+            hn[k]=hFloor;hun[k]=0;hvn[k]=0;floorHits++;
+          }
+        }
+      }
+
+      h=hn;hu=hun;hv=hvn;elapsed+=dt;totalSubsteps++;
+
+      for(k=0;k<n;k++){
+        if(!Number.isFinite(h[k])||!Number.isFinite(hu[k])||!Number.isFinite(hv[k])){
+          throw new Error("浅水方程式で非有限値が発生しました。設定を見直してください。");
+        }
+      }
+
+      if(totalSubsteps%30===0)await maybeYieldToBrowser(serial,false);
+      if(totalSubsteps>2000000)throw new Error("浅水方程式の内部時間ステップ数が多すぎます。");
+    }
+
+    frames.push(new Float64Array(h));
+    huFrames.push(new Float64Array(hu));
+    hvFrames.push(new Float64Array(hv));
+    history.push(shallowIntegrals(h,hu,hv,p.shallowG,dx));
+    times.push(f*disp);
+    updateCalculationProgress(100*f/(fc-1));
+  }
+
+  state={
+    mode:"2d",equationKind:"shallow",fieldLabel:"h",
+    L:p.L,N:N,dx:dx,dy:dy,px:true,py:true,
+    huFrames:huFrames,hvFrames:hvFrames,shallowG:p.shallowG,
+    shallowHistory:history,shallowFloorHits:floorHits,
+    shallowMassInjected:massInjected
+  };
+  E.dx.textContent="N = "+N+"×"+N+"　Δx = Δy = "+dx.toPrecision(4);
+  E.dt.textContent="Δt ≈ "+lastDt.toPrecision(4);
+  E.mass.textContent="総水量 = "+history[0].mass.toPrecision(5);
+}
 async function calculate(){
   stop();
 
@@ -3472,6 +4251,9 @@ async function calculate(){
       (p.equationType==="convection")?"平均T = —":
       (p.equationType==="wave")?"波エネルギー = —":
       (p.equationType==="reaction-diffusion")?"平均V = —":
+      (p.equationType==="cahn-hilliard")?"平均φ = —":
+      (p.equationType==="shallow-water")?"総水量 = —":
+      (p.equationType==="burgers-2d")?"2D Burgers":
       "総量 = —";
 
     E.play.disabled=true;
@@ -3494,6 +4276,12 @@ async function calculate(){
       await calcBurgers1D(p,serial);
     }else if(p.equationType==="reaction-diffusion"){
       await calcReactionDiffusion2D(p,serial);
+    }else if(p.equationType==="burgers-2d"){
+      await calcBurgers2D(p,serial);
+    }else if(p.equationType==="cahn-hilliard"){
+      await calcCahnHilliard(p,serial);
+    }else if(p.equationType==="shallow-water"){
+      await calcShallowWater(p,serial);
     }else if(p.mode==="1d"){
       await calc1D(p,serial);
     }else{
@@ -3507,6 +4295,12 @@ async function calculate(){
     E.slider.max=String(Math.max(0,frames.length-1));
     E.slider.value="0";
     E.status.textContent="計算完了："+frames.length+" フレーム";
+    if(state.cahnEnergyWarning){
+      E.status.textContent+="。注意：保存フレーム間で自由エネルギーの小さな増加を検出しました。格子点数または時間条件を見直してください。";
+    }
+    if(state.shallowFloorHits>0){
+      E.status.textContent+="。注意：正水深保護が "+state.shallowFloorHits+" 回作動し、総水量に約 "+state.shallowMassInjected.toExponential(2)+" の補正が入りました。";
+    }
     E.play.disabled=false;
     updateCalculationProgress(100);
     await nextPaint();
@@ -3679,6 +4473,9 @@ E.dirichletYmax.addEventListener("change",calculate);
 E.inflow1d.addEventListener("change",calculate);
 E.inflowX.addEventListener("change",calculate);
 E.inflowY.addEventListener("change",calculate);
+E.robinAlpha.addEventListener("change",calculate);
+E.robinBeta.addEventListener("change",calculate);
+E.robinGamma.addEventListener("change",calculate);
 
 E.convInitial.addEventListener("change",function(){
   if(E.thermalBoundary.value==="fixed-top-bottom"){
@@ -3749,6 +4546,9 @@ E.duration.addEventListener("input",updateLargeDomainWarning);
 E.initial.addEventListener("change",function(){
   E.widthGroup.style.display=E.initial.value==="step"?"none":"grid";
 });
+E.burgers2dView.addEventListener("change",draw);
+E.cahnView.addEventListener("change",draw);
+E.shallowView.addEventListener("change",draw);
 E.transportViewMode.addEventListener("change",function(){
   E.transportViewDescription.textContent=scalarViewDescription(E.transportViewMode.value);
   draw();
