@@ -1013,7 +1013,7 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
 
 <div class="analysis-box" id="comparison-box">
     <div class="analysis-title">方程式比較モード</div>
-    <div class="analysis-text">選択した複数の方程式・条件を比較します。通常比較では初期条件・領域などを共通にし、境界条件は比較しやすいよう周期境界に統一します。詳細設定では保存した各ケースの境界条件を含む完全設定をそのまま使用します。「比較開始」を押すと選択した数だけ比較計算を実行し、同じ時刻の結果を並べて表示します。通常の再生ボタンを押す必要はありません。</div>
+    <div class="analysis-text">選択した複数の方程式・条件を比較します。通常比較では初期条件・領域などを共通にし、境界条件は比較しやすいよう周期境界に統一します。詳細設定では保存した各ケースの境界条件を含む完全設定をそのまま使用します。「比較開始」を押すと選択した数だけ比較計算を実行し、同じ時刻の結果を並べて表示します。通常の再生ボタンを押す必要はありません。<br><span class="hint"><b>注意：</b>異なる方程式の色や数値は物理量・単位・規格化が異なる場合があるため、絶対値を直接比較するのではなく、主に形状・伝播・拡散・パターン形成などの時間発展を比較してください。同じ方程式の条件比較では絶対値比較も意味を持ちます。</span></div>
     <div class="group" style="margin-top:10px">
       <label for="comparison-enabled">比較表示</label>
       <select id="comparison-enabled">
@@ -2375,7 +2375,7 @@ function updateModeUI(){
       "∂u/∂t + u∂u/∂x + v∂u/∂y = ν∇²u" +
       "<br>∂v/∂t + u∂v/∂x + v∂v/∂y = ν∇²v";
     E.subtitle.textContent="2DベクトルBurgers方程式：非線形な自己移流による急峻化と粘性散逸を観察します。";
-    E.note.textContent="周期境界。移流項は q_t+∇·(uq)=q∇·u の恒等式を用い、Rusanov型の保存的移流フラックスと離散的な q∇·u 補正を組み合わせて、元の非保存形 (u·∇)q に一致させます。粘性項は保存的な拡散フラックスです。";
+    E.note.textContent="周期境界。移流項は q_t+∇·(uq)=q∇·u の恒等式を用い、Rusanov型の保存的移流フラックスと離散的な q∇·u 補正を組み合わせて、元の非保存形 (u·∇)q に一致させます。粘性項は中心差分です。現在のRusanov界面値は一次再構築なので、滑らかな解でも自己収束次数は概ね1次になるのが基本です。";
     E.legend.style.display="flex"; return;
   }
   if(isCahn){
@@ -2460,46 +2460,92 @@ function convectionDeltaT(){
   }
   return 0;
 }
-function physicsDiagnosticsHTML(){
+function burgersInitialSpeedStats(){
+  var t=E.equationType.value;
+  if(!frames.length)return null;
+  if(t==="burgers"&&state.mode==="1d"){
+    var u=frames[0],s2=0,um=0;
+    for(var i=0;i<u.length;i++){s2+=u[i]*u[i];um=Math.max(um,Math.abs(u[i]));}
+    return {rms:Math.sqrt(s2/u.length),max:um,source:"計算済み初期場"};
+  }
+  if(t==="burgers-2d"&&state.equationKind==="burgers2d"&&state.vFrames){
+    var ux=frames[0],uy=state.vFrames[0],q=0,mx=0;
+    for(var k=0;k<ux.length;k++){var sp2=ux[k]*ux[k]+uy[k]*uy[k];q+=sp2;mx=Math.max(mx,Math.sqrt(sp2));}
+    return {rms:Math.sqrt(q/ux.length),max:mx,source:"計算済み初期場"};
+  }
+  return null;
+}
+function burgersReferenceSpeed(){
+  var st=burgersInitialSpeedStats();
+  return st&&st.rms>1e-12?st.rms:1;
+}
+function currentPhysicalTimeText(scale,label){
+  if(!frames.length||!times.length||!Number.isFinite(scale)||scale<=0)return "";
+  var t=times[Math.max(0,Math.min(current,times.length-1))];
+  return "現在 t/"+label+" = "+(t/scale).toPrecision(4);
+}
+function diagnosticsSectionTag(kind){
+  return '<span style="display:inline-block;padding:2px 7px;border-radius:999px;background:var(--chip);font-size:11px;font-weight:700">'+kind+'</span> ';
+}
+function physicsDiagnosticsHTML(skipSupport){
   if(!E.physicsDiagnostics)return;
-  var t=E.equationType.value,L=Math.max(1e-9,num(E.length,10)),a=[];
+  var t=E.equationType.value,L=Math.max(1e-9,num(E.length,10)),a=[],tag=diagnosticsSectionTag;
   if(t==="advection"||t==="advection-diffusion"){
-    var U=characteristicAdvectionSpeed();
+    var U=characteristicAdvectionSpeed(),tadv=U>0?L/U:Infinity;
     if(t==="advection-diffusion"){
-      var D=Math.max(1e-9,num(E.D,.2)),Pe=U*L/D;
-      a.push("<b>Péclet数 Pe=UL/D = "+Pe.toPrecision(4)+"</b>："+(Pe>10?"移流優勢":Pe<.1?"拡散優勢":"移流と拡散がともに重要"));
-      a.push("拡散時間 L²/D = "+(L*L/D).toPrecision(4));
+      var D=Math.max(1e-9,num(E.D,.2)),Pe=U*L/D,td=L*L/D;
+      a.push(tag("代表値")+"Péclet数 Pe=Uchar L/D = <b>"+Pe.toPrecision(4)+"</b>："+(Pe>10?"移流優勢":Pe<.1?"拡散優勢":"移流と拡散がともに重要"));
+      a.push(tag("時間尺度")+"t_adv=L/Uchar = "+(Number.isFinite(tadv)?tadv.toPrecision(4):"∞")+"，t_D=L²/D = "+td.toPrecision(4));
+      if(frames.length)a.push(currentPhysicalTimeText(td,"t_D")+"；"+currentPhysicalTimeText(tadv,"t_adv"));
+    }else if(U>0){
+      a.push(tag("代表値")+"代表速度 Uchar = "+U.toPrecision(4));
+      a.push(tag("時間尺度")+"t_adv=L/Uchar = "+tadv.toPrecision(4)+(frames.length?"；"+currentPhysicalTimeText(tadv,"t_adv"):""));
     }
-    if(U>0)a.push("代表速度 U = "+U.toPrecision(4)+"，移流時間 L/U = "+(L/U).toPrecision(4));
   }else if(t==="diffusion"){
-    a.push("拡散時間 L²/D = "+(L*L/Math.max(1e-9,num(E.D,.2))).toPrecision(4));
-  }else if(t==="burgers"){
-    a.push("<b>Re型比 UL/ν ≈ "+(L/Math.max(1e-9,num(E.burgersNu,.02))).toPrecision(4)+"</b>（代表速度U≈1）");
-  }else if(t==="burgers-2d"){
-    a.push("<b>Re型比 UL/ν ≈ "+(L/Math.max(1e-9,num(E.burgers2dNu,.02))).toPrecision(4)+"</b>（代表速度U≈1の目安）");
+    var Dd=Math.max(1e-9,num(E.D,.2)),tdf=L*L/Dd;
+    a.push(tag("設定値から決定")+"拡散時間 t_D=L²/D = <b>"+tdf.toPrecision(4)+"</b>"+(frames.length?"；"+currentPhysicalTimeText(tdf,"t_D"):""));
+  }else if(t==="burgers"||t==="burgers-2d"){
+    var nub=t==="burgers"?Math.max(1e-9,num(E.burgersNu,.02)):Math.max(1e-9,num(E.burgers2dNu,.02));
+    var bs=burgersInitialSpeedStats(),Uref=burgersReferenceSpeed(),Re=Uref*L/nub,tbadv=L/Uref,tvis=L*L/nub;
+    a.push(tag(bs?"初期場から実測":"代表値")+"Re = Uref L/ν = <b>"+Re.toPrecision(4)+"</b>（Uref="+Uref.toPrecision(4)+(bs?" = 初期Urms":" を仮定")+"）");
+    if(bs)a.push("初期速度：Urms="+bs.rms.toPrecision(4)+"，Umax="+bs.max.toPrecision(4)+"；Re_max="+(bs.max*L/nub).toPrecision(4));
+    a.push(tag("時間尺度")+"t_adv=L/Uref = "+tbadv.toPrecision(4)+"，t_ν=L²/ν = "+tvis.toPrecision(4)+(frames.length?"；"+currentPhysicalTimeText(tbadv,"t_adv")+"；"+currentPhysicalTimeText(tvis,"t_ν"):""));
   }else if(t==="convection"){
-    var nu=Math.max(1e-9,num(E.nu,.03)),kap=Math.max(1e-9,num(E.D,.2)),dT=convectionDeltaT(),B=num(E.buoyancy,1);
-    a.push("<b>Prandtl数 Pr=ν/κ = "+(nu/kap).toPrecision(4)+"</b>");
-    if(dT>0)a.push("<b>Rayleigh型指標 = B ΔT L³/(νκ) = "+(B*dT*L**3/(nu*kap)).toPrecision(4)+"</b>（Bをgβに相当する無次元化係数として解釈）");
+    var nu=Math.max(1e-9,num(E.nu,.03)),kap=Math.max(1e-9,num(E.D,.2)),dT=convectionDeltaT(),B=num(E.buoyancy,1),Pr=nu/kap;
+    a.push(tag("設定値から決定")+"Prandtl数 Pr=ν/κ = <b>"+Pr.toPrecision(4)+"</b>");
+    if(dT>0)a.push(tag("代表値")+"Rayleigh型指標 BΔT L³/(νκ) = <b>"+(B*dT*L**3/(nu*kap)).toPrecision(4)+"</b>（Bをgβに相当する無次元化係数として解釈）");
     else a.push("固定温度差 ΔT が定義できないため、Rayleigh型指標は表示しません。");
+    var tk=L*L/kap,tn=L*L/nu;
+    a.push(tag("時間尺度")+"熱拡散 t_κ=L²/κ="+tk.toPrecision(4)+"，粘性 t_ν=L²/ν="+tn.toPrecision(4));
   }else if(t==="wave"){
     if(E.waveModel.value==="generic"){
-      a.push("波の横断時間 L/c = "+(L/Math.max(1e-9,num(E.waveSpeed,1))).toPrecision(4));
+      var c=Math.max(1e-9,num(E.waveSpeed,1)),tw=L/c;
+      a.push(tag("設定値から決定")+"波の横断時間 t_wave=L/c = <b>"+tw.toPrecision(4)+"</b>"+(frames.length?"；"+currentPhysicalTimeText(tw,"t_wave"):""));
       if(E.waveSourceMode.value!=="off")a.push("継続波源あり：波エネルギーは保存量ではありません。");
       if(E.waveObstacleMode.value!=="off"&&E.dimension.value==="2d")a.push("内部反射境界あり：障害物界面の数値流束で q·n=0 を直接課します。");
     }else{
       var H=num(E.waveWaterDepth,.2),kh=characteristicWaveNumber()*H;
-      a.push("<b>代表 kH ≈ "+kh.toPrecision(3)+"</b>："+(E.waveModel.value==="shallow"?(kh<.3?"浅水近似に適した範囲":kh<.7?"浅水近似は要注意":"浅水近似には不適切"):(kh>3?"深水近似に適した範囲":kh>1.5?"深水近似は要注意":"深水近似には不適切")));
+      a.push(tag("代表値")+"代表 kH ≈ <b>"+kh.toPrecision(3)+"</b>："+(E.waveModel.value==="shallow"?(kh<.3?"浅水近似に適した範囲":kh<.7?"浅水近似は要注意":"浅水近似には不適切"):(kh>3?"深水近似に適した範囲":kh>1.5?"深水近似は要注意":"深水近似には不適切")));
+      if(E.waveModel.value==="shallow"){
+        var cs=Math.sqrt(num(E.waveWaterG,1)*H),ts=L/cs;
+        a.push(tag("時間尺度")+"長波横断時間 L/√(gH) = "+ts.toPrecision(4)+(frames.length?"；"+currentPhysicalTimeText(ts,"t_wave"):""));
+      }
     }
   }else if(t==="shallow-water"||t==="shallow-water-1d"){
-    a.push("長波速度 √(gH₀) = "+Math.sqrt(num(E.shallowG,1)*num(E.shallowH0,1)).toPrecision(4));
+    var cg=Math.sqrt(num(E.shallowG,1)*num(E.shallowH0,1)),tsh=L/cg;
+    a.push(tag("設定値から決定")+"代表長波速度 √(gH₀) = <b>"+cg.toPrecision(4)+"</b>");
+    a.push(tag("時間尺度")+"t_wave=L/√(gH₀) = "+tsh.toPrecision(4)+(frames.length?"；"+currentPhysicalTimeText(tsh,"t_wave"):""));
   }else if(t==="reaction-diffusion"){
-    a.push("拡散比 Dᵤ/Dᵥ = "+(num(E.reactionDu,.0064)/Math.max(1e-9,num(E.reactionDv,.0032))).toPrecision(4));
+    var Du=num(E.reactionDu,.0064),Dv=Math.max(1e-9,num(E.reactionDv,.0032));
+    a.push(tag("設定値から決定")+"拡散比 Dᵤ/Dᵥ = <b>"+(Du/Dv).toPrecision(4)+"</b>");
+    a.push(tag("時間尺度")+"L²/Dᵤ="+(L*L/Du).toPrecision(4)+"，L²/Dᵥ="+(L*L/Dv).toPrecision(4)+"（反応時間尺度はF,kにも依存）");
   }else if(t==="cahn-hilliard"){
-    a.push("界面長さ尺度 √κ = "+Math.sqrt(num(E.cahnKappa,.05)).toPrecision(4));
+    var kapc=Math.max(1e-12,num(E.cahnKappa,.05)),M=Math.max(1e-12,num(E.cahnM,1));
+    a.push(tag("設定値から決定")+"界面長さの目安 √κ = <b>"+Math.sqrt(kapc).toPrecision(4)+"</b>");
+    a.push(tag("代表値")+"勾配項支配の時間尺度の目安 L⁴/(Mκ) = "+(L**4/(M*kapc)).toPrecision(4)+"（非線形バルク項もあるため厳密な緩和時間ではありません）");
   }else a.push("現在の係数と保存量を直接比較してください。");
-  E.physicsDiagnostics.innerHTML=a.join("<br>");
-  updatePhysicsRegimeSupport();
+  E.physicsDiagnostics.innerHTML=a.filter(Boolean).join("<br>");
+  if(!skipSupport)updatePhysicsRegimeSupport();
 }
 
 function physicsRegimeSummary(){
@@ -2514,7 +2560,7 @@ function physicsRegimeSummary(){
   }
   if(t==="burgers"||t==="burgers-2d"){
     var nu=t==="burgers"?Math.max(1e-9,num(E.burgersNu,.02)):Math.max(1e-9,num(E.burgers2dNu,.02));
-    var Re=L/nu;
+    var Re=burgersReferenceSpeed()*L/nu;
     return Re>100?"<b>非線形移流が強いBurgersレジーム</b>：Re型比≈"+Re.toPrecision(4)+"。急峻化・衝撃波的構造が現れやすい条件です。":
            Re<1?"<b>粘性優勢Burgersレジーム</b>：Re型比≈"+Re.toPrecision(4)+"。粘性平滑化が強い条件です。":
            "<b>移流と粘性の競合レジーム</b>：Re型比≈"+Re.toPrecision(4)+"。";
@@ -4502,7 +4548,7 @@ function equationDefinition(type,dim){
   else if(type==="burgers-2d") d={
     title:"2D Burgers方程式",
     f:"∂u/∂t + u∂u/∂x + v∂u/∂y = ν∇²u<br>∂v/∂t + u∂v/∂x + v∂v/∂y = ν∇²v",
-    t:"速度ベクトル (u,v) が自分自身を移流する非線形方程式です。この形は一般には単純なスカラー保存則ではなく、実装では保存的移流フラックスと ∇·u に対応する補正を組み合わせています。"
+    t:"速度ベクトル (u,v) が自分自身を移流する非線形方程式です。この形は一般には単純なスカラー保存則ではなく、実装ではRusanov型保存的移流フラックスと ∇·u に対応する補正を組み合わせています。現在の界面再構築は一次なので、自己収束は概ね1次が基準です。"
   };
   else if(type==="reaction-diffusion") d={
     title:"Gray–Scott反応拡散系",
@@ -5242,6 +5288,43 @@ function selectedScaleRange(data,initial,allFrames,signed){
   }
   return paddedRange(r[0],r[1]);
 }
+function displayScaleKey(){
+  var sel=activeDisplaySelect();
+  return (state.equationKind||state.mode||"field")+":"+(sel?sel.value:"primary");
+}
+function displayedScaleRange(frameIndex,data,signed){
+  var mode=E.scaleMode?E.scaleMode.value:"initial";
+  if(mode==="manual"){
+    return selectedScaleRange(data,data,[data],signed);
+  }
+  if(mode==="auto"){
+    return selectedScaleRange(data,data,[data],signed);
+  }
+  if(!state.displayScaleCache)state.displayScaleCache={};
+  var key=displayScaleKey()+":"+mode+":"+(signed?"signed":"plain");
+  if(state.displayScaleCache[key])return state.displayScaleCache[key].slice();
+
+  var range;
+  if(mode==="initial"){
+    var init=measurementFrameAt(0).data;
+    var rr=arrayRange(init);
+    if(signed){
+      var aa=Math.max(Math.abs(rr[0]),Math.abs(rr[1]),1e-12);range=[-aa,aa];
+    }else range=paddedRange(rr[0],rr[1]);
+  }else{
+    var mn=Infinity,mx=-Infinity;
+    for(var f=0;f<frames.length;f++){
+      var a=measurementFrameAt(f).data,r=arrayRange(a);
+      mn=Math.min(mn,r[0]);mx=Math.max(mx,r[1]);
+    }
+    if(signed){
+      var ab=Math.max(Math.abs(mn),Math.abs(mx),1e-12);range=[-ab,ab];
+    }else range=paddedRange(mn,mx);
+  }
+  state.displayScaleCache[key]=range.slice();
+  return range;
+}
+
 function activeDisplaySelect(){
   var t=E.equationType.value,is2=E.dimension.value==="2d";
   if(t==="convection")return E.viewMode;
@@ -5276,11 +5359,10 @@ function syncPlaybackDisplayUI(){
 
 function updateScaleControlsUI(){
   if(!E.scaleControls)return;
-  var type=E.equationType.value;
-  var show=!(type==="reaction-diffusion"||type==="convection");
-  E.scaleControls.style.display=show?"block":"none";
-  E.manualScaleControls.style.display=(show&&E.scaleMode.value==="manual")?"block":"none";
-  if(E.playbackDisplayControls)E.playbackDisplayControls.style.display=(show||activeDisplaySelect())?"grid":"none";
+  var show=true;
+  E.scaleControls.style.display="block";
+  E.manualScaleControls.style.display=(E.scaleMode.value==="manual")?"block":"none";
+  if(E.playbackDisplayControls)E.playbackDisplayControls.style.display="grid";
   syncPlaybackDisplayUI();
 }
 
@@ -5291,7 +5373,7 @@ function draw1D(){
   var pad={l:108,r:18,t:18,b:44};
   var pw=w-pad.l-pad.r,ph=h-pad.t-pad.b;
   var data=frames[current],initial=frames[0],i,j;
-  var axisRange=selectedScaleRange(data,initial,frames,false);
+  var axisRange=state.overrideDisplayRange?state.overrideDisplayRange:selectedScaleRange(data,initial,frames,false);
   var ymin=axisRange[0],ymax=axisRange[1];
 
   ctx.lineWidth=1;ctx.strokeStyle=css("--grid");ctx.fillStyle=css("--muted");
@@ -5565,24 +5647,11 @@ function draw2D(){
   }
   if(!Number.isFinite(dataMin)||!Number.isFinite(dataMax)){dataMin=0;dataMax=0;}
 
-  // Scalar transport is the main common case: use the user's selected
-  // color-scale policy. Specialized derived views retain their physically
-  // appropriate built-in range until their own initial/global series exists.
-  var vmin=dataMin,vmax=dataMax;
-  var scalableScalar=(mode==="scalar"||mode==="scalar-velocity"||mode==="scalar-diffusive-flux"||mode==="scalar-total-flux");
-  if(scalableScalar){
-    var sr=selectedScaleRange(data,frames[0],frames,false);vmin=sr[0];vmax=sr[1];
-  }else if(fixedMin!==null&&fixedMax!==null){
-    vmin=fixedMin;vmax=fixedMax;
-  }else if(signed){
-    var amax=Math.max(Math.abs(dataMin),Math.abs(dataMax));
-    if(amax<1e-14)amax=1;
-    vmin=-amax;vmax=amax;
-  }else if(Math.abs(dataMax-dataMin)<1e-14){
-    var padScale=Math.max(1,Math.abs(dataMin));
-    vmin=dataMin-0.5*padScale;
-    vmax=dataMax+0.5*padScale;
-  }
+  // All 2D displayed quantities use the same scale policy selected beside playback.
+  // Initial/global ranges are cached per displayed quantity after the first request.
+  var commonRange=displayedScaleRange(current,data,signed);
+  var vmin=commonRange[0],vmax=commonRange[1];
+  if(!(vmax>vmin)){vmin=dataMin-.5;vmax=dataMax+.5;}
 
   var off=document.createElement("canvas");off.width=N;off.height=N;
   var octx=off.getContext("2d"),img=octx.createImageData(N,N),i,j,pix,rgb;
@@ -5640,6 +5709,15 @@ function divergingColor(v,scale){
     return [255,Math.round(255*s),Math.round(255*s)];
   }
 }
+function divergingColorRange(v,vmin,vmax){
+  if(!(vmax>vmin))return divergingColor(v,1);
+  if(v<0){
+    var den=Math.max(Math.abs(vmin),1e-12);
+    return divergingColor(Math.max(-1,v/den),1);
+  }
+  var denp=Math.max(Math.abs(vmax),1e-12);
+  return divergingColor(Math.min(1,v/denp),1);
+}
 
 function drawConvection(){
   var s=canvasSize(),w=s.w,h=s.h;
@@ -5658,36 +5736,28 @@ function drawConvection(){
   var off=document.createElement("canvas");
   off.width=N;off.height=N;
   var octx=off.getContext("2d"),img=octx.createImageData(N,N);
-  var i,j,k,pix,rgb,val,maxVal=0,tempMin=Infinity,tempMax=-Infinity;
-
+  var i,j,k,pix,rgb,val,displayData,signed=false;
   if(mode==="velocity"){
-    for(k=0;k<N*N;k++){
-      val=Math.sqrt(vel[2*k]*vel[2*k]+vel[2*k+1]*vel[2*k+1]);
-      if(val>maxVal)maxVal=val;
-    }
+    displayData=new Float64Array(N*N);
+    for(k=0;k<N*N;k++)displayData[k]=Math.hypot(vel[2*k],vel[2*k+1]);
   }else if(mode==="vorticity"){
-    for(k=0;k<N*N;k++)if(Math.abs(vort[k])>maxVal)maxVal=Math.abs(vort[k]);
+    displayData=vort;signed=true;
   }else{
-    // Fix temperature color scale from the initial temperature field.
-    for(k=0;k<N*N;k++){
-      if(initialTemp[k]<tempMin)tempMin=initialTemp[k];
-      if(initialTemp[k]>tempMax)tempMax=initialTemp[k];
-    }
-    if(!Number.isFinite(tempMin)||!Number.isFinite(tempMax)){tempMin=0;tempMax=1;}
-    if(Math.abs(tempMax-tempMin)<1e-14)tempMax=tempMin+1;
+    displayData=data;
   }
-  if(maxVal<=0)maxVal=1;
+  var cr=displayedScaleRange(current,displayData,signed),scaleMin=cr[0],scaleMax=cr[1];
+  var maxVal=Math.max(Math.abs(scaleMin),Math.abs(scaleMax),1e-12);
 
   for(j=0;j<N;j++){
     for(i=0;i<N;i++){
       k=j*N+i;
       if(mode==="velocity"){
-        val=Math.sqrt(vel[2*k]*vel[2*k]+vel[2*k+1]*vel[2*k+1])/maxVal;
+        val=(displayData[k]-scaleMin)/(scaleMax-scaleMin);
         rgb=colorMap(val);
       }else if(mode==="vorticity"){
-        rgb=divergingColor(vort[k],maxVal);
+        rgb=divergingColorRange(displayData[k],scaleMin,scaleMax);
       }else{
-        rgb=colorMap((data[k]-tempMin)/(tempMax-tempMin));
+        rgb=colorMap((displayData[k]-scaleMin)/(scaleMax-scaleMin));
       }
       pix=4*((N-1-j)*N+i);
       img.data[pix]=rgb[0];img.data[pix+1]=rgb[1];img.data[pix+2]=rgb[2];img.data[pix+3]=255;
@@ -5729,12 +5799,14 @@ function drawConvection(){
 
   ctx.fillStyle=css("--muted");ctx.font="12px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif";
   if(mode==="temperature"||mode==="temperature-velocity"){
-    ctx.fillText("T scale min="+tempMin.toPrecision(4),ox+5,oy+14);
-    ctx.fillText("T scale max="+tempMax.toPrecision(4),ox+5,oy+30);
+    ctx.fillText("T scale min="+scaleMin.toPrecision(4),ox+5,oy+14);
+    ctx.fillText("T scale max="+scaleMax.toPrecision(4),ox+5,oy+30);
   }else if(mode==="velocity"){
-    ctx.fillText("max |u|="+maxVal.toPrecision(4),ox+5,oy+14);
+    ctx.fillText("|u| scale min="+scaleMin.toPrecision(4),ox+5,oy+14);
+    ctx.fillText("|u| scale max="+scaleMax.toPrecision(4),ox+5,oy+30);
   }else if(mode==="vorticity"){
-    ctx.fillText("max |ω|="+maxVal.toPrecision(4),ox+5,oy+14);
+    ctx.fillText("ω scale min="+scaleMin.toPrecision(4),ox+5,oy+14);
+    ctx.fillText("ω scale max="+scaleMax.toPrecision(4),ox+5,oy+30);
   }
   for(i=0;i<=4;i++){
     var xv=ox+size*i/4;
@@ -5949,6 +6021,32 @@ function shallowTerrainSurfaceRange(){
   return state.shallowTerrainSurfaceRange;
 }
 
+function shallow1DSelectedRange(mode){
+  var sm=E.scaleMode.value,currentData=shallow1DDisplayData(current,mode).data;
+  if(sm==="manual"||sm==="auto")return selectedScaleRange(currentData,currentData,[currentData],false);
+  if(sm==="initial"){
+    var init=shallow1DDisplayData(0,mode).data;
+    return paddedRange.apply(null,arrayRange(init));
+  }
+  return shallow1DViewRange(mode).slice();
+}
+function shallowTerrainSelectedRange(){
+  var sm=E.scaleMode.value,b=state.shallowBottom||new Float64Array(state.N);
+  function rangeAt(f){
+    var h=frames[f],mn=Infinity,mx=-Infinity;
+    for(var i=0;i<h.length;i++){var eta=h[i]+b[i];mn=Math.min(mn,b[i],eta);mx=Math.max(mx,b[i],eta);}
+    return [mn,mx];
+  }
+  if(sm==="manual"){
+    var lo=Number(E.manualScaleMin.value),hi=Number(E.manualScaleMax.value);
+    if(Number.isFinite(lo)&&Number.isFinite(hi)&&hi>lo)return [lo,hi];
+    return paddedRange.apply(null,rangeAt(0));
+  }
+  if(sm==="auto")return paddedRange.apply(null,rangeAt(current));
+  if(sm==="initial")return paddedRange.apply(null,rangeAt(0));
+  return shallowTerrainSurfaceRange().slice();
+}
+
 function drawShallowTerrainSurface1D(){
   var sz=canvasSize(),w=sz.w,hc=sz.h;
   ctx.clearRect(0,0,w,hc);
@@ -5960,7 +6058,7 @@ function drawShallowTerrainSurface1D(){
   var eta=new Float64Array(h.length);
   for(var i=0;i<h.length;i++)eta[i]=h[i]+b[i];
 
-  var range=shallowTerrainSurfaceRange(),ymin=range[0],ymax=range[1];
+  var range=shallowTerrainSelectedRange(),ymin=range[0],ymax=range[1];
   function X(i){return pad.l+pw*i/Math.max(1,h.length-1);}
   function Y(v){return pad.t+ph*(ymax-v)/(ymax-ymin);}
 
@@ -6044,19 +6142,17 @@ function drawShallow1D(){
     return;
   }
   var display=shallow1DDisplayData(current,mode);
-  var range=shallow1DViewRange(mode);
+  var range=shallow1DSelectedRange(mode);
 
   var original=frames[current];
-  var oldLabel=state.fieldAxisLabel,oldMin=state.plotMin,oldMax=state.plotMax;
+  var oldLabel=state.fieldAxisLabel,oldOverride=state.overrideDisplayRange;
   frames[current]=display.data;
   state.fieldAxisLabel=display.label;
-  state.plotMin=range[0];
-  state.plotMax=range[1];
+  state.overrideDisplayRange=range;
   draw1D();
   frames[current]=original;
   state.fieldAxisLabel=oldLabel;
-  state.plotMin=oldMin;
-  state.plotMax=oldMax;
+  state.overrideDisplayRange=oldOverride;
 }
 function burgers2DDisplayArray(frameIndex,mode){
   var u=frames[frameIndex],v=state.vFrames[frameIndex],N=state.N,k;
@@ -6124,16 +6220,11 @@ function drawNew2D(){
   var dataMin=Infinity,dataMax=-Infinity;
   for(k=0;k<data.length;k++){dataMin=Math.min(dataMin,data[k]);dataMax=Math.max(dataMax,data[k]);}
   if(!Number.isFinite(dataMin)||!Number.isFinite(dataMax)){dataMin=0;dataMax=0;}
-  var mn=dataMin,mx=dataMax;
-  if(state.equationKind==="burgers2d"){
-    var br=burgers2DScaleRange(mode,data,signed);mn=br[0];mx=br[1];
-  }else if(signed){
-    var aa=Math.max(Math.abs(dataMin),Math.abs(dataMax),1e-12);mn=-aa;mx=aa;
-  }else if(Math.abs(dataMax-dataMin)<1e-14){
-    var rr=Math.max(1,Math.abs(dataMin));mn=dataMin-.5*rr;mx=dataMax+.5*rr;
-  }
+  var commonRange=displayedScaleRange(current,data,signed);
+  var mn=commonRange[0],mx=commonRange[1];
+  if(!(mx>mn)){mn=dataMin-.5;mx=dataMax+.5;}
   var off=document.createElement("canvas");off.width=N;off.height=N;var oc=off.getContext("2d"),img=oc.createImageData(N,N),rgb,pix;
-  for(j=0;j<N;j++)for(i=0;i<N;i++){k=j*N+i;rgb=signed?divergingColor(data[k],Math.max(Math.abs(mn),Math.abs(mx))):colorMap((data[k]-mn)/(mx-mn));pix=4*((N-1-j)*N+i);img.data[pix]=rgb[0];img.data[pix+1]=rgb[1];img.data[pix+2]=rgb[2];img.data[pix+3]=255;}
+  for(j=0;j<N;j++)for(i=0;i<N;i++){k=j*N+i;rgb=signed?divergingColorRange(data[k],mn,mx):colorMap((data[k]-mn)/(mx-mn));pix=4*((N-1-j)*N+i);img.data[pix]=rgb[0];img.data[pix+1]=rgb[1];img.data[pix+2]=rgb[2];img.data[pix+3]=255;}
   oc.putImageData(img,0,0);ctx.drawImage(off,ox,oy,size,size);ctx.strokeStyle=css("--muted");ctx.strokeRect(ox,oy,size,size);
   if(vecx)drawArrayVectorOverlay(vecx,vecy,ox,oy,size);
   ctx.fillStyle=css("--muted");ctx.font="12px sans-serif";ctx.fillText(quantity+" min="+dataMin.toPrecision(4),ox+5,oy+14);ctx.fillText(quantity+" max="+dataMax.toPrecision(4),ox+5,oy+30);
@@ -6406,6 +6497,10 @@ function measurementFrameAt(f){
       data=new Float64Array(N*N);
       for(var j=0;j<N;j++)for(var i=0;i<N;i++){var vv=transportVectorAt(mode,base,i,j);data[j*N+i]=Math.hypot(vv[0],vv[1]);}
       label=mode==="velocity"?"|u|":mode==="diffusive-flux"?"|J_D|":"|J|";
+    }else if(mode==="vorticity"){
+      data=new Float64Array(N*N);
+      for(var jj=0;jj<N;jj++)for(var ii=0;ii<N;ii++)data[jj*N+ii]=velocityVorticityAt(ii,jj);
+      label="ω";
     }else{data=base;label="φ";}
   }
   return {data:data,label:label};
@@ -6501,6 +6596,7 @@ function draw(){
   drawHistory();
   drawComparisons();
   drawMeasurements();
+  if(E.physicsDiagnosticsPanel&&E.physicsDiagnosticsPanel.style.display!=="none")physicsDiagnosticsHTML(true);
 }
 
 function step(ts){
@@ -7448,8 +7544,6 @@ function convergenceSupported(p){
   if(p.equationType==="convection")return {ok:false,reason:"自然対流はPoisson反復を含み計算負荷が高いため、現段階の自動収束チェック対象外です。"};
   if(p.equationType==="reaction-diffusion"||p.equationType==="cahn-hilliard")
     return {ok:false,reason:"パターン形成系は位相ずれにより単純な点ごとの自己収束誤差が解釈しにくいため、専用指標を導入するまで対象外です。"};
-  if(p.equationType==="burgers-2d")
-    return {ok:false,reason:"2D Burgersは計算負荷とベクトル2成分の評価法を整理してから収束チェックへ追加します。"};
   if(p.equationType==="wave"&&p.waveModel==="deep")
     return {ok:false,reason:"深水極限はFourierモードを解析的に時間発展させるスペクトルモデルのため、有限差分の収束次数チェックとは性質が異なります。"};
   if(p.equationType==="wave"&&(p.waveSourceMode!=="off"||(p.mode==="2d"&&p.waveObstacleMode!=="off")))
@@ -7494,6 +7588,8 @@ async function runConvergenceSolver(p,serial){
     }
   }else if(p.equationType==="burgers"){
     await calcBurgers1D(p,serial);
+  }else if(p.equationType==="burgers-2d"){
+    await calcBurgers2D(p,serial);
   }else if(p.equationType==="shallow-water-1d"){
     await calcShallowWater1D(p,serial);
   }else if(p.equationType==="shallow-water"){
@@ -7504,7 +7600,12 @@ async function runConvergenceSolver(p,serial){
     await calc2D(p,serial);
   }
   var exactError=analyticalFinalErrorForCurrentRun();
-  return {field:new Float64Array(frames[frames.length-1]),state:state,exactError:exactError};
+  var result={field:new Float64Array(frames[frames.length-1]),state:state,exactError:exactError};
+  if(p.equationType==="burgers-2d"){
+    result.vector2d=true;
+    result.fieldV=new Float64Array(state.vFrames[state.vFrames.length-1]);
+  }
+  return result;
 }
 
 function convergenceDifference(coarse,fine,dim,periodic){
@@ -7527,6 +7628,24 @@ function convergenceDifference(coarse,fine,dim,periodic){
       s1+=Math.abs(d);s2+=d*d;si=Math.max(si,Math.abs(d));
       n1+=a;n2+=fine[fidx]*fine[fidx];ni=Math.max(ni,a);count++;
     }
+  }
+  return {
+    L1:s1/Math.max(n1,1e-14),
+    L2:Math.sqrt(s2)/Math.max(Math.sqrt(n2),1e-14),
+    Linf:si/Math.max(ni,1e-14)
+  };
+}
+
+function convergenceDifferenceVector2D(cu,cv,fu,fv,periodic){
+  var Nc=Math.round(Math.sqrt(cu.length)),Nf=Math.round(Math.sqrt(fu.length));
+  var ratio=periodic?Math.round(Nf/Nc):Math.round((Nf-1)/(Nc-1));
+  var s1=0,s2=0,si=0,n1=0,n2=0,ni=0;
+  for(var j=0;j<Nc;j++)for(var i=0;i<Nc;i++){
+    var fj=j*ratio,fi=i*ratio,ci=j*Nc+i,ff=fj*Nf+fi;
+    var du=cu[ci]-fu[ff],dv=cv[ci]-fv[ff],d=Math.hypot(du,dv);
+    var ref=Math.hypot(fu[ff],fv[ff]);
+    s1+=d;s2+=d*d;si=Math.max(si,d);
+    n1+=ref;n2+=ref*ref;ni=Math.max(ni,ref);
   }
   return {
     L1:s1/Math.max(n1,1e-14),
@@ -7583,8 +7702,14 @@ async function startConvergenceCheck(){
       E.convergenceStatus.textContent="収束性チェック中："+(q+1)+"/3 完了";
       await nextPaint();
     }
-    var e01=convergenceDifference(runs[0].field,runs[1].field,base.mode,periodic);
-    var e12=convergenceDifference(runs[1].field,runs[2].field,base.mode,periodic);
+    var e01,e12;
+    if(base.equationType==="burgers-2d"){
+      e01=convergenceDifferenceVector2D(runs[0].field,runs[0].fieldV,runs[1].field,runs[1].fieldV,periodic);
+      e12=convergenceDifferenceVector2D(runs[1].field,runs[1].fieldV,runs[2].field,runs[2].fieldV,periodic);
+    }else{
+      e01=convergenceDifference(runs[0].field,runs[1].field,base.mode,periodic);
+      e12=convergenceDifference(runs[1].field,runs[2].field,base.mode,periodic);
+    }
     var p1=Math.log(e01.L1/Math.max(e12.L1,1e-30))/Math.log(2);
     var p2=Math.log(e01.L2/Math.max(e12.L2,1e-30))/Math.log(2);
     var pi=Math.log(e01.Linf/Math.max(e12.Linf,1e-30))/Math.log(2);
@@ -7593,7 +7718,7 @@ async function startConvergenceCheck(){
               {dx:dxs[1],L1:e12.L1,L2:e12.L2,Linf:e12.Linf}];
     convergencePlot(rows);
     var html=
-      "<b>格子：</b>"+Ns.join(" → ")+"<br>"+
+      "<b>格子：</b>"+Ns.join(" → ")+(base.equationType==="burgers-2d"?"<br><span class='hint'>2D Burgersでは (uₓ,uᵧ) のベクトル差のノルムで自己収束を評価します。</span>":"")+"<br>"+
       "<b>粗→中の相対差：</b> L1="+e01.L1.toExponential(3)+"，L2="+e01.L2.toExponential(3)+"，L∞="+e01.Linf.toExponential(3)+"<br>"+
       "<b>中→細の相対差：</b> L1="+e12.L1.toExponential(3)+"，L2="+e12.L2.toExponential(3)+"，L∞="+e12.Linf.toExponential(3)+"<br>"+
       "<b>実測自己収束次数：</b> p(L1)="+p1.toFixed(3)+"，p(L2)="+p2.toFixed(3)+"，p(L∞)="+pi.toFixed(3);
@@ -7837,9 +7962,9 @@ function applyRegimeSupportAction(action){
     if(U<=1e-12){showAvailabilityMessage("Peを設定するには代表速度Uが0より大きい必要があります。");return;}
     E.D.value=clamp(U*L/target,.0001,10);
   }else if(action.indexOf("Re-")===0){
-    target=Number(action.slice(3));
-    if(E.equationType.value==="burgers")E.burgersNu.value=clamp(L/target,0,10);
-    else E.burgers2dNu.value=clamp(L/target,0,10);
+    target=Number(action.slice(3));var Uref=burgersReferenceSpeed();
+    if(E.equationType.value==="burgers")E.burgersNu.value=clamp(Uref*L/target,.000001,10);
+    else E.burgers2dNu.value=clamp(Uref*L/target,.000001,10);
   }else if(action==="c-half")E.waveSpeed.value=clamp(num(E.waveSpeed,1)/2,.0001,100);
   else if(action==="c-double")E.waveSpeed.value=clamp(num(E.waveSpeed,1)*2,.0001,100);
   else if(action.indexOf("kH-")===0){
