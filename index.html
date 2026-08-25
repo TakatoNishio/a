@@ -313,6 +313,24 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
       <div class="hint" id="transport-view-description"></div>
     </div>
 
+    <div class="group" id="scale-controls" style="display:none">
+      <label for="scale-mode">軸・カラースケール</label>
+      <select id="scale-mode">
+        <option value="initial" selected>初期値固定</option>
+        <option value="auto">現在時刻に自動調整</option>
+        <option value="global">全時間固定</option>
+        <option value="manual">手動設定</option>
+      </select>
+      <div class="hint">ここから縦軸（1D）・カラースケール（2D）の範囲を変更できます。初期値固定では t=0 の表示範囲を全時刻で維持します。</div>
+      <div id="manual-scale-controls" style="display:none;margin-top:8px">
+        <div class="two">
+          <div><label for="manual-scale-min">最小値</label><input id="manual-scale-min" type="number" value="0" step="any"></div>
+          <div><label for="manual-scale-max">最大値</label><input id="manual-scale-max" type="number" value="1" step="any"></div>
+        </div>
+        <div class="hint" id="manual-scale-warning"></div>
+      </div>
+    </div>
+
     <div id="generic-perturbation-controls">
       <div class="group">
         <label for="generic-perturbation-mode">初期擾乱</label>
@@ -1088,6 +1106,12 @@ var E={
   u1dGroup:document.getElementById("u1d-group"),
   u2dGroup:document.getElementById("u2d-group"),
   transportViewGroup:document.getElementById("transport-view-group"),
+  scaleControls:document.getElementById("scale-controls"),
+  scaleMode:document.getElementById("scale-mode"),
+  manualScaleControls:document.getElementById("manual-scale-controls"),
+  manualScaleMin:document.getElementById("manual-scale-min"),
+  manualScaleMax:document.getElementById("manual-scale-max"),
+  manualScaleWarning:document.getElementById("manual-scale-warning"),
   transportViewMode:document.getElementById("transport-view-mode"),
   transportViewDescription:document.getElementById("transport-view-description"),
   waveViewGroup:document.getElementById("wave-view-group"),
@@ -2235,6 +2259,7 @@ function updateModeUI(){
 
   E.convectionControls.style.display=isConv?"block":"none";
   updateScalarViewUI();
+  updateScaleControlsUI();
   updateGenericPerturbationUI();
   E.perturbationAmplitudeGroup.style.display=(isConv&&E.perturbationMode.value==="on")?"grid":"none";
 
@@ -5167,6 +5192,45 @@ function drawAnalyticalErrorView(){
   ctx.fillText(useLog?"相対誤差（対数軸）":"相対誤差",0,0);
   ctx.restore();
 }
+function arrayRange(a){
+  var mn=Infinity,mx=-Infinity;
+  for(var i=0;i<a.length;i++){if(a[i]<mn)mn=a[i];if(a[i]>mx)mx=a[i];}
+  if(!Number.isFinite(mn)||!Number.isFinite(mx))return [0,1];
+  return [mn,mx];
+}
+function paddedRange(mn,mx){
+  if(Math.abs(mx-mn)<1e-14){
+    var a=Math.max(.5,Math.abs(mn)*.2,1e-6);return [mn-a,mx+a];
+  }
+  var m=.08*(mx-mn);return [mn-m,mx+m];
+}
+function selectedScaleRange(data,initial,allFrames,signed){
+  var mode=E.scaleMode?E.scaleMode.value:"initial",r;
+  if(mode==="manual"){
+    var lo=Number(E.manualScaleMin.value),hi=Number(E.manualScaleMax.value);
+    if(Number.isFinite(lo)&&Number.isFinite(hi)&&hi>lo)return [lo,hi];
+    if(E.manualScaleWarning)E.manualScaleWarning.textContent="最小値 < 最大値となる有限値を入力してください。現在は初期値固定で表示します。";
+    mode="initial";
+  }else if(E.manualScaleWarning)E.manualScaleWarning.textContent="";
+  if(mode==="auto")r=arrayRange(data);
+  else if(mode==="global"){
+    var mn=Infinity,mx=-Infinity;
+    for(var f=0;f<allFrames.length;f++){var q=arrayRange(allFrames[f]);mn=Math.min(mn,q[0]);mx=Math.max(mx,q[1]);}
+    r=[mn,mx];
+  }else r=arrayRange(initial||data);
+  if(signed){
+    var aa=Math.max(Math.abs(r[0]),Math.abs(r[1]),1e-12);return [-aa,aa];
+  }
+  return paddedRange(r[0],r[1]);
+}
+function updateScaleControlsUI(){
+  if(!E.scaleControls)return;
+  var type=E.equationType.value;
+  var show=type!=="convection" && type!=="reaction-diffusion";
+  E.scaleControls.style.display=show?"grid":"none";
+  E.manualScaleControls.style.display=(show&&E.scaleMode.value==="manual")?"block":"none";
+}
+
 function draw1D(){
   var sz=canvasSize(),w=sz.w,h=sz.h;
   ctx.clearRect(0,0,w,h);
@@ -5174,24 +5238,8 @@ function draw1D(){
   var pad={l:108,r:18,t:18,b:44};
   var pw=w-pad.l-pad.r,ph=h-pad.t-pad.b;
   var data=frames[current],initial=frames[0],i,j;
-  var ymin=(Number.isFinite(state.plotMin)?state.plotMin:Infinity);
-  var ymax=(Number.isFinite(state.plotMax)?state.plotMax:-Infinity);
-
-  // Fix the vertical axis from the initial distribution unless the solver
-  // explicitly supplied a fixed range at t=0.
-  if(!Number.isFinite(state.plotMin)||!Number.isFinite(state.plotMax)){
-    for(i=0;i<initial.length;i++){
-      if(initial[i]<ymin)ymin=initial[i];
-      if(initial[i]>ymax)ymax=initial[i];
-    }
-  }
-  if(!Number.isFinite(ymin)||!Number.isFinite(ymax)){ymin=0;ymax=1;}
-  if(Math.abs(ymax-ymin)<1e-14){ymin-=0.5;ymax+=0.5;}
-
-  // Use a fixed margin determined only from the initial range.
-  var margin=0.08*(ymax-ymin);
-  ymin-=margin;
-  ymax+=margin;
+  var axisRange=selectedScaleRange(data,initial,frames,false);
+  var ymin=axisRange[0],ymax=axisRange[1];
 
   ctx.lineWidth=1;ctx.strokeStyle=css("--grid");ctx.fillStyle=css("--muted");
   ctx.font="12px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif";
@@ -5464,8 +5512,14 @@ function draw2D(){
   }
   if(!Number.isFinite(dataMin)||!Number.isFinite(dataMax)){dataMin=0;dataMax=0;}
 
+  // Scalar transport is the main common case: use the user's selected
+  // color-scale policy. Specialized derived views retain their physically
+  // appropriate built-in range until their own initial/global series exists.
   var vmin=dataMin,vmax=dataMax;
-  if(fixedMin!==null&&fixedMax!==null){
+  var scalableScalar=(mode==="scalar"||mode==="scalar-velocity"||mode==="scalar-diffusive-flux"||mode==="scalar-total-flux");
+  if(scalableScalar){
+    var sr=selectedScaleRange(data,frames[0],frames,false);vmin=sr[0];vmax=sr[1];
+  }else if(fixedMin!==null&&fixedMax!==null){
     vmin=fixedMin;vmax=fixedMax;
   }else if(signed){
     var amax=Math.max(Math.abs(dataMin),Math.abs(dataMax));
@@ -5982,7 +6036,11 @@ function drawNew2D(){
   for(k=0;k<data.length;k++){dataMin=Math.min(dataMin,data[k]);dataMax=Math.max(dataMax,data[k]);}
   if(!Number.isFinite(dataMin)||!Number.isFinite(dataMax)){dataMin=0;dataMax=0;}
   var mn=dataMin,mx=dataMax;
-  if(signed){
+  if(state.equationKind==="burgers2d"&&(mode==="u"||mode==="v")){
+    var initComponent=mode==="u"?frames[0]:state.vFrames[0];
+    var seriesComponent=mode==="u"?frames:state.vFrames;
+    var br=selectedScaleRange(data,initComponent,seriesComponent,true);mn=br[0];mx=br[1];
+  }else if(signed){
     var aa=Math.max(Math.abs(dataMin),Math.abs(dataMax),1e-12);mn=-aa;mx=aa;
   }else if(Math.abs(dataMax-dataMin)<1e-14){
     var rr=Math.max(1,Math.abs(dataMin));mn=dataMin-.5*rr;mx=dataMax+.5*rr;
@@ -7729,6 +7787,9 @@ E.physicsSupportActions.addEventListener("click",function(ev){
   applyRegimeSupportAction(btn.dataset.regimeAction);
 });
 
+E.scaleMode.addEventListener("change",function(){updateScaleControlsUI();draw();});
+E.manualScaleMin.addEventListener("input",function(){if(E.scaleMode.value==="manual")draw();});
+E.manualScaleMax.addEventListener("input",function(){if(E.scaleMode.value==="manual")draw();});
 E.probeEnabled.addEventListener("change",drawMeasurements);E.sectionEnabled.addEventListener("change",function(){E.sectionPositionGroup.style.display=this.value==="on"?"block":"none";drawMeasurements();});E.sectionPosition.addEventListener("input",function(){E.sectionPositionOutput.textContent=Number(this.value).toFixed(2);drawMeasurements();});E.chart.addEventListener("click",setProbeFromChartEvent);
 document.addEventListener("input",function(){if(E.physicsDiagnostics)physicsDiagnosticsHTML();});
 function syncNewFeatureUI(){var ow=E.equationType.value==="wave"&&E.waveModel.value==="generic";E.waveExtraControls.style.display=ow?"block":"none";E.waveSourceParams.style.display=ow&&E.waveSourceMode.value!=="off"?"block":"none";E.waveSourceYGroup.style.display=E.dimension.value==="2d"?"block":"none";E.waveObstacleGroup.style.display=ow&&E.dimension.value==="2d"?"block":"none";E.measurementControls.style.display=E.dimension.value==="2d"?"block":"none";physicsDiagnosticsHTML();}
