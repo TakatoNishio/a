@@ -149,6 +149,24 @@ canvas{display:block;width:100%;height:430px}
       </div>
     </div>
 
+    <div id="generic-perturbation-controls">
+      <div class="group">
+        <label for="generic-perturbation-mode">初期擾乱</label>
+        <select id="generic-perturbation-mode">
+          <option value="off">擾乱なし</option>
+          <option value="on">擾乱あり</option>
+        </select>
+        <div class="hint">
+          拡散・移流・移流拡散・波動・Burgers・反応拡散で使用できます。
+          「擾乱あり」では、再現可能な滑らかな低波数擾乱を初期場に加えます。「擾乱なし」では追加擾乱を加えません。
+        </div>
+      </div>
+      <div class="group" id="generic-perturbation-amplitude-group" style="display:none">
+        <label for="generic-perturbation-amplitude">擾乱振幅</label>
+        <input id="generic-perturbation-amplitude" type="number" value="0.01" min="0" max="1" step="0.001">
+      </div>
+    </div>
+
     <div id="wave-controls" style="display:none">
       <div class="group">
         <label for="wave-speed">波速 c</label>
@@ -167,6 +185,29 @@ canvas{display:block;width:100%;height:430px}
 
     <div id="reaction-controls" style="display:none">
       <div class="group">
+        <label for="reaction-preset">Gray–Scott パターンプリセット</label>
+        <select id="reaction-preset">
+          <option value="replicating-spots">自己複製スポット</option>
+          <option value="maze">迷路・サンゴ状</option>
+          <option value="spots">安定スポット</option>
+          <option value="custom">カスタム</option>
+        </select>
+        <div class="hint" id="reaction-preset-description"></div>
+      </div>
+
+      <div class="group">
+        <label for="reaction-initial">反応拡散の初期条件</label>
+        <select id="reaction-initial">
+          <option value="multi-seed">複数シード</option>
+          <option value="single-seed">中央1シード</option>
+          <option value="ring-seed">リング状シード</option>
+          <option value="random-seeds">微小ランダムシード</option>
+          <option value="stripe-seed">中央ストライプ</option>
+        </select>
+        <div class="hint">青い背景はほぼ U=1, V=0 の定常状態です。シードから V が拡散し、非線形反応によってパターンが成長します。</div>
+      </div>
+
+      <div class="group">
         <label for="reaction-du">U の拡散係数 Dᵤ</label>
         <input id="reaction-du" type="number" value="0.0064" min="0.000001" max="10" step="0.0001">
       </div>
@@ -176,15 +217,15 @@ canvas{display:block;width:100%;height:430px}
       </div>
       <div class="group">
         <label for="reaction-feed">供給率 F</label>
-        <input id="reaction-feed" type="number" value="0.0367" min="0" max="1" step="0.0001">
+        <input id="reaction-feed" type="number" value="0.0220" min="0" max="1" step="0.0001">
       </div>
       <div class="group">
         <label for="reaction-kill">除去率 k</label>
-        <input id="reaction-kill" type="number" value="0.0649" min="0" max="1" step="0.0001">
+        <input id="reaction-kill" type="number" value="0.0510" min="0" max="1" step="0.0001">
       </div>
       <div class="hint">
         Gray–Scottモデルです。拡散は保存形のフラックスで書き、反応・供給・除去はソース項として扱います。
-        デフォルト値はスポット／迷路状パターンが発達しやすい設定です。周期境界を用います。
+        プリセットはパターン形成を観察しやすい値を自動設定します。周期境界を用います。
       </div>
     </div>
 
@@ -260,7 +301,7 @@ canvas{display:block;width:100%;height:430px}
           <option value="off">擾乱なし</option>
           <option value="on">擾乱あり</option>
         </select>
-        <div class="hint">擾乱ありでは、計算を実行するたびに低波数モードをランダム合成した滑らかな微小温度擾乱を加えます。上下固定温度・左右断熱条件と整合する形にしています。</div>
+        <div class="hint">自然対流では専用の初期温度擾乱を使用します。「擾乱あり」では、低波数モードを合成した滑らかな微小温度擾乱を加えます。上下固定温度・左右断熱条件と整合する形にしています。</div>
       </div>
 
       <div class="group" id="perturbation-amplitude-group" style="display:none">
@@ -506,11 +547,18 @@ var E={
   D:document.getElementById("D"),
   DLabel:document.getElementById("D-label"),
   DGroup:document.getElementById("D-group"),
+  genericPerturbationControls:document.getElementById("generic-perturbation-controls"),
+  genericPerturbationMode:document.getElementById("generic-perturbation-mode"),
+  genericPerturbationAmplitudeGroup:document.getElementById("generic-perturbation-amplitude-group"),
+  genericPerturbationAmplitude:document.getElementById("generic-perturbation-amplitude"),
   waveControls:document.getElementById("wave-controls"),
   waveSpeed:document.getElementById("wave-speed"),
   burgersControls:document.getElementById("burgers-controls"),
   burgersNu:document.getElementById("burgers-nu"),
   reactionControls:document.getElementById("reaction-controls"),
+  reactionPreset:document.getElementById("reaction-preset"),
+  reactionPresetDescription:document.getElementById("reaction-preset-description"),
+  reactionInitial:document.getElementById("reaction-initial"),
   reactionDu:document.getElementById("reaction-du"),
   reactionDv:document.getElementById("reaction-dv"),
   reactionFeed:document.getElementById("reaction-feed"),
@@ -810,6 +858,116 @@ function updateInitialOptions(){
   }
 }
 
+function reactionPresetValues(name){
+  // Values below were checked numerically with this app's default scaling
+  // (L=10, N=51, Du:Dv=2:1) and remain spatially non-uniform at t≈400.
+  if(name==="maze"){
+    return {
+      Du:.0064,Dv:.0032,F:.0390,K:.0580,
+      initial:"multi-seed",
+      description:"迷路・サンゴ状：複数シードが広がり、互いに干渉しながら枝分かれした構造を作りやすい設定です。"
+    };
+  }
+  if(name==="spots"){
+    return {
+      Du:.0064,Dv:.0032,F:.0300,K:.0620,
+      initial:"multi-seed",
+      description:"安定スポット：局所的なV高濃度領域が丸いスポットとして残りやすい設定です。"
+    };
+  }
+  if(name==="replicating-spots"){
+    return {
+      Du:.0064,Dv:.0032,F:.0220,K:.0510,
+      initial:"single-seed",
+      description:"自己複製スポット：中央の1シードが成長・変形し、新しい構造を作りやすい設定です。"
+    };
+  }
+  return {
+    Du:num(E.reactionDu,.0064),
+    Dv:num(E.reactionDv,.0032),
+    F:num(E.reactionFeed,.0367),
+    K:num(E.reactionKill,.0649),
+    initial:E.reactionInitial.value,
+    description:"カスタム：Dᵤ, Dᵥ, F, k と初期条件を自由に設定します。"
+  };
+}
+
+function applyReactionPreset(recalculate){
+  var name=E.reactionPreset.value;
+  var p=reactionPresetValues(name);
+  E.reactionPresetDescription.textContent=p.description;
+
+  if(name!=="custom"){
+    E.reactionDu.value=String(p.Du);
+    E.reactionDv.value=String(p.Dv);
+    E.reactionFeed.value=String(p.F);
+    E.reactionKill.value=String(p.K);
+    E.reactionInitial.value=p.initial;
+  }
+
+  if(recalculate && E.equationType.value==="reaction-diffusion")calculate();
+}
+
+function markReactionCustom(){
+  if(E.reactionPreset.value!=="custom"){
+    E.reactionPreset.value="custom";
+    E.reactionPresetDescription.textContent=reactionPresetValues("custom").description;
+  }
+}
+
+function fieldDisplayLabel(){
+  if(state.equationKind==="burgers")return "u";
+  if(state.equationKind==="wave")return "p";
+  if(state.equationKind==="reaction-diffusion")return "V";
+  return "φ";
+}
+
+function smoothPerturbation1D(x,L){
+  return (
+    0.55*Math.sin(2*Math.PI*x/L+0.37)
+    +0.30*Math.sin(4*Math.PI*x/L+1.41)
+    +0.15*Math.sin(6*Math.PI*x/L+2.23)
+  );
+}
+
+function smoothPerturbation2D(x,y,L){
+  return (
+    0.45*Math.cos(2*Math.PI*x/L+0.31)*Math.sin(2*Math.PI*y/L+1.07)
+    +0.30*Math.sin(4*Math.PI*x/L+1.63)*Math.sin(2*Math.PI*y/L+0.52)
+    +0.25*Math.cos(2*Math.PI*x/L+2.11)*Math.sin(4*Math.PI*y/L+1.29)
+  );
+}
+
+function applyGenericPerturbation1D(a,L,dx,amplitude){
+  if(!(amplitude>0))return a;
+  var out=new Float64Array(a),i,x;
+  for(i=0;i<out.length;i++){
+    x=i*dx;
+    out[i]+=amplitude*smoothPerturbation1D(x,L);
+  }
+  return out;
+}
+
+function applyGenericPerturbation2D(a,N,L,dx,dy,amplitude){
+  if(!(amplitude>0))return a;
+  var out=new Float64Array(a),i,j,k,x,y;
+  for(j=0;j<N;j++){
+    y=j*dy;
+    for(i=0;i<N;i++){
+      x=i*dx;k=j*N+i;
+      out[k]+=amplitude*smoothPerturbation2D(x,y,L);
+    }
+  }
+  return out;
+}
+
+function updateGenericPerturbationUI(){
+  var isConv=(E.equationType.value==="convection");
+  E.genericPerturbationControls.style.display=isConv?"none":"block";
+  E.genericPerturbationAmplitudeGroup.style.display=
+    (!isConv&&E.genericPerturbationMode.value==="on")?"grid":"none";
+}
+
 function updateModeUI(){
   updateLargeDomainWarning();
 
@@ -836,6 +994,7 @@ function updateModeUI(){
   E.waveControls.style.display=isWave?"block":"none";
   E.burgersControls.style.display=isBurgers?"block":"none";
   E.reactionControls.style.display=isReaction?"block":"none";
+  if(isReaction)applyReactionPreset(false);
 
   E.grid1dGroup.style.display=(!isConv&&!isReaction&&!is2)?"grid":"none";
   E.grid2dGroup.style.display=(!isConv&&is2)?"grid":"none";
@@ -850,6 +1009,7 @@ function updateModeUI(){
   E.limiterGroup.style.display=(!special&&useAdv&&E.advectionScheme.value==="muscl-tvd")?"grid":"none";
 
   E.convectionControls.style.display=isConv?"block":"none";
+  updateGenericPerturbationUI();
   E.perturbationAmplitudeGroup.style.display=(isConv&&E.perturbationMode.value==="on")?"grid":"none";
 
   var useGenericInitial=(!isConv&&!isReaction);
@@ -940,8 +1100,11 @@ function readParams(){
     burgersNu:clamp(num(E.burgersNu,.02),0,10),
     reactionDu:clamp(num(E.reactionDu,.0064),.000001,10),
     reactionDv:clamp(num(E.reactionDv,.0032),.000001,10),
-    reactionFeed:clamp(num(E.reactionFeed,.0367),0,1),
-    reactionKill:clamp(num(E.reactionKill,.0649),0,1),
+    reactionFeed:clamp(num(E.reactionFeed,.0220),0,1),
+    reactionKill:clamp(num(E.reactionKill,.0510),0,1),
+    reactionInitial:E.reactionInitial.value,
+    genericPerturbationMode:E.genericPerturbationMode.value,
+    genericPerturbationAmplitude:clamp(num(E.genericPerturbationAmplitude,.01),0,1),
     u:useAdv?clamp(num(E.u,.5),-10,10):0,
     ux:useAdv?clamp(num(E.ux,.5),-10,10):0,
     uy:useAdv?clamp(num(E.uy,.25),-10,10):0,
@@ -1187,7 +1350,11 @@ async function calc1D(p,serial){
   if(micro>200000)throw new Error("内部時間ステップ数が多すぎます。最大時間・速度・拡散係数・計算領域を見直してください。");
 
   var dt=displayDt/micro;
-  var c=init1D(p.type,N,p.L,p.sigma,dx),next=new Float64Array(N);
+  var c=init1D(p.type,N,p.L,p.sigma,dx);
+  if(p.genericPerturbationMode==="on"){
+    c=applyGenericPerturbation1D(c,p.L,dx,p.genericPerturbationAmplitude);
+  }
+  var next=new Float64Array(N);
   var f,m,i,tmp,advected,im,ip,workSinceYield=0;
 
   if(!periodic){
@@ -1259,7 +1426,7 @@ async function calc1D(p,serial){
     frames.push(new Float64Array(c));times.push(f*displayDt);
   }
 
-  state={mode:"1d",L:p.L,N:N,dx:dx,periodic:periodic};
+  state={mode:"1d",equationKind:"scalar",fieldLabel:"φ",fieldAxisLabel:"φ(x,t)",L:p.L,N:N,dx:dx,periodic:periodic};
   E.dx.textContent="N = "+N+"　Δx = "+dx.toPrecision(4);
   E.dt.textContent="Δt = "+dt.toPrecision(4);
   E.mass.textContent="総量 = "+mass1D(frames[0],dx,periodic).toPrecision(5);
@@ -1508,7 +1675,11 @@ async function calc2D(p,serial){
   if(micro>30000)throw new Error("2Dの内部時間ステップ数が多すぎます。最大時間・速度・拡散係数・計算領域を見直してください。");
 
   var dt=displayDt/micro;
-  var c=init2D(p.type,N,p.L,p.sigma,dx,dy),next=new Float64Array(N*N);
+  var c=init2D(p.type,N,p.L,p.sigma,dx,dy);
+  if(p.genericPerturbationMode==="on"){
+    c=applyGenericPerturbation2D(c,N,p.L,dx,dy,p.genericPerturbationAmplitude);
+  }
+  var next=new Float64Array(N*N);
   var f,m,i,j,k,tmp,im,ip,jm,jp,workSinceYield=0;
 
   if(!px){
@@ -1670,7 +1841,7 @@ async function calc2D(p,serial){
     frames.push(new Float64Array(c));times.push(f*displayDt);
   }
 
-  state={mode:"2d",L:p.L,N:N,dx:dx,dy:dy,px:px,py:py,periodic:(px&&py)};
+  state={mode:"2d",equationKind:"scalar",fieldLabel:"φ",L:p.L,N:N,dx:dx,dy:dy,px:px,py:py,periodic:(px&&py)};
   E.dx.textContent=(Math.abs(dx-dy)<1e-12)
     ?"N = "+N+"×"+N+"　Δx = Δy = "+dx.toPrecision(4)
     :"N = "+N+"×"+N+"　Δx = "+dx.toPrecision(4)+", Δy = "+dy.toPrecision(4);
@@ -1746,6 +1917,11 @@ async function calcWave1D(p,serial){
   var dt=displayDt/micro;
 
   var pressure=init1D(p.type,N,p.L,p.sigma,dx);
+  if(p.genericPerturbationMode==="on"){
+    pressure=applyGenericPerturbation1D(
+      pressure,p.L,dx,p.genericPerturbationAmplitude
+    );
+  }
   var q=new Float64Array(N);
   var f,m,i,step;
   var max0=0;
@@ -1774,7 +1950,7 @@ async function calcWave1D(p,serial){
   }
 
   state={
-    mode:"1d",equationKind:"wave",L:p.L,N:N,dx:dx,periodic:periodic,
+    mode:"1d",equationKind:"wave",fieldLabel:"p",fieldAxisLabel:"p(x,t)",L:p.L,N:N,dx:dx,periodic:periodic,
     energyFrames:energyFrames,plotMin:-1.08*max0,plotMax:1.08*max0
   };
   E.dx.textContent="N = "+N+"　Δx = "+dx.toPrecision(4);
@@ -1874,6 +2050,11 @@ async function calcWave2D(p,serial){
   var dt=displayDt/micro;
 
   var P=init2D(p.type,N,p.L,p.sigma,dx,dy);
+  if(p.genericPerturbationMode==="on"){
+    P=applyGenericPerturbation2D(
+      P,N,p.L,dx,dy,p.genericPerturbationAmplitude
+    );
+  }
   var Qx=new Float64Array(N*N),Qy=new Float64Array(N*N);
   var f,m,k,step;
   var max0=0;
@@ -1912,7 +2093,7 @@ async function calcWave2D(p,serial){
   }
 
   state={
-    mode:"2d",equationKind:"wave",L:p.L,N:N,dx:dx,dy:dy,px:px,py:py,
+    mode:"2d",equationKind:"wave",fieldLabel:"p",L:p.L,N:N,dx:dx,dy:dy,px:px,py:py,
     energyFrames:energyFrames,plotMin:-1.08*max0,plotMax:1.08*max0
   };
   E.dx.textContent="N = "+N+"×"+N+"　Δx = "+dx.toPrecision(4)+", Δy = "+dy.toPrecision(4);
@@ -1946,6 +2127,11 @@ async function calcBurgers1D(p,serial){
   var dx=periodic?p.L/N:p.L/(N-1),frameCount=320,displayDt=p.T/(frameCount-1);
   var nu=p.burgersNu;
   var u=init1D(p.type,N,p.L,p.sigma,dx);
+  if(p.genericPerturbationMode==="on"){
+    u=applyGenericPerturbation1D(
+      u,p.L,dx,p.genericPerturbationAmplitude
+    );
+  }
   var un=new Float64Array(N),flux=new Float64Array(N+1);
   var f,m,i,ul,ur,a,gl,gr,maxu,rate,stable,micro,dt;
 
@@ -1985,7 +2171,7 @@ async function calcBurgers1D(p,serial){
   var min0=Infinity,max0=-Infinity;
   for(i=0;i<frames[0].length;i++){min0=Math.min(min0,frames[0][i]);max0=Math.max(max0,frames[0][i]);}
   state={
-    mode:"1d",equationKind:"burgers",L:p.L,N:N,dx:dx,periodic:periodic,
+    mode:"1d",equationKind:"burgers",fieldLabel:"u",fieldAxisLabel:"u(x,t)",L:p.L,N:N,dx:dx,periodic:periodic,
     plotMin:min0-.08*Math.max(1e-8,max0-min0),plotMax:max0+.08*Math.max(1e-8,max0-min0)
   };
   E.dx.textContent="N = "+N+"　Δx = "+dx.toPrecision(4);
@@ -1993,49 +2179,97 @@ async function calcBurgers1D(p,serial){
   E.mass.textContent="総量 = "+mass1D(frames[0],dx,periodic).toPrecision(5);
 }
 
-function initGrayScott(N){
+function grayScottSetSeed(U,V,N,cx,cy,r,uValue,vValue){
+  var i,j,k,dx,dy;
+  for(j=Math.max(0,cy-r);j<=Math.min(N-1,cy+r);j++){
+    for(i=Math.max(0,cx-r);i<=Math.min(N-1,cx+r);i++){
+      dx=i-cx;dy=j-cy;
+      if(dx*dx+dy*dy>r*r)continue;
+      k=j*N+i;
+      U[k]=clamp(uValue,0,1);
+      V[k]=clamp(vValue,0,1);
+    }
+  }
+}
+
+function initGrayScott(N,type){
   var U=new Float64Array(N*N),V=new Float64Array(N*N);
-  var i,j,k;
-  var c=Math.floor(N/2);
-  var r=Math.max(2,Math.floor(N*.045));
+  var i,j,k,c=Math.floor(N/2),r=Math.max(2,Math.floor(N*.045));
 
   for(k=0;k<N*N;k++){U[k]=1;V[k]=0;}
 
-  var seeds=[
-    [c,c],
-    [Math.floor(.38*N),Math.floor(.43*N)],
-    [Math.floor(.62*N),Math.floor(.57*N)],
-    [Math.floor(.43*N),Math.floor(.64*N)],
-    [Math.floor(.58*N),Math.floor(.34*N)]
-  ];
+  if(type==="single-seed"){
+    grayScottSetSeed(U,V,N,c,c,r,.50,.25);
 
-  for(var sidx=0;sidx<seeds.length;sidx++){
-    var cx=seeds[sidx][0],cy=seeds[sidx][1];
-    for(j=cy-r;j<=cy+r;j++){
-      for(i=cx-r;i<=cx+r;i++){
-        if(i<0||i>=N||j<0||j>=N)continue;
-        k=j*N+i;
-        var noise=.018*Math.sin(1.73*i+2.11*j)+.012*Math.cos(2.37*i-.91*j);
-        U[k]=clamp(.50-noise,0,1);
-        V[k]=clamp(.25+noise,0,1);
+  }else if(type==="ring-seed"){
+    var r0=.20*N,w=Math.max(1,.025*N),rr;
+    for(j=0;j<N;j++){
+      for(i=0;i<N;i++){
+        rr=Math.hypot(i-c,j-c);
+        if(Math.abs(rr-r0)<=w){
+          k=j*N+i;
+          U[k]=.50;
+          V[k]=.25;
+        }
       }
     }
-  }
 
-  for(j=0;j<N;j++){
-    for(i=0;i<N;i++){
-      k=j*N+i;
-      var eps=.0025*Math.sin(.47*i+1.13*j)*Math.cos(.83*i-.39*j);
-      U[k]=clamp(U[k]-eps,0,1);
-      V[k]=clamp(V[k]+eps,0,1);
+  }else if(type==="random-seeds"){
+    // Deterministic pseudo-random field: repeatable between numerical methods.
+    for(j=0;j<N;j++){
+      for(i=0;i<N;i++){
+        var z=Math.sin(12.9898*i+78.233*j)*43758.5453;
+        z=z-Math.floor(z);
+        if(z>.965){
+          grayScottSetSeed(U,V,N,i,j,Math.max(1,Math.floor(.018*N)),.55,.22);
+        }
+      }
+    }
+    grayScottSetSeed(U,V,N,c,c,r,.50,.25);
+
+  }else if(type==="stripe-seed"){
+    var half=Math.max(1,Math.floor(.035*N));
+    for(j=Math.floor(.25*N);j<=Math.floor(.75*N);j++){
+      for(i=c-half;i<=c+half;i++){
+        k=j*N+i;
+        U[k]=.50;
+        V[k]=.25;
+      }
+    }
+
+  }else{
+    // multi-seed
+    var seeds=[
+      [c,c],
+      [Math.floor(.38*N),Math.floor(.43*N)],
+      [Math.floor(.62*N),Math.floor(.57*N)],
+      [Math.floor(.43*N),Math.floor(.64*N)],
+      [Math.floor(.58*N),Math.floor(.34*N)]
+    ];
+    for(var si=0;si<seeds.length;si++){
+      grayScottSetSeed(U,V,N,seeds[si][0],seeds[si][1],r,.50,.25);
     }
   }
+
   return [U,V];
 }
 async function calcReactionDiffusion2D(p,serial){
   var N=p.grid2d,dx=p.L/N,dy=dx,frameCount=160,displayDt=p.T/(frameCount-1);
   var Du=p.reactionDu,Dv=p.reactionDv,F=p.reactionFeed,K=p.reactionKill;
-  var init=initGrayScott(N),U=init[0],V=init[1];
+  var init=initGrayScott(N,p.reactionInitial),U=init[0],V=init[1];
+  if(p.genericPerturbationMode==="on" && p.genericPerturbationAmplitude>0){
+    var amp=p.genericPerturbationAmplitude;
+    for(var pj=0;pj<N;pj++){
+      var py=pj*dy;
+      for(var pi=0;pi<N;pi++){
+        var px=pi*dx;
+        var pk=pj*N+pi;
+        var dp=amp*smoothPerturbation2D(px,py,p.L);
+        V[pk]=clamp(V[pk]+dp,0,1);
+        U[pk]=clamp(U[pk]-dp,0,1);
+      }
+    }
+  }
   var Un=new Float64Array(N*N),Vn=new Float64Array(N*N);
   var diffRate=4*Math.max(Du,Dv)/(dx*dx);
   var reactionRate=4+F+K;
@@ -2076,7 +2310,7 @@ async function calcReactionDiffusion2D(p,serial){
   }
 
   state={
-    mode:"2d",equationKind:"reaction-diffusion",L:p.L,N:N,dx:dx,dy:dy,px:true,py:true,
+    mode:"2d",equationKind:"reaction-diffusion",fieldLabel:"V",L:p.L,N:N,dx:dx,dy:dy,px:true,py:true,
     meanUFrames:meanUFrames,meanVFrames:meanVFrames,plotMin:0,plotMax:.35
   };
   E.dx.textContent="N = "+N+"×"+N+"　Δx = Δy = "+dx.toPrecision(4);
@@ -2470,7 +2704,8 @@ function draw1D(){
 
   ctx.font="13px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif";
   ctx.fillText("x",w-pad.r-4,h-8);
-  ctx.save();ctx.translate(14,pad.t+ph/2);ctx.rotate(-Math.PI/2);ctx.fillText("φ(x,t)",0,0);ctx.restore();
+  var axisLabel=state.fieldAxisLabel||"φ(x,t)";
+  ctx.save();ctx.translate(14,pad.t+ph/2);ctx.rotate(-Math.PI/2);ctx.fillText(axisLabel,0,0);ctx.restore();
 }
 function colorMap(v){
   v=clamp(v,0,1);
@@ -2544,8 +2779,9 @@ function draw2D(){
     ctx.fillText((state.L*i/4).toFixed(1),ox-38,yv+4);
   }
 
-  ctx.fillText("scale min="+vmin.toPrecision(4),ox+5,oy+14);
-  ctx.fillText("scale max="+vmax.toPrecision(4),ox+5,oy+30);
+  var quantity=state.fieldLabel||"φ";
+  ctx.fillText(quantity+" scale min="+vmin.toPrecision(4),ox+5,oy+14);
+  ctx.fillText(quantity+" scale max="+vmax.toPrecision(4),ox+5,oy+30);
   ctx.font="13px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif";
   ctx.fillText("x",ox+size+7,oy+size+3);
   ctx.fillText("y",ox-3,oy-7);
@@ -2652,8 +2888,8 @@ function drawConvection(){
 
   ctx.fillStyle=css("--muted");ctx.font="12px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif";
   if(mode==="temperature"||mode==="temperature-velocity"){
-    ctx.fillText("scale min="+tempMin.toPrecision(4),ox+5,oy+14);
-    ctx.fillText("scale max="+tempMax.toPrecision(4),ox+5,oy+30);
+    ctx.fillText("T scale min="+tempMin.toPrecision(4),ox+5,oy+14);
+    ctx.fillText("T scale max="+tempMax.toPrecision(4),ox+5,oy+30);
   }else if(mode==="velocity"){
     ctx.fillText("max |u|="+maxVal.toPrecision(4),ox+5,oy+14);
   }else if(mode==="vorticity"){
@@ -2943,10 +3179,20 @@ E.equationType.addEventListener("change",function(){
     E.boundaryX.value="periodic";
     E.boundaryY.value="periodic";
   }else if(type==="reaction-diffusion"){
-    if(Math.abs(num(E.duration,10)-10)<1e-12)E.duration.value="120";
+    if(Math.abs(num(E.duration,10)-10)<1e-12)E.duration.value="400";
+    applyReactionPreset(false);
   }
   updateModeUI();
   calculate();
+});
+
+E.genericPerturbationMode.addEventListener("change",function(){
+  updateGenericPerturbationUI();
+  if(E.equationType.value!=="convection")calculate();
+});
+E.genericPerturbationAmplitude.addEventListener("change",function(){
+  if(E.equationType.value!=="convection" &&
+     E.genericPerturbationMode.value==="on")calculate();
 });
 
 E.velocityField.addEventListener("change",function(){
@@ -2975,16 +3221,28 @@ E.waveSpeed.addEventListener("change",function(){
 E.burgersNu.addEventListener("change",function(){
   if(E.equationType.value==="burgers")calculate();
 });
+E.reactionPreset.addEventListener("change",function(){
+  applyReactionPreset(true);
+});
+E.reactionInitial.addEventListener("change",function(){
+  markReactionCustom();
+  if(E.equationType.value==="reaction-diffusion")calculate();
+});
+
 E.reactionDu.addEventListener("change",function(){
+  markReactionCustom();
   if(E.equationType.value==="reaction-diffusion")calculate();
 });
 E.reactionDv.addEventListener("change",function(){
+  markReactionCustom();
   if(E.equationType.value==="reaction-diffusion")calculate();
 });
 E.reactionFeed.addEventListener("change",function(){
+  markReactionCustom();
   if(E.equationType.value==="reaction-diffusion")calculate();
 });
 E.reactionKill.addEventListener("change",function(){
+  markReactionCustom();
   if(E.equationType.value==="reaction-diffusion")calculate();
 });
 
