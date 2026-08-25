@@ -35,6 +35,28 @@ input[type=range]{width:100%}
   border-radius:9px;background:var(--note);
 }
 .button-row{display:flex;flex-wrap:wrap;gap:9px}
+.main-action-row{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.main-action-row button{width:100%;min-width:0}
+.physics-diagnostics-button{
+  width:100%;margin-top:10px;min-height:48px;text-align:left;
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--chip);border:1px solid var(--border)
+}
+.physics-diagnostics-button::after{content:"›";font-size:22px;line-height:1;transition:transform .18s ease}
+.physics-diagnostics-button[aria-expanded="true"]::after{transform:rotate(90deg)}
+.physics-diagnostics-panel{
+  margin-top:8px;padding:13px;border:1px solid var(--border);
+  border-radius:12px;background:var(--chart);display:grid;gap:12px
+}
+.physics-diagnostics-section{display:grid;gap:6px}
+.physics-regime-summary{
+  font-size:13px;line-height:1.55;padding:10px 11px;border-radius:9px;
+  background:var(--note);border:1px solid var(--border)
+}
+.physics-support-actions{display:flex;flex-wrap:wrap;gap:7px}
+.physics-support-actions button{min-height:38px;padding:7px 10px;font-size:12px}
+#measurement-controls{margin-top:12px}
+
 button{min-height:44px;border-radius:10px;border:1px solid var(--border);padding:9px 14px;font-weight:700;background:var(--chip);color:var(--text);cursor:pointer}
 button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
 button:disabled{opacity:.5;cursor:not-allowed}
@@ -838,15 +860,36 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
       <input id="width" type="number" value="0.65" min="0.05" max="20" step="0.05">
     </div>
 
-    <div class="button-row">
-      <div class="analysis-box"><b>現在の物理スケール・無次元数</b><div id="physics-diagnostics" class="hint"></div></div>
-<div id="measurement-controls" style="display:none">
-<div class="group"><label>観測プローブ</label><select id="probe-enabled"><option value="off">使用しない</option><option value="on">使用する</option></select><div class="hint">2D結果をクリックすると、その地点の時間履歴を表示します。</div></div>
-<div class="group"><label>1D断面表示</label><select id="section-enabled"><option value="off">使用しない</option><option value="on">使用する</option></select></div>
-<div class="group" id="section-position-group" style="display:none"><label>断面位置 y/L</label><input id="section-position" type="range" min="0" max="1" value=".5" step=".01"><output id="section-position-output">0.50</output></div>
-</div>
-<button class="primary" id="calculate" type="button">計算</button>
+    <div class="button-row main-action-row">
+      <button class="primary" id="calculate" type="button">計算</button>
       <button id="reset" type="button">リセット</button>
+    </div>
+
+    <button id="physics-diagnostics-toggle" class="physics-diagnostics-button" type="button"
+            aria-expanded="false" aria-controls="physics-diagnostics-panel">
+      物理レジーム・無次元数を診断
+    </button>
+
+    <div id="physics-diagnostics-panel" class="physics-diagnostics-panel" style="display:none">
+      <div class="physics-diagnostics-section">
+        <b>現在の支配的なレジーム</b>
+        <div id="physics-regime-summary" class="physics-regime-summary"></div>
+      </div>
+      <div class="physics-diagnostics-section">
+        <b>現在の物理スケール・無次元数</b>
+        <div id="physics-diagnostics" class="hint"></div>
+      </div>
+      <div class="physics-diagnostics-section">
+        <b>設定支援</b>
+        <div id="physics-support-actions" class="physics-support-actions"></div>
+        <div class="hint">診断を開いただけでは計算条件は変更しません。設定支援ボタンを押したときだけ入力値を書き換えます。変更後は「計算」を押して結果を更新してください。</div>
+      </div>
+    </div>
+
+    <div id="measurement-controls" style="display:none">
+      <div class="group"><label>観測プローブ</label><select id="probe-enabled"><option value="off">使用しない</option><option value="on">使用する</option></select><div class="hint">2D結果をクリックすると、その地点の時間履歴を表示します。</div></div>
+      <div class="group"><label>1D断面表示</label><select id="section-enabled"><option value="off">使用しない</option><option value="on">使用する</option></select></div>
+      <div class="group" id="section-position-group" style="display:none"><label>断面位置 y/L</label><input id="section-position" type="range" min="0" max="1" value=".5" step=".01"><output id="section-position-output">0.50</output></div>
     </div>
   </div>
 
@@ -998,6 +1041,10 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
 
 var E={
   availabilityToast:document.getElementById("availability-toast"),
+  physicsDiagnosticsToggle:document.getElementById("physics-diagnostics-toggle"),
+  physicsDiagnosticsPanel:document.getElementById("physics-diagnostics-panel"),
+  physicsRegimeSummary:document.getElementById("physics-regime-summary"),
+  physicsSupportActions:document.getElementById("physics-support-actions"),
   physicsDiagnostics:document.getElementById("physics-diagnostics"),measurementControls:document.getElementById("measurement-controls"),probeEnabled:document.getElementById("probe-enabled"),sectionEnabled:document.getElementById("section-enabled"),sectionPositionGroup:document.getElementById("section-position-group"),sectionPosition:document.getElementById("section-position"),sectionPositionOutput:document.getElementById("section-position-output"),measurementResults:document.getElementById("measurement-results"),probeResult:document.getElementById("probe-result"),probeChart:document.getElementById("probe-chart"),sectionResult:document.getElementById("section-result"),sectionChart:document.getElementById("section-chart"),waveExtraControls:document.getElementById("wave-extra-controls"),waveSourceMode:document.getElementById("wave-source-mode"),waveSourceParams:document.getElementById("wave-source-params"),waveSourceAmplitude:document.getElementById("wave-source-amplitude"),waveSourceOmega:document.getElementById("wave-source-omega"),waveSourceX:document.getElementById("wave-source-x"),waveSourceY:document.getElementById("wave-source-y"),waveSourceYGroup:document.getElementById("wave-source-y-group"),
   waveSource2Params:document.getElementById("wave-source2-params"),waveSource2X:document.getElementById("wave-source2-x"),waveSource2Y:document.getElementById("wave-source2-y"),waveSource2YGroup:document.getElementById("wave-source2-y-group"),waveObstacleMode:document.getElementById("wave-obstacle-mode"),waveObstacleGroup:document.getElementById("wave-obstacle-group"),
   dimension:document.getElementById("dimension"),
@@ -2384,6 +2431,8 @@ function physicsDiagnosticsHTML(){
     a.push("拡散時間 L²/D = "+(L*L/Math.max(1e-9,num(E.D,.2))).toPrecision(4));
   }else if(t==="burgers"){
     a.push("<b>Re型比 UL/ν ≈ "+(L/Math.max(1e-9,num(E.burgersNu,.02))).toPrecision(4)+"</b>（代表速度U≈1）");
+  }else if(t==="burgers-2d"){
+    a.push("<b>Re型比 UL/ν ≈ "+(L/Math.max(1e-9,num(E.burgers2dNu,.02))).toPrecision(4)+"</b>（代表速度U≈1の目安）");
   }else if(t==="convection"){
     var nu=Math.max(1e-9,num(E.nu,.03)),kap=Math.max(1e-9,num(E.D,.2)),dT=convectionDeltaT(),B=num(E.buoyancy,1);
     a.push("<b>Prandtl数 Pr=ν/κ = "+(nu/kap).toPrecision(4)+"</b>");
@@ -2406,7 +2455,77 @@ function physicsDiagnosticsHTML(){
     a.push("界面長さ尺度 √κ = "+Math.sqrt(num(E.cahnKappa,.05)).toPrecision(4));
   }else a.push("現在の係数と保存量を直接比較してください。");
   E.physicsDiagnostics.innerHTML=a.join("<br>");
+  updatePhysicsRegimeSupport();
 }
+
+function physicsRegimeSummary(){
+  var t=E.equationType.value,L=Math.max(1e-9,num(E.length,10));
+  if(t==="diffusion")return "<b>拡散レジーム</b>：輸送機構は拡散のみです。Dが大きいほど空間的不均一が速く平滑化されます。";
+  if(t==="advection")return "<b>移流レジーム</b>：分布は速度場に沿って運ばれます。理想的には形を保って輸送され、数値的なにじみは離散化誤差です。";
+  if(t==="advection-diffusion"){
+    var U=characteristicAdvectionSpeed(),D=Math.max(1e-9,num(E.D,.2)),Pe=U*L/D;
+    return Pe>10?"<b>移流優勢</b>：Pe="+Pe.toPrecision(4)+" ≫ 1。運ばれる効果が拡散より強い条件です。":
+           Pe<.1?"<b>拡散優勢</b>：Pe="+Pe.toPrecision(4)+" ≪ 1。拡散による平滑化が移流より強い条件です。":
+           "<b>遷移レジーム</b>：Pe="+Pe.toPrecision(4)+"。移流と拡散の両方が重要です。";
+  }
+  if(t==="burgers"||t==="burgers-2d"){
+    var nu=t==="burgers"?Math.max(1e-9,num(E.burgersNu,.02)):Math.max(1e-9,num(E.burgers2dNu,.02));
+    var Re=L/nu;
+    return Re>100?"<b>非線形移流が強いBurgersレジーム</b>：Re型比≈"+Re.toPrecision(4)+"。急峻化・衝撃波的構造が現れやすい条件です。":
+           Re<1?"<b>粘性優勢Burgersレジーム</b>：Re型比≈"+Re.toPrecision(4)+"。粘性平滑化が強い条件です。":
+           "<b>移流と粘性の競合レジーム</b>：Re型比≈"+Re.toPrecision(4)+"。";
+  }
+  if(t==="wave"){
+    if(E.waveModel.value==="generic"){
+      var extra=[];
+      if(E.waveSourceMode.value!=="off")extra.push("継続波源あり");
+      if(E.dimension.value==="2d"&&E.waveObstacleMode.value!=="off")extra.push("内部反射境界あり");
+      return "<b>一定波速・非分散波動レジーム</b>：波速cを一定として伝播します。"+(extra.length?" 現在は"+extra.join("・")+"です。":"");
+    }
+    var kh=characteristicWaveNumber()*num(E.waveWaterDepth,.2);
+    if(E.waveModel.value==="shallow")
+      return kh<.3?"<b>浅水極限がよく成立</b>：kH≈"+kh.toPrecision(3)+"。長波として扱いやすい条件です。":
+             kh<.7?"<b>浅水極限の境界付近</b>：kH≈"+kh.toPrecision(3)+"。近似誤差に注意してください。":
+             "<b>浅水近似に不向き</b>：kH≈"+kh.toPrecision(3)+"。水深を浅くするか代表波長を長くする必要があります。";
+    return kh>3?"<b>深水極限がよく成立</b>：kH≈"+kh.toPrecision(3)+"。":
+           kh>1.5?"<b>深水極限の境界付近</b>：kH≈"+kh.toPrecision(3)+"。":
+           "<b>深水近似に不向き</b>：kH≈"+kh.toPrecision(3)+"。水深を深くするか代表波長を短くする必要があります。";
+  }
+  if(t==="convection"){
+    var Pr=Math.max(1e-9,num(E.nu,.03))/Math.max(1e-9,num(E.D,.2)),dT=convectionDeltaT();
+    var ptxt=Pr>2?"運動量拡散が熱拡散より相対的に強い":Pr<.5?"熱拡散が運動量拡散より相対的に強い":"運動量拡散と熱拡散が同程度";
+    return "<b>自然対流レジーム</b>：Pr="+Pr.toPrecision(4)+" で、"+ptxt+"条件です。"+(dT>0?" 固定壁間の代表温度差ΔT="+dT.toPrecision(4)+"。":" 固定壁の温度差が定義できないためRayleigh型診断は限定的です。");
+  }
+  if(t==="reaction-diffusion"){
+    var r=num(E.reactionDu,.0064)/Math.max(1e-9,num(E.reactionDv,.0032));
+    return "<b>反応拡散・パターン形成レジーム</b>：Dᵤ/Dᵥ="+r.toPrecision(4)+"。単一の「支配項」より、拡散比とF,kの組合せでパターンが決まります。";
+  }
+  if(t==="cahn-hilliard")return "<b>保存型相分離レジーム</b>：平均φを保ちながら自由エネルギーを下げる方向へ相分離します。κが界面幅、Mが時間尺度を主に調整します。";
+  if(t==="shallow-water"||t==="shallow-water-1d")return "<b>浅水・長波レジーム</b>：鉛直加速度を無視した長波モデルです。代表長波速度は√(gH₀)です。";
+  return "<b>診断</b>：この条件では単一の代表無次元数による支配レジーム分類を行っていません。";
+}
+
+function physicsSupportButtons(){
+  var t=E.equationType.value,buttons=[];
+  function add(label,action){buttons.push('<button type="button" data-regime-action="'+action+'">'+label+'</button>');}
+  if(t==="diffusion"){add("Dを1/2","D-half");add("Dを2倍","D-double");}
+  else if(t==="advection"){add("代表速度を1/2","speed-half");add("代表速度を2倍","speed-double");}
+  else if(t==="advection-diffusion"){add("Pe≈0.1","Pe-0.1");add("Pe≈1","Pe-1");add("Pe≈10","Pe-10");add("Pe≈100","Pe-100");}
+  else if(t==="burgers"||t==="burgers-2d"){add("Re型≈10","Re-10");add("Re型≈100","Re-100");add("Re型≈1000","Re-1000");}
+  else if(t==="wave"&&E.waveModel.value==="generic"){add("cを1/2","c-half");add("cを2倍","c-double");}
+  else if(t==="wave"){add("kH≈0.1","kH-0.1");add("kH≈1","kH-1");add("kH≈10","kH-10");}
+  else if(t==="convection"){add("Pr≈0.1","Pr-0.1");add("Pr≈1","Pr-1");add("Pr≈10","Pr-10");add("浮力係数Bを1/10","B-tenth");add("浮力係数Bを10倍","B-ten");}
+  else if(t==="reaction-diffusion"){add("Dᵤ/Dᵥ≈0.5","Dr-0.5");add("Dᵤ/Dᵥ≈1","Dr-1");add("Dᵤ/Dᵥ≈2","Dr-2");}
+  else if(t==="cahn-hilliard"){add("界面幅を約1/2","kappa-quarter");add("界面幅を約2倍","kappa-four");}
+  else if(t==="shallow-water"||t==="shallow-water-1d"){add("H₀を1/2","H-half");add("H₀を2倍","H-double");}
+  return buttons.length?buttons.join(""):'<span class="hint">この方程式では、現在は安全に自動変更できる代表パラメータを用意していません。</span>';
+}
+
+function updatePhysicsRegimeSupport(){
+  if(E.physicsRegimeSummary)E.physicsRegimeSummary.innerHTML=physicsRegimeSummary();
+  if(E.physicsSupportActions)E.physicsSupportActions.innerHTML=physicsSupportButtons();
+}
+
 function readParams(){
   var type=E.equationType.value;
   var isConv=(type==="convection");
@@ -7555,6 +7674,60 @@ E.waveSourceMode.addEventListener("change",function(){
   updateModeUI();
 });
 E.waveObstacleMode.addEventListener("change",function(){updateModeUI();});
+
+function scaleAdvectionSpeed(factor){
+  if(E.dimension.value==="1d")E.u.value=num(E.u,.5)*factor;
+  else if(E.velocityField.value==="rotation")E.rotationOmega.value=num(E.rotationOmega,.5)*factor;
+  else if(E.velocityField.value==="shear")E.shearRate.value=num(E.shearRate,.5)*factor;
+  else{E.ux.value=num(E.ux,.5)*factor;E.uy.value=num(E.uy,.25)*factor;}
+}
+function applyRegimeSupportAction(action){
+  var L=Math.max(1e-9,num(E.length,10)),target,k,U;
+  if(action==="D-half")E.D.value=Math.max(.0001,num(E.D,.2)/2);
+  else if(action==="D-double")E.D.value=Math.min(10,num(E.D,.2)*2);
+  else if(action==="speed-half")scaleAdvectionSpeed(.5);
+  else if(action==="speed-double")scaleAdvectionSpeed(2);
+  else if(action.indexOf("Pe-")===0){
+    target=Number(action.slice(3));U=characteristicAdvectionSpeed();
+    if(U<=1e-12){showAvailabilityMessage("Peを設定するには代表速度Uが0より大きい必要があります。");return;}
+    E.D.value=clamp(U*L/target,.0001,10);
+  }else if(action.indexOf("Re-")===0){
+    target=Number(action.slice(3));
+    if(E.equationType.value==="burgers")E.burgersNu.value=clamp(L/target,0,10);
+    else E.burgers2dNu.value=clamp(L/target,0,10);
+  }else if(action==="c-half")E.waveSpeed.value=clamp(num(E.waveSpeed,1)/2,.0001,100);
+  else if(action==="c-double")E.waveSpeed.value=clamp(num(E.waveSpeed,1)*2,.0001,100);
+  else if(action.indexOf("kH-")===0){
+    target=Number(action.slice(3));k=characteristicWaveNumber();
+    E.waveWaterDepth.value=clamp(target/Math.max(k,1e-12),.001,1000);
+  }else if(action.indexOf("Pr-")===0){
+    target=Number(action.slice(3));
+    E.nu.value=clamp(target*Math.max(.0001,num(E.D,.2)),.0001,10);
+  }else if(action==="B-tenth")E.buoyancy.value=clamp(num(E.buoyancy,1)/10,0,100);
+  else if(action==="B-ten")E.buoyancy.value=clamp(num(E.buoyancy,1)*10,0,100);
+  else if(action.indexOf("Dr-")===0){
+    target=Number(action.slice(3));
+    E.reactionDu.value=clamp(target*Math.max(.000001,num(E.reactionDv,.0032)),.000001,10);
+  }else if(action==="kappa-quarter")E.cahnKappa.value=clamp(num(E.cahnKappa,.05)/4,.000001,10);
+  else if(action==="kappa-four")E.cahnKappa.value=clamp(num(E.cahnKappa,.05)*4,.000001,10);
+  else if(action==="H-half")E.shallowH0.value=clamp(num(E.shallowH0,1)/2,.001,1000);
+  else if(action==="H-double")E.shallowH0.value=clamp(num(E.shallowH0,1)*2,.001,1000);
+  updateModeUI();
+  physicsDiagnosticsHTML();
+  showAvailabilityMessage("設定値を変更しました。「計算」を押すと新しい条件で計算します。");
+}
+
+E.physicsDiagnosticsToggle.addEventListener("click",function(){
+  var open=E.physicsDiagnosticsPanel.style.display!=="none";
+  E.physicsDiagnosticsPanel.style.display=open?"none":"grid";
+  E.physicsDiagnosticsToggle.setAttribute("aria-expanded",open?"false":"true");
+  if(!open)physicsDiagnosticsHTML();
+});
+E.physicsSupportActions.addEventListener("click",function(ev){
+  var btn=ev.target.closest("[data-regime-action]");
+  if(!btn)return;
+  applyRegimeSupportAction(btn.dataset.regimeAction);
+});
 
 E.probeEnabled.addEventListener("change",drawMeasurements);E.sectionEnabled.addEventListener("change",function(){E.sectionPositionGroup.style.display=this.value==="on"?"block":"none";drawMeasurements();});E.sectionPosition.addEventListener("input",function(){E.sectionPositionOutput.textContent=Number(this.value).toFixed(2);drawMeasurements();});E.chart.addEventListener("click",setProbeFromChartEvent);
 document.addEventListener("input",function(){if(E.physicsDiagnostics)physicsDiagnosticsHTML();});
