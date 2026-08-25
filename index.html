@@ -127,14 +127,14 @@ canvas{display:block;width:100%;height:430px}
         <option value="diffusion">拡散のみ</option>
         <option value="advection">移流のみ</option>
         <option value="advection-diffusion">移流＋拡散</option>
-        <option value="convection">自然対流（2D）</option>
+        <option value="convection">自然対流</option>
         <option value="wave">波動方程式</option>
-        <option value="burgers">Burgers方程式（1D）</option>
-        <option value="reaction-diffusion">反応拡散（Gray–Scott, 2D）</option>
-        <option value="burgers-2d">2D Burgers方程式</option>
-        <option value="cahn-hilliard">Cahn–Hilliard方程式（2D）</option>
-        <option value="shallow-water-1d">浅水方程式（1D）</option>
-        <option value="shallow-water">浅水方程式（2D）</option>
+        <option value="burgers">Burgers方程式</option>
+        <option value="reaction-diffusion">反応拡散（Gray–Scott）</option>
+        <option value="burgers-2d">Burgers方程式</option>
+        <option value="cahn-hilliard">Cahn–Hilliard方程式</option>
+        <option value="shallow-water-1d">浅水方程式</option>
+        <option value="shallow-water">浅水方程式</option>
       </select>
     </div>
 
@@ -1310,9 +1310,78 @@ function updateShallowViewUI(is1D){
     ];
   setSelectOptions(E.shallowView,options,E.shallowView.value);
   E.shallowMethodHint.textContent=is1D
-    ?"1D保存形浅水方程式を周期境界・Rusanovフラックスで解きます。各内部ステップで |u|+√(gh) を再評価してCFL条件を更新します。"
-    :"2D保存形浅水方程式を周期境界・Rusanovフラックスで解きます。各内部ステップで |u|+√(gh), |v|+√(gh) を再評価してCFL条件を更新します。";
+    ?"1D保存形浅水方程式です。hu が質量の移流、hu² が運動量の非線形移流、gh²/2 が水面勾配による重力波を表します。周期境界・Rusanovフラックスで解き、各内部ステップで |u|+√(gh) を再評価してCFL条件を更新します。"
+    :"2D保存形浅水方程式です。h u が質量の移流、h u⊗u が運動量の非線形移流、gh²/2 が水面勾配による重力波を表します。周期境界・Rusanovフラックスで解き、各内部ステップで |u|+√(gh), |v|+√(gh) を再評価してCFL条件を更新します。";
 }
+
+var equationCatalog=[
+  {value:"diffusion",label:"拡散のみ",dims:["1d","2d"]},
+  {value:"advection",label:"移流のみ",dims:["1d","2d"]},
+  {value:"advection-diffusion",label:"移流＋拡散",dims:["1d","2d"]},
+  {value:"wave",label:"波動方程式",dims:["1d","2d"]},
+
+  {value:"burgers",label:"Burgers方程式",dims:["1d"]},
+  {value:"shallow-water-1d",label:"浅水方程式",dims:["1d"]},
+
+  {value:"convection",label:"自然対流",dims:["2d"]},
+  {value:"reaction-diffusion",label:"反応拡散（Gray–Scott）",dims:["2d"]},
+  {value:"burgers-2d",label:"Burgers方程式",dims:["2d"]},
+  {value:"cahn-hilliard",label:"Cahn–Hilliard方程式",dims:["2d"]},
+  {value:"shallow-water",label:"浅水方程式",dims:["2d"]}
+];
+
+function equationCounterpartForDimension(value,dim){
+  if(value==="burgers"&&dim==="2d")return "burgers-2d";
+  if(value==="burgers-2d"&&dim==="1d")return "burgers";
+  if(value==="shallow-water-1d"&&dim==="2d")return "shallow-water";
+  if(value==="shallow-water"&&dim==="1d")return "shallow-water-1d";
+  return null;
+}
+
+function equationSupportsDimension(value,dim){
+  for(var i=0;i<equationCatalog.length;i++){
+    var item=equationCatalog[i];
+    if(item.value===value)return item.dims.indexOf(dim)>=0;
+  }
+  return false;
+}
+
+function updateEquationOptionsForDimension(previousValue){
+  var dim=E.dimension.value;
+  var requested=previousValue||E.equationType.value;
+  var counterpart=equationCounterpartForDimension(requested,dim);
+
+  E.equationType.innerHTML="";
+  var firstValue="";
+
+  for(var i=0;i<equationCatalog.length;i++){
+    var item=equationCatalog[i];
+    if(item.dims.indexOf(dim)<0)continue;
+
+    var opt=document.createElement("option");
+    opt.value=item.value;
+    opt.textContent=item.label;
+    E.equationType.appendChild(opt);
+    if(!firstValue)firstValue=item.value;
+  }
+
+  if(equationSupportsDimension(requested,dim)){
+    E.equationType.value=requested;
+  }else if(counterpart&&equationSupportsDimension(counterpart,dim)){
+    E.equationType.value=counterpart;
+  }else{
+    E.equationType.value=firstValue||"diffusion";
+  }
+}
+
+function enforceEquationDimensionCompatibility(){
+  var dim=E.dimension.value;
+  var value=E.equationType.value;
+  if(!equationSupportsDimension(value,dim)){
+    updateEquationOptionsForDimension(value);
+  }
+}
+
 
 function updateModeUI(){
   updateLargeDomainWarning();
@@ -1326,18 +1395,13 @@ function updateModeUI(){
   var isCahn=(type==="cahn-hilliard");
   var isShallow=(type==="shallow-water");
   var isShallow1D=(type==="shallow-water-1d");
-  var force2D=(isConv||isReaction||isBurgers2D||isCahn||isShallow);
-  var force1D=(isBurgers||isShallow1D);
-
-  if(force2D && E.dimension.value!=="2d")E.dimension.value="2d";
-  if(force1D && E.dimension.value!=="1d")E.dimension.value="1d";
 
   var is2=E.dimension.value==="2d";
   var useDiff=(type==="diffusion"||type==="advection-diffusion");
   var useAdv=(type==="advection"||type==="advection-diffusion");
   var special=(isConv||isWave||isBurgers||isReaction||isBurgers2D||isCahn||isShallow||isShallow1D);
 
-  E.dimension.disabled=(force2D||force1D);
+  E.dimension.disabled=false;
 
   E.DGroup.style.display=(useDiff||isConv)?"grid":"none";
   E.D.disabled=!(useDiff||isConv);
@@ -4600,12 +4664,15 @@ function reset(){
 
 E.dimension.addEventListener("change",function(){
   stop();
+  var previousEquation=E.equationType.value;
+  updateEquationOptionsForDimension(previousEquation);
   updateModeUI();
   calculate();
 });
 
 E.equationType.addEventListener("change",function(){
   stop();
+  enforceEquationDimensionCompatibility();
   var type=E.equationType.value;
   if(type==="diffusion"){
     E.boundary1d.value="neumann";
@@ -4838,6 +4905,7 @@ E.slider.addEventListener("input",function(){
 });
 window.addEventListener("resize",draw);
 
+updateEquationOptionsForDimension(E.equationType.value);
 updateModeUI();
 calculate();
 
