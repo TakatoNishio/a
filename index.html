@@ -48,7 +48,7 @@ canvas{display:block;width:100%;height:430px}
 .analysis-box{margin-top:16px;padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--chart)}
 .analysis-title{font-size:14px;font-weight:700;margin-bottom:7px}
 .analysis-text{font-size:12px;color:var(--muted);line-height:1.55}
-.compare-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:10px}
+.compare-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:10px}
 .compare-card{border:1px solid var(--border);border-radius:10px;padding:8px;background:var(--card)}
 .compare-card-title{font-size:12px;font-weight:700;margin-bottom:5px}
 .compare-card canvas{width:100%;height:190px;display:block}
@@ -193,7 +193,7 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
 #comparison-time-output{display:block;font-weight:700;font-size:14px}
 .comparison-advanced{margin:12px 0;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--card)}
 .comparison-advanced-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.comparison-advanced-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:10px}
+.comparison-advanced-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:10px}
 .comparison-case{padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--chart)}
 .comparison-case-title{font-weight:700;font-size:13px;margin-bottom:8px}
 .comparison-case .group{margin-bottom:8px}
@@ -557,7 +557,8 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
         <label for="thermal-boundary">自然対流の温度境界条件</label>
         <select id="thermal-boundary">
           <option value="fixed-top-bottom">上下温度固定</option>
-          <option value="adiabatic">断熱壁</option>
+          <option value="adiabatic">4辺断熱</option>
+          <option value="custom-sides">詳細モード（4辺を個別指定）</option>
         </select>
         <div class="hint" id="thermal-boundary-description"></div>
       </div>
@@ -573,6 +574,11 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
         </div>
       </div>
 
+      <div id="custom-thermal-boundary-controls" style="display:none"><div class="hint">各辺で「固定温度」または「非固定温度（断熱：∂T/∂n=0）」を個別指定できます。固定温度を選んだ辺では温度値も自由に設定できます。</div><div class="comparison-advanced-grid">
+<div class="comparison-case"><b>左壁</b><select id="thermal-left-type"><option value="adiabatic">非固定温度（断熱）</option><option value="fixed">固定温度</option></select><input id="thermal-left-value" type="number" value="0.5" step="0.1"></div>
+<div class="comparison-case"><b>右壁</b><select id="thermal-right-type"><option value="adiabatic">非固定温度（断熱）</option><option value="fixed">固定温度</option></select><input id="thermal-right-value" type="number" value="0.5" step="0.1"></div>
+<div class="comparison-case"><b>下壁</b><select id="thermal-bottom-type"><option value="fixed">固定温度</option><option value="adiabatic">非固定温度（断熱）</option></select><input id="thermal-bottom-value" type="number" value="1" step="0.1"></div>
+<div class="comparison-case"><b>上壁</b><select id="thermal-top-type"><option value="fixed">固定温度</option><option value="adiabatic">非固定温度（断熱）</option></select><input id="thermal-top-value" type="number" value="0" step="0.1"></div></div></div>
       <div id="custom-hotspot-controls" style="display:none">
         <div class="group">
           <label for="hotspot-x">高温スポット位置 x/L</label>
@@ -706,6 +712,7 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
       </div>
     </div>
 
+    <div id="fixed-boundary-note" class="hint" style="display:none;margin-bottom:10px"></div>
     <div id="boundary-controls">
       <div class="group" id="boundary-1d-group">
         <label for="boundary-1d">境界条件</label>
@@ -714,6 +721,7 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
           <option value="neumann">Neumann境界</option>
           <option value="robin">Robin境界</option>
           <option value="dirichlet">Dirichlet境界</option>
+          <option value="absorbing">吸収境界（放射境界）</option>
           <option value="outflow">開放境界（流入/流出）</option>
         </select>
         <div class="hint" id="boundary-1d-description"></div>
@@ -727,6 +735,7 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
             <option value="neumann">Neumann境界</option>
             <option value="robin">Robin境界</option>
             <option value="dirichlet">Dirichlet境界</option>
+            <option value="absorbing">吸収境界（放射境界）</option>
             <option value="outflow">開放境界（流入/流出）</option>
           </select>
           <div class="hint" id="boundary-x-description"></div>
@@ -739,6 +748,7 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
             <option value="neumann">Neumann境界</option>
             <option value="robin">Robin境界</option>
             <option value="dirichlet">Dirichlet境界</option>
+            <option value="absorbing">吸収境界（放射境界）</option>
             <option value="outflow">開放境界（流入/流出）</option>
           </select>
           <div class="hint" id="boundary-y-description"></div>
@@ -889,7 +899,7 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
 
   <div class="analysis-box" id="comparison-box">
     <div class="analysis-title">方程式比較モード</div>
-    <div class="analysis-text">選択した3つの方程式を、同じ次元・初期形状・領域で比較します。「通常波動」は一定波速の非分散波動方程式です。比較計算は周期境界に統一します。「比較開始」を押すと比較用の3計算を実行し、同じ時刻の結果を並べて表示します。通常の再生ボタンを押す必要はありません。</div>
+    <div class="analysis-text">選択した3つの方程式を、同じ次元・初期形状・領域で比較します。「通常波動」は一定波速の非分散波動方程式です。通常比較では比較しやすい共通条件を用い、詳細設定では保存した各ケースの境界条件を含む完全設定をそのまま使用します。「比較開始」を押すと比較用の3計算を実行し、同じ時刻の結果を並べて表示します。通常の再生ボタンを押す必要はありません。</div>
     <div class="group" style="margin-top:10px">
       <label for="comparison-enabled">比較表示</label>
       <select id="comparison-enabled">
@@ -898,12 +908,11 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
       </select>
     </div>
     <div id="comparison-selectors" style="display:none">
-      <div class="group"><label for="comparison-eq1">比較1</label><select id="comparison-eq1"></select></div>
-      <div class="group"><label for="comparison-eq2">比較2</label><select id="comparison-eq2"></select></div>
-      <div class="group"><label for="comparison-eq3">比較3</label><select id="comparison-eq3"></select></div>
+      <div id="comparison-equation-selectors"></div>
+      <div style="display:flex;gap:8px;margin:8px 0 12px"><button id="comparison-add" type="button">＋ 比較条件を追加</button><button id="comparison-remove" type="button">− 最後の条件を削除</button><span class="hint">2〜12条件</span></div>
       <div class="comparison-advanced">
         <div class="comparison-advanced-head">
-          <div><b>詳細設定モード</b><div class="hint">比較1〜3それぞれに、上の通常シミュレータの完全な設定一式を保存します。方程式固有設定・境界条件・速度場・地形などもすべて含みます。</div></div>
+          <div><b>詳細設定モード</b><div class="hint">各比較条件に、上の通常シミュレータの完全な設定一式を保存します。方程式固有設定・境界条件・速度場・地形などもすべて含みます。</div></div>
           <select id="comparison-advanced-enabled" style="width:auto">
             <option value="off">使用しない</option><option value="on">使用する</option>
           </select>
@@ -922,13 +931,9 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
           <output id="comparison-time-output">t = 0.000</output>
           <button id="comparison-play" type="button">自動再生</button>
         </div>
-        <div class="hint">スライダーまたは「自動再生」で、3つの比較結果を同じ計算時刻に同期して更新します。通常表示の再生・時間スライダーとは独立しています。</div>
+        <div class="hint">スライダーまたは「自動再生」で、すべての比較結果を同じ計算時刻に同期して更新します。通常表示の再生・時間スライダーとは独立しています。</div>
       </div>
-      <div class="compare-grid">
-        <div class="compare-card"><div class="compare-card-title" id="compare-title-1"></div><canvas id="compare-canvas-1" width="360" height="190"></canvas></div>
-        <div class="compare-card"><div class="compare-card-title" id="compare-title-2"></div><canvas id="compare-canvas-2" width="360" height="190"></canvas></div>
-        <div class="compare-card"><div class="compare-card-title" id="compare-title-3"></div><canvas id="compare-canvas-3" width="360" height="190"></canvas></div>
-      </div>
+      <div class="compare-grid" id="comparison-results-grid"></div>
     </div>
   </div>
 
@@ -1041,6 +1046,9 @@ var E={
   fixedTemperatureControls:document.getElementById("fixed-temperature-controls"),
   tBottom:document.getElementById("t-bottom"),
   tTop:document.getElementById("t-top"),
+  customThermalBoundaryControls:document.getElementById("custom-thermal-boundary-controls"),
+  thermalLeftType:document.getElementById("thermal-left-type"),thermalRightType:document.getElementById("thermal-right-type"),thermalBottomType:document.getElementById("thermal-bottom-type"),thermalTopType:document.getElementById("thermal-top-type"),
+  thermalLeftValue:document.getElementById("thermal-left-value"),thermalRightValue:document.getElementById("thermal-right-value"),thermalBottomValue:document.getElementById("thermal-bottom-value"),thermalTopValue:document.getElementById("thermal-top-value"),
   customHotspotControls:document.getElementById("custom-hotspot-controls"),
   hotspotX:document.getElementById("hotspot-x"),
   hotspotY:document.getElementById("hotspot-y"),
@@ -1066,6 +1074,7 @@ var E={
   limiterGroup:document.getElementById("limiter-group"),
   fluxLimiter:document.getElementById("flux-limiter"),
   boundaryControls:document.getElementById("boundary-controls"),
+  fixedBoundaryNote:document.getElementById("fixed-boundary-note"),
   boundary1dGroup:document.getElementById("boundary-1d-group"),
   boundary2dGroup:document.getElementById("boundary-2d-group"),
   boundary1d:document.getElementById("boundary-1d"),
@@ -1125,9 +1134,8 @@ var E={
   comparisonBox:document.getElementById("comparison-box"),
   comparisonEnabled:document.getElementById("comparison-enabled"),
   comparisonSelectors:document.getElementById("comparison-selectors"),
-  comparisonEq1:document.getElementById("comparison-eq1"),
-  comparisonEq2:document.getElementById("comparison-eq2"),
-  comparisonEq3:document.getElementById("comparison-eq3"),
+  comparisonEquationSelectors:document.getElementById("comparison-equation-selectors"),
+  comparisonAdd:document.getElementById("comparison-add"),comparisonRemove:document.getElementById("comparison-remove"),comparisonResultsGrid:document.getElementById("comparison-results-grid"),
   comparisonAdvancedEnabled:document.getElementById("comparison-advanced-enabled"),
   comparisonAdvancedPanel:document.getElementById("comparison-advanced-panel"),
   comparisonAdvancedGrid:document.getElementById("comparison-advanced-grid"),
@@ -1205,35 +1213,63 @@ function css(name){return getComputedStyle(document.documentElement).getProperty
 
 function updateOutflowAvailability(){
   var type=E.equationType.value;
-  var allowOutflow=(type==="advection"||type==="advection-diffusion");
-  var allowRobin=(type==="diffusion");
+  var ordinaryWave=(type==="wave"&&E.waveModel.value==="generic");
 
-  function setOption(selectEl,value,visible,fallback){
+  // Only expose conditions that the selected solver actually implements and
+  // that are meaningful for the equation in this educational simulator.
+  var allowed={
+    periodic:true,
+    neumann:true,
+    dirichlet:true,
+    robin:(type==="diffusion"),
+    outflow:(type==="advection"||type==="advection-diffusion"),
+    absorbing:ordinaryWave
+  };
+
+  // For Burgers, the implemented non-periodic zero-gradient wall and fixed
+  // value conditions are useful; "outflow" is not separately implemented.
+  if(type==="burgers"){
+    allowed.robin=false;allowed.outflow=false;allowed.absorbing=false;
+  }
+
+  function setOption(selectEl,value,visible){
     var opt=null;
     for(var i=0;i<selectEl.options.length;i++){
       if(selectEl.options[i].value===value){opt=selectEl.options[i];break;}
     }
     if(!opt)return;
     opt.hidden=!visible;opt.disabled=!visible;
-    if(!visible&&selectEl.value===value)selectEl.value=fallback;
   }
+
   [E.boundary1d,E.boundaryX,E.boundaryY].forEach(function(el){
-    setOption(el,"outflow",allowOutflow,"neumann");
-    setOption(el,"robin",allowRobin,"neumann");
+    ["periodic","neumann","dirichlet","robin","outflow","absorbing"].forEach(function(v){
+      setOption(el,v,!!allowed[v]);
+    });
+    if(el.selectedOptions.length===0 || el.selectedOptions[0].disabled)el.value="periodic";
   });
 }
 
 function boundaryDescription(type){
+  var wave=(E.equationType.value==="wave"&&E.waveModel.value==="generic");
   if(type==="periodic"){
-    return "周期境界：領域の両端（2Dでは向かい合う辺）がつながっているものとして扱います。片側から出た分布は反対側から戻ります。";
+    return "周期境界：領域の両端（2Dでは向かい合う辺）を接続します。波なら片側から出た波が反対側から入り直すため、境界を越えて伝播し続ける様子を観察できます。";
   }
   if(type==="neumann"){
+    if(wave)return "反射境界（Neumann型）：圧力 p を境界に対して偶対称、法線方向の波動変数を反転して、壁で波を反射させます。";
     return "Neumann境界：境界の法線方向勾配を 0 とします。拡散では境界を横切るフラックスが 0 となる断熱・反射的な壁に相当します。";
   }
   if(type==="dirichlet"){
-    return "Dirichlet境界：境界上の値を指定した一定値に固定します。";
+    return wave
+      ?"Dirichlet境界（固定値）：境界上の波動場 p を指定値に固定します。反射波の位相・形が反射境界と異なることを比較できます。"
+      :"Dirichlet境界：境界上の値を指定した一定値に固定します。";
   }
-  return "開放境界：流入側では指定した φ_in を与え、流出側ではゼロ勾配近似を使って分布を領域外へ出します。周期境界のように反対側から戻りません。";
+  if(type==="robin"){
+    return "Robin境界：αφ + β∂φ/∂n = γ を課します。値と法線微分を組み合わせた条件で、現在は拡散方程式で使用できます。";
+  }
+  if(type==="absorbing"){
+    return "吸収境界（一次放射境界）：境界へ向かう波は外へ通し、領域外から入ってくる特性波を 0 とする近似です。完全無反射ではありませんが、周期境界・反射境界との違いを観察できます。";
+  }
+  return "開放境界：移流を含む問題で、流入側では指定した φ_in を与え、流出側ではゼロ勾配近似を使って分布を領域外へ出します。";
 }
 
 function updateBoundaryUI(){
@@ -1247,6 +1283,18 @@ function updateBoundaryUI(){
   var is2=E.dimension.value==="2d";
 
   E.boundaryControls.style.display=(isConv||isReaction||fixedPeriodic)?"none":"block";
+  E.fixedBoundaryNote.style.display=(isReaction||fixedPeriodic)?"block":"none";
+  if(isReaction){
+    E.fixedBoundaryNote.textContent="境界条件：周期境界（Gray–Scott反応拡散では現在の離散化で周期境界を採用）";
+  }else if(fixedPeriodic){
+    if(eqType==="cahn-hilliard")E.fixedBoundaryNote.textContent="境界条件：周期境界（Cahn–Hilliardでは保存性と相分離の観察に適した周期境界を採用）";
+    else if(eqType==="burgers-2d")E.fixedBoundaryNote.textContent="境界条件：周期境界（現在の2D Burgersソルバは周期境界）";
+    else if(eqType==="wave"&&E.waveModel.value==="deep")E.fixedBoundaryNote.textContent="境界条件：周期境界（深水波はFourier/スペクトル表現のため周期境界）";
+    else if(eqType==="wave"&&E.waveModel.value==="shallow")E.fixedBoundaryNote.textContent="境界条件：周期境界（現在の浅水極限ソルバ）";
+    else E.fixedBoundaryNote.textContent="境界条件：周期境界（現在のこのソルバで採用）";
+  }else{
+    E.fixedBoundaryNote.style.display="none";
+  }
   if(isConv||isReaction||fixedPeriodic)return;
 
   E.boundary1dGroup.style.display=is2?"none":"grid";
@@ -1288,6 +1336,7 @@ function thermalBoundaryDescription(type){
   if(type==="fixed-top-bottom"){
     return "上下温度固定：下壁と上壁の温度を指定値に保ちます。Rayleigh–Bénard 型の自然対流を調べる設定で、左右壁は断熱として扱います。";
   }
+  if(type==="custom-sides")return "詳細設定：左・右・下・上の4辺で固定温度または断熱を個別指定します。";
   return "断熱壁：4辺で温度の法線方向勾配を 0 とし、壁を通る熱フラックスを 0 とします。";
 }
 
@@ -1297,14 +1346,16 @@ function updateConvectionSpecialUI(){
   if(!isConv){
     E.customHotspotControls.style.display="none";
     E.fixedTemperatureControls.style.display="none";
+    E.customThermalBoundaryControls.style.display="none";
     return;
   }
 
   E.thermalBoundaryDescription.textContent=
     thermalBoundaryDescription(E.thermalBoundary.value);
 
-  E.fixedTemperatureControls.style.display=
-    (E.thermalBoundary.value==="fixed-top-bottom")?"block":"none";
+  E.fixedTemperatureControls.style.display=(E.thermalBoundary.value==="fixed-top-bottom")?"block":"none";
+  E.customThermalBoundaryControls.style.display=(E.thermalBoundary.value==="custom-sides")?"block":"none";
+  [[E.thermalLeftType,E.thermalLeftValue],[E.thermalRightType,E.thermalRightValue],[E.thermalBottomType,E.thermalBottomValue],[E.thermalTopType,E.thermalTopValue]].forEach(function(x){x[1].style.display=x[0].value==="fixed"?"block":"none";});
 
   E.customHotspotControls.style.display=
     (E.convInitial.value==="custom-hot-spot")?"block":"none";
@@ -1844,6 +1895,9 @@ var comparisonEquationCatalog=[
 ];
 
 var comparisonAdvancedSnapshots=[null,null,null];
+function comparisonSelectElements(){return Array.from(E.comparisonEquationSelectors.querySelectorAll("select[data-comparison-eq]"));}
+function rebuildComparisonSelectors(){var old=comparisonSelectElements().map(x=>x.value),defs=["diffusion","advection","advection-diffusion","wave"],html="";for(var i=0;i<comparisonAdvancedSnapshots.length;i++){html+='<div class="group"><label>比較'+(i+1)+'</label><select data-comparison-eq="'+i+'">';for(var j=0;j<comparisonEquationCatalog.length;j++)html+='<option value="'+comparisonEquationCatalog[j][0]+'">'+comparisonEquationCatalog[j][1]+'</option>';html+='</select></div>';}E.comparisonEquationSelectors.innerHTML=html;comparisonSelectElements().forEach((x,i)=>x.value=old[i]||defs[i%defs.length]);}
+function rebuildComparisonResultCards(){var html="";for(var i=0;i<comparisonAdvancedSnapshots.length;i++)html+='<div class="compare-card"><div class="compare-card-title" data-compare-title="'+i+'"></div><canvas data-compare-canvas="'+i+'" width="360" height="190"></canvas></div>';E.comparisonResultsGrid.innerHTML=html;}
 
 function comparisonSnapshotSummary(p){
   if(!p)return "未保存です。上の通常シミュレータで条件を設定し、「現在の通常設定を保存」を押してください。";
@@ -1855,7 +1909,7 @@ function comparisonSnapshotSummary(p){
 function rebuildComparisonAdvanced(){
   if(!E.comparisonAdvancedGrid)return;
   var html="";
-  for(var i=0;i<3;i++){
+  for(var i=0;i<comparisonAdvancedSnapshots.length;i++){
     html+='<div class="comparison-case" data-case="'+i+'">'+
       '<div class="comparison-case-title">比較'+(i+1)+' の完全設定</div>'+
       '<div class="hint comparison-snapshot-summary" style="min-height:52px">'+
@@ -1896,7 +1950,7 @@ function applyParamsToNormalUI(p){
   setControlValue(E.u,p.u);setControlValue(E.ux,p.ux);setControlValue(E.uy,p.uy);
   setControlValue(E.velocityField,p.velocityField);setControlValue(E.rotationOmega,p.rotationOmega);setControlValue(E.shearRate,p.shearRate);
   setControlValue(E.nu,p.nu);setControlValue(E.buoyancy,p.buoyancy);setControlValue(E.convInitial,p.convInitial);
-  setControlValue(E.thermalBoundary,p.thermalBoundary);setControlValue(E.tBottom,p.tBottom);setControlValue(E.tTop,p.tTop);
+  setControlValue(E.thermalBoundary,p.thermalBoundary);setControlValue(E.tBottom,p.tBottom);setControlValue(E.tTop,p.tTop);setControlValue(E.thermalLeftType,p.thermalLeftType);setControlValue(E.thermalRightType,p.thermalRightType);setControlValue(E.thermalBottomType,p.thermalBottomType);setControlValue(E.thermalTopType,p.thermalTopType);setControlValue(E.thermalLeftValue,p.thermalLeftValue);setControlValue(E.thermalRightValue,p.thermalRightValue);setControlValue(E.thermalBottomValue,p.thermalBottomValue);setControlValue(E.thermalTopValue,p.thermalTopValue);
   setControlValue(E.hotspotX,p.hotspotX);setControlValue(E.hotspotY,p.hotspotY);setControlValue(E.hotspotSize,p.hotspotSize);
   setControlValue(E.hotspotTemperature,p.hotspotTemperature);setControlValue(E.perturbationMode,p.perturbationMode);
   setControlValue(E.perturbationAmplitude,p.perturbationAmplitude);setControlValue(E.grid1d,p.grid1d);
@@ -1916,21 +1970,8 @@ function updateComparisonUI(){
   var enabled=E.comparisonEnabled.value==="on";
   E.comparisonSelectors.style.display=enabled?"block":"none";
   if(E.comparisonAdvancedPanel)E.comparisonAdvancedPanel.style.display=(enabled&&E.comparisonAdvancedEnabled.value==="on")?"block":"none";
-  var selects=[E.comparisonEq1,E.comparisonEq2,E.comparisonEq3];
-  for(var q=0;q<selects.length;q++)selects[q].parentElement.style.display=
-    (enabled&&E.comparisonAdvancedEnabled.value==="on")?"none":"grid";
-  var defaults=["diffusion","advection","advection-diffusion"];
-  for(var sidx=0;sidx<selects.length;sidx++){
-    var sel=selects[sidx],old=sel.value;
-    sel.innerHTML="";
-    for(var i=0;i<comparisonEquationCatalog.length;i++){
-      var opt=document.createElement("option");
-      opt.value=comparisonEquationCatalog[i][0];
-      opt.textContent=comparisonEquationCatalog[i][1];
-      sel.appendChild(opt);
-    }
-    sel.value=old||defaults[sidx];
-  }
+  E.comparisonEquationSelectors.style.display=(enabled&&E.comparisonAdvancedEnabled.value==="on")?"none":"block";
+  E.comparisonRemove.disabled=comparisonAdvancedSnapshots.length<=2;
   if(!enabled){
     stopComparisonPlayback();
     comparisonRuns=[];
@@ -1938,7 +1979,7 @@ function updateComparisonUI(){
     clearComparisonCanvases();
     E.comparisonTimeControls.style.display="none";
     E.comparisonStatus.textContent="比較表示はオフです。";
-  }else if(comparisonRuns.length!==3){
+  }else if(comparisonRuns.length!==comparisonAdvancedSnapshots.length){
     E.comparisonTimeControls.style.display="none";
     E.comparisonStatus.textContent="比較する方程式を選び、「比較開始」を押してください。";
   }
@@ -1950,15 +1991,7 @@ function comparisonLabel(eq){
   return eq;
 }
 
-function clearComparisonCanvases(){
-  var cvs=[E.compareCanvas1,E.compareCanvas2,E.compareCanvas3];
-  var titles=[E.compareTitle1,E.compareTitle2,E.compareTitle3];
-  for(var i=0;i<cvs.length;i++){
-    var cc=cvs[i].getContext("2d");
-    cc.clearRect(0,0,cvs[i].width,cvs[i].height);
-    titles[i].textContent="";
-  }
-}
+function clearComparisonCanvases(){E.comparisonResultsGrid.querySelectorAll("canvas").forEach(c=>c.getContext("2d").clearRect(0,0,c.width,c.height));E.comparisonResultsGrid.querySelectorAll("[data-compare-title]").forEach(t=>t.textContent="");}
 
 
 function waveCharacteristicWavenumber(){
@@ -2292,7 +2325,7 @@ function readParams(){
     convInitial:E.convInitial.value,
     thermalBoundary:E.thermalBoundary.value,
     tBottom:num(E.tBottom,1),
-    tTop:num(E.tTop,0),
+    tTop:num(E.tTop,0),thermalLeftType:E.thermalLeftType.value,thermalRightType:E.thermalRightType.value,thermalBottomType:E.thermalBottomType.value,thermalTopType:E.thermalTopType.value,thermalLeftValue:num(E.thermalLeftValue,.5),thermalRightValue:num(E.thermalRightValue,.5),thermalBottomValue:num(E.thermalBottomValue,1),thermalTopValue:num(E.thermalTopValue,0),
     hotspotX:clamp(num(E.hotspotX,.5),0,1),
     hotspotY:clamp(num(E.hotspotY,.2),0,1),
     hotspotSize:clamp(num(E.hotspotSize,.1),.02,.5),
@@ -3157,6 +3190,17 @@ function waveGhost1D(p,q,boundary,side,bcValue){
     if(side==="left")return [2*bcValue-p[0],q[0]];
     return [2*bcValue-p[N-1],q[N-1]];
   }
+  if(boundary==="absorbing"){
+    // p_t + c q_x = 0, q_t + c p_x = 0.
+    // w+=p+q travels to +x and w-=p-q travels to -x.
+    // Set the incoming characteristic to zero while preserving the outgoing one.
+    if(side==="left"){
+      var wm=p[0]-q[0];
+      return [0.5*wm,-0.5*wm];
+    }
+    var wp=p[N-1]+q[N-1];
+    return [0.5*wp,0.5*wp];
+  }
   // Neumann / reflecting wall: p even, q normal component odd.
   if(side==="left")return [p[0],-q[0]];
   return [p[N-1],-q[N-1]];
@@ -3371,6 +3415,17 @@ function waveBoundaryState2D(P,Qn,Qt,N,lineIndex,axis,boundary,side,bc){
 
   if(boundary==="dirichlet"){
     return [2*bc-P[k],Qn[k],Qt[k]];
+  }
+  if(boundary==="absorbing"){
+    // Characteristic absorbing condition in the outward normal direction.
+    // At a minimum-side boundary, the outgoing characteristic is P-Qn;
+    // at a maximum-side boundary it is P+Qn. Tangential Q is extrapolated.
+    if(side==="min"){
+      var wm=P[k]-Qn[k];
+      return [0.5*wm,-0.5*wm,Qt[k]];
+    }
+    var wp=P[k]+Qn[k];
+    return [0.5*wp,0.5*wp,Qt[k]];
   }
 
   // Reflecting Neumann-type wall:
@@ -3718,6 +3773,9 @@ async function calcReactionDiffusion2D(p,serial){
   E.mass.textContent="平均V = "+meanVFrames[0].toPrecision(5);
 }
 
+function convectionThermalSides(p){if(p.thermalBoundary==="fixed-top-bottom")return {left:{type:"adiabatic"},right:{type:"adiabatic"},bottom:{type:"fixed",value:p.tBottom},top:{type:"fixed",value:p.tTop}};if(p.thermalBoundary==="custom-sides")return {left:{type:p.thermalLeftType,value:p.thermalLeftValue},right:{type:p.thermalRightType,value:p.thermalRightValue},bottom:{type:p.thermalBottomType,value:p.thermalBottomValue},top:{type:p.thermalTopType,value:p.thermalTopValue}};return {left:{type:"adiabatic"},right:{type:"adiabatic"},bottom:{type:"adiabatic"},top:{type:"adiabatic"}};}
+function convectionAllThermalSidesAdiabatic(p){var b=convectionThermalSides(p);return [b.left,b.right,b.bottom,b.top].every(function(x){return x.type==="adiabatic";});}
+function applyConvectionThermalBoundary(T,N,p){var b=convectionThermalSides(p),i,j;if(b.bottom.type==="adiabatic")for(i=1;i<N-1;i++)T[i]=T[N+i];if(b.top.type==="adiabatic")for(i=1;i<N-1;i++)T[(N-1)*N+i]=T[(N-2)*N+i];if(b.left.type==="adiabatic")for(j=1;j<N-1;j++)T[j*N]=T[j*N+1];if(b.right.type==="adiabatic")for(j=1;j<N-1;j++)T[j*N+N-1]=T[j*N+N-2];if(b.bottom.type==="fixed")for(i=0;i<N;i++)T[i]=b.bottom.value;if(b.top.type==="fixed")for(i=0;i<N;i++)T[(N-1)*N+i]=b.top.value;if(b.left.type==="fixed")for(j=0;j<N;j++)T[j*N]=b.left.value;if(b.right.type==="fixed")for(j=0;j<N;j++)T[j*N+N-1]=b.right.value;function corner(k,a,c){if(a.type==="fixed"&&c.type==="fixed")T[k]=.5*(a.value+c.value);}corner(0,b.left,b.bottom);corner(N-1,b.right,b.bottom);corner((N-1)*N,b.left,b.top);corner(N*N-1,b.right,b.top);}
 function initConvectionTemperature(kind,N,p){
   var T=new Float64Array(N*N),i,j,k,x,y,base,perturb;
   var xb=p.hotspotX,yb=p.hotspotY,s=p.hotspotSize,Th=p.hotspotTemperature;
@@ -3794,13 +3852,7 @@ function initConvectionTemperature(kind,N,p){
     }
   }
 
-  // Apply prescribed top/bottom temperatures at t=0 if selected.
-  if(p.thermalBoundary==="fixed-top-bottom"){
-    for(i=0;i<N;i++){
-      T[i]=p.tBottom;
-      T[(N-1)*N+i]=p.tTop;
-    }
-  }
+  applyConvectionThermalBoundary(T,N,p);
 
   return T;
 }
@@ -3862,9 +3914,7 @@ async function calcConvection(p,serial){
 
   var temp=initConvectionTemperature(p.convInitial,N,p);
   var targetAdiabaticHeat=
-    (p.thermalBoundary==="adiabatic")
-      ? mass2D(temp,dx,dx,false,false,N)
-      : null;
+    convectionAllThermalSidesAdiabatic(p)?mass2D(temp,dx,dx,false,false,N):null;
   var tempNext=new Float64Array(N*N);
   var omega=new Float64Array(N*N),omegaNext=new Float64Array(N*N);
   var psi=new Float64Array(N*N),psiTmp=new Float64Array(N*N);
@@ -3941,31 +3991,13 @@ async function calcConvection(p,serial){
       }
 
       // Temperature boundary conditions
-      if(p.thermalBoundary==="fixed-top-bottom"){
-        for(i=0;i<N;i++){
-          tempNext[i]=p.tBottom;
-          tempNext[(N-1)*N+i]=p.tTop;
-        }
-        for(j=1;j<N-1;j++){
-          tempNext[j*N]=tempNext[j*N+1];
-          tempNext[j*N+N-1]=tempNext[j*N+N-2];
-        }
-      }else{
-        for(i=1;i<N-1;i++){
-          tempNext[i]=tempNext[N+i];
-          tempNext[(N-1)*N+i]=tempNext[(N-2)*N+i];
-        }
-        for(j=0;j<N;j++){
-          tempNext[j*N]=tempNext[j*N+1];
-          tempNext[j*N+N-1]=tempNext[j*N+N-2];
-        }
-      }
+      applyConvectionThermalBoundary(tempNext,N,p);
 
       // With fully adiabatic walls the continuum equation conserves
       // integral temperature exactly. The nodal wall treatment can introduce
       // a small global drift, so remove only the spatially uniform offset.
       // Adding a constant leaves all temperature gradients unchanged.
-      if(p.thermalBoundary==="adiabatic" && targetAdiabaticHeat!==null){
+      if(convectionAllThermalSidesAdiabatic(p) && targetAdiabaticHeat!==null){
         var heatNow=mass2D(tempNext,dx,dx,false,false,N);
         var uniformCorrection=(targetAdiabaticHeat-heatNow)/(p.L*p.L);
         for(k=0;k<N*N;k++)tempNext[k]+=uniformCorrection;
@@ -4226,7 +4258,8 @@ function boundaryDefinition(type){
     neumann:["Neumann境界","∂φ/∂n = 0","境界法線方向の勾配を0とする条件です。拡散問題ではゼロ拡散流束に対応します。"],
     dirichlet:["Dirichlet境界","φ|境界 = 指定値","境界上の場の値そのものを固定します。"],
     robin:["Robin境界","aφ + b∂φ/∂n = c","値と法線微分を線形結合した境界条件です。Dirichlet・Neumannを一般化します。"],
-    outflow:["開放境界","流出側：外挿／ゼロ勾配　流入側：指定値","移流を含む問題で、領域外へ出る流れをできるだけ反射させず扱うための境界です。"]
+    outflow:["開放境界","流出側：外挿／ゼロ勾配　流入側：指定値","移流を含む問題で、領域外へ出る流れをできるだけ反射させず扱うための境界です。"],
+    absorbing:["吸収境界（一次放射境界）","入射特性 = 0","波動方程式用です。境界へ到達した波をできるだけ領域外へ通し、人工的な反射を抑えます。有限差分上の近似なので完全無反射ではありません。"]
   };
   var a=map[type]||["境界条件","—",""];
   return {title:a[0],f:a[1],t:a[2]};
@@ -6587,10 +6620,8 @@ async function calculateComparisons(base,serial){
 
   var mainFrames=frames,mainTimes=times,mainState=state;
   var stats=[E.dx.textContent,E.dt.textContent,E.mass.textContent];
-  var eqs=[E.comparisonEq1.value,E.comparisonEq2.value,E.comparisonEq3.value];
-  if(E.comparisonAdvancedEnabled.value==="on"){
-    for(var qi=0;qi<3;qi++)if(comparisonAdvancedSnapshots[qi])eqs[qi]=comparisonAdvancedSnapshots[qi].equationType;
-  }
+  var eqs=comparisonSelectElements().map(x=>x.value);
+  if(E.comparisonAdvancedEnabled.value==="on")eqs=comparisonAdvancedSnapshots.map(x=>x?x.equationType:"");
   var runs=[];
 
   try{
@@ -6618,7 +6649,7 @@ function stopComparisonPlayback(){
 }
 
 function comparisonEndTime(){
-  if(comparisonRuns.length!==3)return 0;
+  if(comparisonRuns.length!==comparisonAdvancedSnapshots.length)return 0;
   var tEnd=Infinity;
   for(var i=0;i<comparisonRuns.length;i++){
     var ts=comparisonRuns[i].times;
@@ -6707,14 +6738,15 @@ function drawComparison2D(run,canvas){
 }
 
 function drawComparisons(){
-  if(E.comparisonEnabled.value!=="on"||comparisonRuns.length!==3)return;
-  var canvases=[E.compareCanvas1,E.compareCanvas2,E.compareCanvas3];
-  var titles=[E.compareTitle1,E.compareTitle2,E.compareTitle3];
-  for(var i=0;i<3;i++){
-    var run=comparisonRuns[i];
-    titles[i].textContent=run.label;
-    if(run.state.mode==="1d")drawComparison1D(run,canvases[i]);
-    else drawComparison2D(run,canvases[i]);
+  if(E.comparisonEnabled.value!=="on"||comparisonRuns.length!==comparisonAdvancedSnapshots.length)return;
+  var canvases=Array.from(E.comparisonResultsGrid.querySelectorAll("[data-compare-canvas]"));
+  var titles=Array.from(E.comparisonResultsGrid.querySelectorAll("[data-compare-title]"));
+  for(var i=0;i<comparisonRuns.length;i++){
+    var run=comparisonRuns[i],canvas=canvases[i],title=titles[i];
+    if(!canvas||!title)continue;
+    title.textContent=run.label;
+    if(run.state.mode==="1d")drawComparison1D(run,canvas);
+    else drawComparison2D(run,canvas);
   }
 }
 
@@ -6744,14 +6776,14 @@ async function startComparison(){
     await calculateComparisons(base,serial);
     ensureCalculationActive(serial);
 
-    if(comparisonRuns.length===3){
+    if(comparisonRuns.length===comparisonAdvancedSnapshots.length){
       comparisonTimeFraction=0;
       E.comparisonTimeSlider.value="0";
       E.comparisonTimeControls.style.display="block";
       updateComparisonTimeOutput();
       drawComparisons();
       E.comparisonStatus.textContent=
-        "比較完了。3つの結果を t=0 で表示しています。下の「比較時刻」スライダーで3つを同じ計算時刻に更新できます。";
+        "比較完了。"+comparisonRuns.length+"つの結果を t=0 で表示しています。下の「比較時刻」スライダーですべての結果を同じ計算時刻に更新できます。";
     }else{
       E.comparisonStatus.textContent="比較結果を作成できませんでした。";
     }
@@ -6906,25 +6938,16 @@ function reset(){
 E.comparisonEnabled.addEventListener("change",function(){
   updateComparisonUI();
 });
-[E.comparisonEq1,E.comparisonEq2,E.comparisonEq3].forEach(function(el){
-  el.addEventListener("change",function(){
-    if(E.comparisonEnabled.value==="on"){
-      stopComparisonPlayback();
-      comparisonRuns=[];
-      comparisonTimeFraction=0;
-      clearComparisonCanvases();
-      E.comparisonTimeControls.style.display="none";
-      E.comparisonStatus.textContent="比較条件が変更されました。「比較開始」を押して再計算してください。";
-      if(E.comparisonAdvancedEnabled.value==="on")rebuildComparisonAdvanced();
-    }
-  });
-});
+E.comparisonEquationSelectors.addEventListener("change",function(){comparisonRuns=[];clearComparisonCanvases();E.comparisonTimeControls.style.display="none";E.comparisonStatus.textContent="比較条件が変更されました。「比較開始」を押してください。";});
+E.comparisonAdd.addEventListener("click",function(){if(comparisonAdvancedSnapshots.length>=12)return showAvailabilityMessage("比較条件は最大12件です。");comparisonAdvancedSnapshots.push(null);rebuildComparisonSelectors();rebuildComparisonAdvanced();rebuildComparisonResultCards();comparisonRuns=[];updateComparisonUI();});
+E.comparisonRemove.addEventListener("click",function(){if(comparisonAdvancedSnapshots.length<=2)return showAvailabilityMessage("比較条件は最低2件必要です。");comparisonAdvancedSnapshots.pop();rebuildComparisonSelectors();rebuildComparisonAdvanced();rebuildComparisonResultCards();comparisonRuns=[];updateComparisonUI();});
 E.comparisonAdvancedEnabled.addEventListener("change",function(){
   stopComparisonPlayback();comparisonRuns=[];clearComparisonCanvases();
   E.comparisonTimeControls.style.display="none";
   E.comparisonAdvancedPanel.style.display=(this.value==="on")?"block":"none";
   if(this.value==="on")rebuildComparisonAdvanced();
-  updateComparisonUI();
+  rebuildComparisonSelectors();rebuildComparisonAdvanced();rebuildComparisonResultCards();
+updateComparisonUI();
   E.comparisonStatus.textContent=this.value==="on"
     ?"詳細設定モードです。3ケースの条件を個別に設定して「比較開始」を押してください。"
     :"通常比較モードです。上のシミュレータ設定を共通条件として使用します。";
@@ -6936,8 +6959,7 @@ E.comparisonAdvancedGrid.addEventListener("click",function(ev){
     var i=Number(save.dataset.saveCase);
     var snap=readParams();
     comparisonAdvancedSnapshots[i]=Object.assign({},snap);
-    var eqSelect=[E.comparisonEq1,E.comparisonEq2,E.comparisonEq3][i];
-    eqSelect.value=snap.equationType;
+    var eqSelect=comparisonSelectElements()[i];if(eqSelect)eqSelect.value=snap.equationType;
     stopComparisonPlayback();comparisonRuns=[];clearComparisonCanvases();
     E.comparisonTimeControls.style.display="none";
     rebuildComparisonAdvanced();
@@ -6953,7 +6975,7 @@ E.comparisonAdvancedGrid.addEventListener("click",function(ev){
 E.comparisonStart.addEventListener("click",startComparison);
 E.comparisonTimeSlider.addEventListener("input",function(){
   if(comparisonPlaying)stopComparisonPlayback();
-  if(comparisonRuns.length!==3){
+  if(comparisonRuns.length!==comparisonAdvancedSnapshots.length){
     showAvailabilityMessage("比較時刻は、比較計算が完了した後に使用できます。");
     return;
   }
@@ -6962,7 +6984,7 @@ E.comparisonTimeSlider.addEventListener("input",function(){
   drawComparisons();
 });
 E.comparisonPlay.addEventListener("click",function(){
-  if(comparisonRuns.length!==3){
+  if(comparisonRuns.length!==comparisonAdvancedSnapshots.length){
     showAvailabilityMessage("自動再生は、比較計算が完了した後に使用できます。");
     return;
   }
@@ -7186,6 +7208,17 @@ E.tBottom.addEventListener("change",function(){
 });
 E.tTop.addEventListener("change",function(){
   if(E.equationType.value==="convection"&&E.thermalBoundary.value==="fixed-top-bottom")calculate();
+});
+[E.thermalLeftType,E.thermalRightType,E.thermalBottomType,E.thermalTopType].forEach(function(el){
+  el.addEventListener("change",function(){
+    updateConvectionSpecialUI();
+    if(E.equationType.value==="convection"&&E.thermalBoundary.value==="custom-sides")calculate();
+  });
+});
+[E.thermalLeftValue,E.thermalRightValue,E.thermalBottomValue,E.thermalTopValue].forEach(function(el){
+  el.addEventListener("change",function(){
+    if(E.equationType.value==="convection"&&E.thermalBoundary.value==="custom-sides")calculate();
+  });
 });
 
 E.hotspotX.addEventListener("change",function(){
