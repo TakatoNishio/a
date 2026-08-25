@@ -236,10 +236,97 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
 .playback-display-hint{grid-column:1/-1}
 #manual-scale-controls{margin-top:8px}
 @media(max-width:540px){.playback-display-controls{grid-template-columns:1fr}}
+
+/* ===== Landing / solver entry modes ===== */
+#landing-screen{
+  min-height:82vh;display:flex;align-items:flex-start;justify-content:center;
+  padding:7vh 16px 44px;
+}
+.landing-inner{width:min(920px,100%);text-align:center}
+.landing-title{font-size:clamp(34px,7vw,58px);line-height:1.08;margin:0 0 12px;font-weight:800;letter-spacing:-.035em}
+.landing-lead{max-width:680px;margin:0 auto 30px;color:var(--muted);line-height:1.7}
+.landing-dim-tabs{display:flex;justify-content:center;gap:8px;margin:0 auto 18px}
+.landing-dim-tab{min-width:120px}
+.landing-dim-tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.landing-equations{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;max-width:760px;margin:0 auto}
+.landing-equation-btn{
+  min-height:64px;text-align:left;padding:13px 15px;border-radius:14px;
+  display:flex;flex-direction:column;justify-content:center;gap:3px
+}
+.landing-equation-btn strong{font-size:15px}
+.landing-equation-btn span{font-size:11px;color:var(--muted);font-weight:500}
+.landing-custom-divider{display:flex;align-items:center;gap:12px;max-width:760px;margin:24px auto 16px;color:var(--muted);font-size:12px}
+.landing-custom-divider:before,.landing-custom-divider:after{content:"";height:1px;background:var(--border);flex:1}
+#landing-custom-mode{width:min(760px,100%);min-height:54px;font-weight:800}
+#simulator-screen{display:none}
+#simulator-screen.active{display:block}
+.simulator-modebar{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin:0 0 12px;padding:9px 12px;border:1px solid var(--border);
+  border-radius:12px;background:var(--card)
+}
+.simulator-modebar-left{display:flex;align-items:center;gap:9px;min-width:0}
+.simulator-mode-title{font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.simulator-mode-badge{font-size:11px;padding:3px 7px;border-radius:999px;background:var(--chip);white-space:nowrap}
+.modebar-actions{display:flex;gap:7px;flex-shrink:0}
+.modebar-actions button{padding:7px 10px;font-size:12px}
+.simple-mode .header{display:none}
+.simple-mode #comparison-box,
+.simple-mode #convergence-box{display:none!important}
+.simple-mode #physics-diagnostics-toggle,
+.simple-mode #physics-diagnostics-panel{display:none!important}
+.simple-mode #measurement-controls{display:none!important}
+.simple-mode #generic-perturbation-controls{display:none!important}
+.simple-mode #advection-scheme-group,
+.simple-mode #limiter-group{display:none!important}
+.simple-mode #equation-availability-hint{display:none}
+.simple-mode .simple-hidden{display:none!important}
+.simple-mode .layout{margin-top:0}
+.simple-mode .core-selector-group{display:none!important}
+.simple-solver-summary{
+  display:none;margin-bottom:12px;padding:12px 14px;border-radius:12px;
+  border:1px solid var(--border);background:var(--chart)
+}
+.simple-mode .simple-solver-summary{display:block}
+.simple-solver-summary-title{font-weight:800;font-size:18px}
+.simple-solver-summary-sub{font-size:12px;color:var(--muted);margin-top:3px}
+@media(max-width:640px){
+  #landing-screen{padding-top:4vh}
+  .landing-equations{grid-template-columns:1fr}
+  .simulator-modebar{align-items:flex-start;flex-direction:column}
+  .modebar-actions{width:100%}.modebar-actions button{flex:1}
+}
 </style>
 </head>
 <body>
+<div id="landing-screen">
+  <div class="landing-inner">
+    <h1 class="landing-title">輸送シミュレータ</h1>
+    <p class="landing-lead">次元と方程式を選んで、シミュレーションを始めましょう。選択後はシンプルモードで時間発展を確認できます。より細かな条件設定や比較・解析を行う場合は、「詳細カスタムモード」を選択してください。</p>
+    <div class="landing-dim-tabs" role="tablist" aria-label="次元を選択">
+      <button id="landing-dim-1d" class="landing-dim-tab active" type="button" data-landing-dim="1d">1次元</button>
+      <button id="landing-dim-2d" class="landing-dim-tab" type="button" data-landing-dim="2d">2次元</button>
+    </div>
+    <div id="landing-equations" class="landing-equations"></div>
+    <div class="landing-custom-divider">または</div>
+    <button id="landing-custom-mode" class="primary" type="button">詳細カスタムモード</button>
+  </div>
+</div>
+
+<div id="simulator-screen">
 <main class="app">
+<div class="simulator-modebar">
+  <div class="simulator-modebar-left">
+    <button id="back-to-title" type="button">← タイトル</button>
+    <div>
+      <div id="simulator-mode-title" class="simulator-mode-title">輸送シミュレータ</div>
+      <div id="simulator-mode-badge" class="simulator-mode-badge">詳細カスタム</div>
+    </div>
+  </div>
+  <div class="modebar-actions">
+    <button id="switch-to-custom" type="button" style="display:none">詳細カスタムへ</button>
+  </div>
+</div>
 <header class="header">
   <h1>1D / 2D 輸送シミュレータ</h1>
   <p>拡散・移流・波動・自然対流・非線形方程式などの時間発展を、条件を変更しながら比較・観察できます。</p>
@@ -247,8 +334,12 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
 
 <div class="layout">
 <section class="panel">
+  <div class="simple-solver-summary">
+    <div id="simple-solver-title" class="simple-solver-summary-title"></div>
+    <div id="simple-solver-subtitle" class="simple-solver-summary-sub"></div>
+  </div>
   <div class="controls">
-    <div class="group">
+    <div class="group core-selector-group">
       <label for="dimension">次元</label>
       <select id="dimension">
         <option value="1d">1次元</option>
@@ -256,7 +347,7 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
       </select>
     </div>
 
-    <div class="group">
+    <div class="group core-selector-group">
       <label for="equation-type">方程式タイプ</label>
       <select id="equation-type">
         <option value="diffusion">拡散のみ</option>
@@ -512,7 +603,7 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
       <div class="group" id="legacy-shallow-h0-group">
         <label for="shallow-h0">基準水深 h₀</label>
         <input id="shallow-h0" type="number" value="1.0" min="0.05" max="100" step="0.1">
-        <div class="hint" id="shallow-method-hint">保存形の浅水方程式を周期境界・Rusanov流束＋hydrostatic reconstructionで解きます。</div>
+        <div class="hint" id="shallow-method-hint">保存形の浅水方程式を周期境界で、Rusanov流束（局所的な最大波速を使う安定な数値流束）と hydrostatic reconstruction（海底地形がある静水状態を崩しにくくする再構成法）を組み合わせて解きます。</div>
       </div>
       <div class="group">
         <label for="shallow-terrain">海底地形</label>
@@ -523,7 +614,7 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
           <option value="shoal">広い浅瀬</option>
           <option value="ripple">周期的な海底起伏</option>
         </select>
-        <div class="hint">b(x,y) は上向きを正とする海底高度です。地形ありでは静水状態 η=h+b=一定を保つ hydrostatic reconstruction（well-balanced法）を使います。</div>
+        <div class="hint">b(x,y) は上向きを正とする海底高度です。地形ありでは静水状態 η=h+b=一定を保つ hydrostatic reconstruction（静水状態を保つためのwell-balanced法）を使います。</div>
       </div>
       <div class="group" id="shallow-terrain-amplitude-group">
         <label for="shallow-terrain-amplitude">地形振幅 / h₀</label>
@@ -556,7 +647,7 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
 
       <div id="shallow-validity-warning" class="shallow-validity ok">
         <b>長波仮定チェック</b><br>
-        設定を変更すると、代表水深 H と水平スケール Lc の比 H/Lc を目安に妥当性を表示します。
+        設定を変更すると、代表水深 H と、初期擾乱・海底地形から見積もる代表水平スケール Lc の比 H/Lc を表示します。Lc は候補となる水平スケールのうち最小のものを採用します。
       </div>
       <div class="group">
         <label for="shallow-view">表示</label>
@@ -577,7 +668,7 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
       <div class="group">
         <label for="buoyancy">浮力係数 gβ</label>
         <input id="buoyancy" type="number" value="1.0" min="0" max="20" step="0.1">
-        <div class="hint">温度差が流れを駆動する強さです。</div>
+        <div class="hint">g は重力加速度、β は熱膨張係数です。このシミュレータでは積 gβ を1つの係数として直接設定し、温度差から渦度を生成する強さを決めます。</div>
       </div>
       <div class="group">
         <label for="conv-initial">自然対流の初期条件</label>
@@ -882,11 +973,12 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
 
     <div id="physics-diagnostics-panel" class="physics-diagnostics-panel" style="display:none">
       <div class="physics-diagnostics-section">
-        <b>現在の支配的なレジーム</b>
+        <b>代表尺度からみた現在のレジーム</b>
         <div id="physics-regime-summary" class="physics-regime-summary"></div>
       </div>
       <div class="physics-diagnostics-section">
         <b>現在の物理スケール・無次元数</b>
+        <div class="hint" style="margin:5px 0 8px">各指標は、式だけでなく、この診断で用いる代表量・記号の定義も併記します。代表量を仮定して評価する場合は、その選び方も示します。</div>
         <div id="physics-diagnostics" class="hint"></div>
       </div>
       <div class="physics-diagnostics-section">
@@ -1013,7 +1105,7 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
 
 <div class="analysis-box" id="comparison-box">
     <div class="analysis-title">方程式比較モード</div>
-    <div class="analysis-text">選択した複数の方程式・条件を比較します。通常比較では初期条件・領域などを共通にし、境界条件は比較しやすいよう周期境界に統一します。詳細設定では保存した各ケースの境界条件を含む完全設定をそのまま使用します。「比較開始」を押すと選択した数だけ比較計算を実行し、同じ時刻の結果を並べて表示します。通常の再生ボタンを押す必要はありません。<br><span class="hint"><b>注意：</b>異なる方程式の色や数値は物理量・単位・規格化が異なる場合があるため、絶対値を直接比較するのではなく、主に形状・伝播・拡散・パターン形成などの時間発展を比較してください。同じ方程式の条件比較では絶対値比較も意味を持ちます。</span></div>
+    <div class="analysis-text">選択した複数の方程式・条件を比較します。通常比較では初期条件・領域などを共通にし、境界条件は比較しやすいよう周期境界に統一します。詳細設定では、各ケースに保存した設定一式（方程式固有設定・境界条件・速度場・地形など）を使用します。「比較開始」を押すと選択した数だけ比較計算を実行し、同じ時刻の結果を並べて表示します。通常の再生ボタンを押す必要はありません。<br><span class="hint"><b>注意：</b>異なる方程式の色や数値は物理量・単位・規格化が異なる場合があるため、絶対値を直接比較するのではなく、主に形状・伝播・拡散・パターン形成などの時間発展を比較してください。同じ方程式の条件比較では絶対値比較も意味を持ちます。</span></div>
     <div class="group" style="margin-top:10px">
       <label for="comparison-enabled">比較表示</label>
       <select id="comparison-enabled">
@@ -1026,14 +1118,14 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
       <div style="display:flex;gap:8px;margin:8px 0 12px"><button id="comparison-add" type="button">＋ 比較条件を追加</button><button id="comparison-remove" type="button">− 最後の条件を削除</button><span class="hint">2〜12条件</span></div>
       <div class="comparison-advanced">
         <div class="comparison-advanced-head">
-          <div><b>詳細設定モード</b><div class="hint">各比較条件に、上の通常シミュレータの完全な設定一式を保存します。方程式固有設定・境界条件・速度場・地形などもすべて含みます。</div></div>
+          <div><b>詳細設定モード</b><div class="hint">各比較条件に、上の通常シミュレータで設定した条件一式を保存します。方程式固有設定・境界条件・速度場・地形など、比較計算に用いる項目を含みます。</div></div>
           <select id="comparison-advanced-enabled" style="width:auto">
             <option value="off">使用しない</option><option value="on">使用する</option>
           </select>
         </div>
         <div id="comparison-advanced-panel" style="display:none">
           <div class="comparison-advanced-grid" id="comparison-advanced-grid"></div>
-          <div class="hint">設定編集には上の通常シミュレータそのものを使用するため、詳細設定で使える項目は通常設定と完全に同じです。設定後に各ケースの「現在の通常設定を保存」を押してください。</div>
+          <div class="hint">設定編集には上の通常シミュレータと同じ設定画面を使用します。設定後に各ケースの「現在の通常設定を保存」を押してください。</div>
         </div>
       </div>
       <button id="comparison-start" class="comparison-start-button" type="button">比較開始</button>
@@ -1068,12 +1160,25 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
 </div>
 
 </main>
+</div>
 
 <script>
 (function(){
 "use strict";
 
 var E={
+  landingScreen:document.getElementById("landing-screen"),
+  simulatorScreen:document.getElementById("simulator-screen"),
+  landingEquations:document.getElementById("landing-equations"),
+  landingDim1d:document.getElementById("landing-dim-1d"),
+  landingDim2d:document.getElementById("landing-dim-2d"),
+  landingCustomMode:document.getElementById("landing-custom-mode"),
+  backToTitle:document.getElementById("back-to-title"),
+  switchToCustom:document.getElementById("switch-to-custom"),
+  simulatorModeTitle:document.getElementById("simulator-mode-title"),
+  simulatorModeBadge:document.getElementById("simulator-mode-badge"),
+  simpleSolverTitle:document.getElementById("simple-solver-title"),
+  simpleSolverSubtitle:document.getElementById("simple-solver-subtitle"),
   availabilityToast:document.getElementById("availability-toast"),
   physicsDiagnosticsToggle:document.getElementById("physics-diagnostics-toggle"),
   physicsDiagnosticsPanel:document.getElementById("physics-diagnostics-panel"),
@@ -1908,7 +2013,7 @@ function updateShallowValidityWarning(){
 
   var v=shallowCharacteristicScaleEstimate();
   var ratio=v.ratio;
-  var cls="ok",headline="長波仮定は概ね妥当そうです";
+  var cls="ok",headline="H/Lc の目安では長波条件を満たしやすい設定です";
 
   if(ratio>0.20){
     cls="warn";headline="注意：長波（浅水）仮定から外れやすい設定です";
@@ -1930,9 +2035,9 @@ function updateShallowValidityWarning(){
   E.shallowValidityWarning.innerHTML=
     "<b>"+headline+"</b><br>"+
     "目安：H/Lc ≈ "+ratio.toPrecision(3)+
-    "（代表水深 H≈"+v.H.toPrecision(3)+
-    "、最小の代表水平スケール Lc≈"+v.Lc.toPrecision(3)+"）。"+
-    "浅水方程式は H/Lc≪1 を前提とし、0.1・0.2 は厳密な境界ではなく注意のための目安です。"+
+    "（H：代表水深≈"+v.H.toPrecision(3)+
+    "，Lc：現在の初期擾乱・海底地形から見積もった代表水平スケールのうち最小のもの≈"+v.Lc.toPrecision(3)+"）。"+
+    "浅水方程式は H/Lc≪1 を前提とします。ここでの0.1・0.2は適用限界そのものではなく、注意表示のための目安です。"+
     (extra.length?"<br>"+extra.join("<br>"):"");
 }
 
@@ -1957,8 +2062,8 @@ function updateShallowViewUI(is1D){
     ];
   setSelectOptions(E.shallowView,options,E.shallowView.value);
   E.shallowMethodHint.textContent=is1D
-    ?"1D保存形浅水方程式です。海底高度 b、海底から水面までの水深 h、自由水面 η=h+b を区別します。hu が質量の移流、hu² が運動量の非線形移流、gh²/2 が水面勾配による重力波、−gh∂b/∂x が海底勾配から受ける力を表します。周期境界・Rusanov流束＋hydrostatic reconstructionで解きます。"
-    :"2D保存形浅水方程式です。h u が質量の移流、h u⊗u が運動量の非線形移流、gh²/2 が水面勾配による重力波、−gh∇b が海底勾配から受ける力を表します。周期境界・Rusanov流束＋hydrostatic reconstructionで解き、各内部ステップで |u|+√(gh), |v|+√(gh) を再評価してCFL条件を更新します。";
+    ?"1D保存形浅水方程式です。海底高度 b、海底から水面までの水深 h、自由水面 η=h+b を区別します。hu が質量の移流、hu² が運動量の非線形移流、gh²/2 が水面勾配による重力波、−gh∂b/∂x が海底勾配から受ける力を表します。周期境界で、Rusanov流束（局所的な最大波速を使う安定な数値流束）と hydrostatic reconstruction（海底地形がある静水状態を崩しにくくする再構成法）を組み合わせて解きます。"
+    :"2D保存形浅水方程式です。h u が質量の移流、h u⊗u が運動量の非線形移流、gh²/2 が水面勾配による重力波、−gh∇b が海底勾配から受ける力を表します。周期境界で、Rusanov流束（局所的な最大波速を使う数値流束）と hydrostatic reconstruction（海底地形がある静水状態を崩しにくくする再構成法）を組み合わせて解きます。各内部ステップで |u|+√(gh), |v|+√(gh) を再評価し、CFL条件（情報が1時間刻みで格子間隔に対して進みすぎないようにする安定条件）を満たすよう時間刻みを更新します。";
 }
 
 var equationCatalog=[
@@ -1974,6 +2079,103 @@ var equationCatalog=[
   {value:"burgers-2d",label:"Burgers方程式",dims:["2d"]},
   {value:"cahn-hilliard",label:"Cahn–Hilliard方程式",dims:["2d"]}
 ];
+
+
+var simulatorEntryMode="landing";
+var landingDimension="1d";
+var landingEquationDescriptions={
+  "diffusion":"拡散による平滑化",
+  "advection":"流れによる輸送",
+  "advection-diffusion":"移流と拡散の競合",
+  "wave":"波の伝播・反射・分散",
+  "burgers":"非線形急峻化と粘性",
+  "burgers-2d":"2成分の非線形自己移流",
+  "convection":"温度差による自然対流",
+  "reaction-diffusion":"Gray–Scottパターン形成",
+  "cahn-hilliard":"保存型相分離・粗大化"
+};
+function equationCatalogItem(value){
+  for(var i=0;i<equationCatalog.length;i++)if(equationCatalog[i].value===value)return equationCatalog[i];
+  return null;
+}
+function renderLandingEquations(){
+  if(!E.landingEquations)return;
+  E.landingEquations.innerHTML="";
+  equationCatalog.forEach(function(item){
+    if(item.dims.indexOf(landingDimension)<0)return;
+    var b=document.createElement("button");
+    b.type="button";b.className="landing-equation-btn";b.dataset.eq=item.value;
+    b.innerHTML="<strong>"+item.label+"</strong><span>"+(landingEquationDescriptions[item.value]||"時間発展を計算")+"</span>";
+    b.addEventListener("click",function(){openSimpleSolver(landingDimension,item.value);});
+    E.landingEquations.appendChild(b);
+  });
+  E.landingDim1d.classList.toggle("active",landingDimension==="1d");
+  E.landingDim2d.classList.toggle("active",landingDimension==="2d");
+}
+function setLandingDimension(dim){
+  landingDimension=dim;
+  renderLandingEquations();
+}
+function currentEquationLabel(){
+  var item=equationCatalogItem(E.equationType.value);
+  return item?item.label:E.equationType.value;
+}
+function updateEntryModeLabels(){
+  var dim=E.dimension.value==="1d"?"1次元":"2次元";
+  var eq=currentEquationLabel();
+  if(simulatorEntryMode==="simple"){
+    E.simulatorModeTitle.textContent=dim+" / "+eq;
+    E.simulatorModeBadge.textContent="シンプルソルバー";
+    E.simpleSolverTitle.textContent=eq;
+    E.simpleSolverSubtitle.textContent=dim+"・"+(landingEquationDescriptions[E.equationType.value]||"シンプルモード");
+    E.switchToCustom.style.display="";
+  }else{
+    E.simulatorModeTitle.textContent="輸送シミュレータ";
+    E.simulatorModeBadge.textContent="詳細カスタム";
+    E.switchToCustom.style.display="none";
+  }
+}
+function showSimulator(mode){
+  simulatorEntryMode=mode;
+  document.body.classList.toggle("simple-mode",mode==="simple");
+  E.landingScreen.style.display="none";
+  E.simulatorScreen.classList.add("active");
+  updateEntryModeLabels();
+  updateModeUI();
+  window.scrollTo(0,0);
+}
+function showLanding(){
+  stop();
+  stopComparisonPlayback();
+  simulatorEntryMode="landing";
+  document.body.classList.remove("simple-mode");
+  E.simulatorScreen.classList.remove("active");
+  E.landingScreen.style.display="flex";
+  renderLandingEquations();
+  window.scrollTo(0,0);
+}
+function openSimpleSolver(dim,eq){
+  stop();
+  E.dimension.value=dim;
+  updateEquationOptionsForDimension(eq);
+  E.equationType.value=eq;
+  enforceEquationDimensionCompatibility();
+  // Apply the same sensible defaults as a normal equation change.
+  if(eq==="diffusion"){
+    E.boundary1d.value="neumann";E.boundaryX.value="neumann";E.boundaryY.value="neumann";
+  }else if(eq==="advection"||eq==="advection-diffusion"||eq==="burgers"||eq==="wave"||eq==="burgers-2d"||eq==="cahn-hilliard"){
+    E.boundary1d.value="periodic";E.boundaryX.value="periodic";E.boundaryY.value="periodic";
+  }else if(eq==="reaction-diffusion"){
+    applyReactionPreset(false);
+  }
+  showSimulator("simple");
+  stop();
+  E.status.textContent="設定を確認・変更してから「計算」を押してください。";
+}
+function openCustomSolver(){
+  showSimulator("custom");
+  if(!frames.length)calculate();
+}
 
 function equationCounterpartForDimension(value,dim){
   if(value==="burgers"&&dim==="2d")return "burgers-2d";
@@ -2050,7 +2252,7 @@ function rebuildComparisonAdvanced(){
   var html="";
   for(var i=0;i<comparisonAdvancedSnapshots.length;i++){
     html+='<div class="comparison-case" data-case="'+i+'">'+
-      '<div class="comparison-case-title">比較'+(i+1)+' の完全設定</div>'+
+      '<div class="comparison-case-title">比較'+(i+1)+' の保存設定</div>'+
       '<div class="hint comparison-snapshot-summary" style="min-height:52px">'+
       escDef(comparisonSnapshotSummary(comparisonAdvancedSnapshots[i]))+'</div>'+
       '<button type="button" data-save-case="'+i+'" style="width:100%;margin-top:8px">現在の通常設定を保存</button>'+
@@ -2151,15 +2353,15 @@ function updateWaveRegimeWarning(){
   var cls="ok",head="",body="";
 
   if(model==="shallow"){
-    head=kh<=.3?"浅水極限として概ね妥当そうです":
-         kh<=.7?"注意：浅水極限がやや弱い設定です":"注意：浅水極限から外れやすい設定です";
+    head=kh<=.3?"kH の目安では浅水極限に適した設定です":
+         kh<=.7?"注意：浅水極限の条件がやや弱い設定です":"注意：浅水極限から外れやすい設定です";
     cls=kh<=.3?"ok":(kh<=.7?"caution":"warn");
-    body="代表値 kH≈"+kh.toPrecision(3)+"。浅水極限は kH≪1（波長が水深より十分長い）を仮定します。";
+    body="代表値 kH≈"+kh.toPrecision(3)+"（k：初期条件から見積もった代表水平波数，H：基準水深）。浅水極限は kH≪1（波長が水深より十分長い）を仮定します。";
   }else{
-    head=kh>=3?"深水極限として概ね妥当そうです":
-         kh>=1.5?"注意：深水極限がやや弱い設定です":"注意：深水極限から外れやすい設定です";
+    head=kh>=3?"kH の目安では深水極限に適した設定です":
+         kh>=1.5?"注意：深水極限の条件がやや弱い設定です":"注意：深水極限から外れやすい設定です";
     cls=kh>=3?"ok":(kh>=1.5?"caution":"warn");
-    body="代表値 kH≈"+kh.toPrecision(3)+"。深水極限は kH≫1（波長に比べて十分深い）を仮定します。";
+    body="代表値 kH≈"+kh.toPrecision(3)+"（k：初期条件から見積もった代表水平波数，H：基準水深）。深水極限は kH≫1（波長に比べて十分深い）を仮定します。";
   }
 
   var discontinuous=(E.initial.value==="pulse"||E.initial.value==="step"||
@@ -2171,7 +2373,7 @@ function updateWaveRegimeWarning(){
   }
   E.waveRegimeWarning.className="shallow-validity "+cls;
   E.waveRegimeWarning.innerHTML="<b>"+head+"</b><br>"+body+
-    "<br>※kH≈0.3, 0.7, 1.5, 3 は教育用の目安で、厳密な境界ではありません。";
+    "<br>※kH≈0.3, 0.7, 1.5, 3 は表示を段階分けするための目安で、物理的な適用限界を厳密に定める値ではありません。";
 }
 
 function applyWaveModelPreset(model){
@@ -2316,7 +2518,7 @@ function updateModeUI(){
           "<br>∂(h<b>u</b>)/∂t + ∇·[h<b>u</b>⊗<b>u</b>+(gh²/2)I] = −gh∇b";
       }
       E.subtitle.textContent="水面重力波：浅水極限。波長が水深より十分長い場合の長波を表します。";
-      E.note.textContent="浅水方程式をRusanov流束＋hydrostatic reconstructionで解きます。海底地形 b(x,y) の源項 −gh∇b をwell-balancedに扱い、η=h+b=一定・u=0 の静水状態を保ちやすくしています。境界は周期境界です。";
+      E.note.textContent="周期境界で、Rusanov流束（局所最大波速を使う数値流束）と hydrostatic reconstruction（静水状態を崩しにくくする地形再構成）を使います。これにより海底地形 b の源項と圧力フラックスを釣り合わせ、η=h+b=一定・u=0 の静水状態を離散化後も保つ well-balanced 性を持たせています。";
       E.legend.style.display=is2?"flex":"none";
     }else if(wm==="deep"){
       E.equation.innerHTML=
@@ -2355,7 +2557,7 @@ function updateModeUI(){
     E.equation.innerHTML=
       "∂u/∂t + ∂/∂x (u²/2 − ν ∂u/∂x) = 0";
     E.subtitle.textContent="1D Burgers方程式：非線形移流による急峻化と粘性拡散を比較できます。";
-    E.note.textContent="非線形流束 u²/2 は保存形のRusanov流束、粘性項は保存的な拡散フラックスとして扱います。";
+    E.note.textContent="非線形流束 u²/2 は Rusanov流束（左右状態と局所最大波速から作る数値流束）で離散化し、粘性項は保存的な拡散フラックスとして扱います。";
     E.legend.style.display="none";
     return;
   }
@@ -2375,7 +2577,7 @@ function updateModeUI(){
       "∂u/∂t + u∂u/∂x + v∂u/∂y = ν∇²u" +
       "<br>∂v/∂t + u∂v/∂x + v∂v/∂y = ν∇²v";
     E.subtitle.textContent="2DベクトルBurgers方程式：非線形な自己移流による急峻化と粘性散逸を観察します。";
-    E.note.textContent="周期境界。移流項は q_t+∇·(uq)=q∇·u の恒等式を用い、Rusanov型の保存的移流フラックスと離散的な q∇·u 補正を組み合わせて、元の非保存形 (u·∇)q に一致させます。粘性項は中心差分です。現在のRusanov界面値は一次再構築なので、滑らかな解でも自己収束次数は概ね1次になるのが基本です。";
+    E.note.textContent="周期境界。移流項は q_t+∇·(uq)=q∇·u の恒等式を用い、Rusanov型の保存的移流フラックス（局所最大速度を使って数値散逸を加える界面フラックス）と離散的な q∇·u 補正を組み合わせて、元の非保存形 (u·∇)q に一致させます。粘性項は中心差分です。現在のRusanov界面値は一次再構築なので、滑らかな解でも自己収束次数は概ね1次になるのが基本です。";
     E.legend.style.display="flex"; return;
   }
   if(isCahn){
@@ -2389,13 +2591,13 @@ function updateModeUI(){
       "∂h/∂t + ∂(hu)/∂x = 0" +
       "<br>∂(hu)/∂t + ∂(hu² + gh²/2)/∂x = −gh ∂b/∂x";
     E.subtitle.textContent="1D浅水方程式：自由水面 η=h+b の重力波、非線形移流、海底地形による屈折・浅水化を観察します。";
-    E.note.textContent="周期境界。Rusanov流束とhydrostatic reconstructionを組み合わせ、海底地形があっても静水状態 η=一定, u=0 を離散的に保つwell-balanced更新です。各内部ステップで |u|+√(gh) を再評価してCFL条件を更新します。";
+    E.note.textContent="周期境界。Rusanov流束とhydrostatic reconstructionを組み合わせ、海底地形があっても静水状態 η=一定, u=0 を離散的に保つwell-balanced更新（η=h+bが一定でu=0の静水状態を離散化後も保つことを狙った更新）です。各内部ステップで |u|+√(gh) を再評価し、CFL条件（情報伝播速度に対して時間刻みを制限する安定条件）を満たすよう時間刻みを更新します。";
     E.legend.style.display="none"; return;
   }
   if(isShallow){
     E.equation.innerHTML="∂h/∂t+∇·(h<b>u</b>)=0<br>∂(h<b>u</b>)/∂t+∇·[h<b>u</b>⊗<b>u</b>+(gh²/2)I]=−gh∇b";
     E.subtitle.textContent="2D浅水方程式：自由水面 η=h+b の重力波、非線形移流、海底地形による波面変形を観察します。";
-    E.note.textContent="周期境界。Rusanov流束とhydrostatic reconstructionを組み合わせ、海底地形があっても静水状態 η=一定, u=0 を離散的に保つwell-balanced更新です。各内部ステップで特性速度を再評価してCFL条件を更新します。";
+    E.note.textContent="周期境界。Rusanov流束とhydrostatic reconstructionを組み合わせ、海底地形があっても静水状態 η=一定, u=0 を離散的に保つwell-balanced更新（η=h+bが一定でu=0の静水状態を離散化後も保つことを狙った更新）です。各内部ステップで特性速度を再評価し、CFL条件（情報伝播速度に対して時間刻みを制限する安定条件）を満たすよう時間刻みを更新します。";
     E.legend.style.display="flex"; return;
   }
 
@@ -2490,60 +2692,87 @@ function diagnosticsSectionTag(kind){
 function physicsDiagnosticsHTML(skipSupport){
   if(!E.physicsDiagnostics)return;
   var t=E.equationType.value,L=Math.max(1e-9,num(E.length,10)),a=[],tag=diagnosticsSectionTag;
+  a.push(tag("記号")+"L="+L.toPrecision(4)+"：計算領域の一辺（1Dでは領域長）。以下の時間尺度・無次元数では、このLを代表長さとして使います。");
+
   if(t==="advection"||t==="advection-diffusion"){
     var U=characteristicAdvectionSpeed(),tadv=U>0?L/U:Infinity;
+    var udef=E.dimension.value==="1d"
+      ?"Uchar=|u|：設定した1D移流速度の絶対値"
+      :(E.velocityField.value==="uniform"
+        ?"Uchar=√(uₓ²+uᵧ²)：一様速度場の速さ"
+        :E.velocityField.value==="rotation"
+          ?"Uchar=|Ω|L/2：領域中心からL/2離れた位置での剛体回転速度を代表値として採用"
+          :"Uchar=|γ|L/2：領域中心からL/2離れた位置でのせん断速度を代表値として採用");
+    a.push(tag("記号")+udef+"。");
     if(t==="advection-diffusion"){
       var D=Math.max(1e-9,num(E.D,.2)),Pe=U*L/D,td=L*L/D;
-      a.push(tag("代表値")+"Péclet数 Pe=Uchar L/D = <b>"+Pe.toPrecision(4)+"</b>："+(Pe>10?"移流優勢":Pe<.1?"拡散優勢":"移流と拡散がともに重要"));
-      a.push(tag("時間尺度")+"t_adv=L/Uchar = "+(Number.isFinite(tadv)?tadv.toPrecision(4):"∞")+"，t_D=L²/D = "+td.toPrecision(4));
+      a.push(tag("記号")+"D：方程式 ∂φ/∂t+u·∇φ=D∇²φ の拡散係数。");
+      a.push(tag("無次元数")+"Péclet数 Pe=Uchar L/D = <b>"+Pe.toPrecision(4)+"</b>。Peは代表的な移流の強さと拡散の強さの比で、"+(Pe>10?"この代表尺度では移流優勢":Pe<.1?"この代表尺度では拡散優勢":"この代表尺度では両者が競合")+"。");
+      a.push(tag("時間尺度")+"t_adv=L/Uchar = "+(Number.isFinite(tadv)?tadv.toPrecision(4):"∞")+"（領域を移流で横切る時間），t_D=L²/D = "+td.toPrecision(4)+"（領域スケールを拡散する時間）。");
       if(frames.length)a.push(currentPhysicalTimeText(td,"t_D")+"；"+currentPhysicalTimeText(tadv,"t_adv"));
     }else if(U>0){
-      a.push(tag("代表値")+"代表速度 Uchar = "+U.toPrecision(4));
-      a.push(tag("時間尺度")+"t_adv=L/Uchar = "+tadv.toPrecision(4)+(frames.length?"；"+currentPhysicalTimeText(tadv,"t_adv"):""));
+      a.push(tag("時間尺度")+"t_adv=L/Uchar = "+tadv.toPrecision(4)+"：代表速度で領域長Lを移動する時間。"+(frames.length?" "+currentPhysicalTimeText(tadv,"t_adv"):""));
     }
   }else if(t==="diffusion"){
     var Dd=Math.max(1e-9,num(E.D,.2)),tdf=L*L/Dd;
-    a.push(tag("設定値から決定")+"拡散時間 t_D=L²/D = <b>"+tdf.toPrecision(4)+"</b>"+(frames.length?"；"+currentPhysicalTimeText(tdf,"t_D"):""));
+    a.push(tag("記号")+"D：拡散方程式 ∂φ/∂t=D∇²φ の拡散係数。");
+    a.push(tag("時間尺度")+"t_D=L²/D = <b>"+tdf.toPrecision(4)+"</b>：領域長L程度の構造が拡散する代表時間。"+(frames.length?" "+currentPhysicalTimeText(tdf,"t_D"):""));
   }else if(t==="burgers"||t==="burgers-2d"){
     var nub=t==="burgers"?Math.max(1e-9,num(E.burgersNu,.02)):Math.max(1e-9,num(E.burgers2dNu,.02));
     var bs=burgersInitialSpeedStats(),Uref=burgersReferenceSpeed(),Re=Uref*L/nub,tbadv=L/Uref,tvis=L*L/nub;
-    a.push(tag(bs?"初期場から実測":"代表値")+"Re = Uref L/ν = <b>"+Re.toPrecision(4)+"</b>（Uref="+Uref.toPrecision(4)+(bs?" = 初期Urms":" を仮定")+"）");
-    if(bs)a.push("初期速度：Urms="+bs.rms.toPrecision(4)+"，Umax="+bs.max.toPrecision(4)+"；Re_max="+(bs.max*L/nub).toPrecision(4));
-    a.push(tag("時間尺度")+"t_adv=L/Uref = "+tbadv.toPrecision(4)+"，t_ν=L²/ν = "+tvis.toPrecision(4)+(frames.length?"；"+currentPhysicalTimeText(tbadv,"t_adv")+"；"+currentPhysicalTimeText(tvis,"t_ν"):""));
+    a.push(tag("記号")+"ν：Burgers方程式の粘性係数。Uref：代表速度。計算済みなら初期速度場のRMS速度 Urms=√〈|u|²〉を使い、未計算時はUref=1を仮の代表値として使います。");
+    a.push(tag(bs?"初期場から評価":"暫定評価")+"Re_B=Uref L/ν = <b>"+Re.toPrecision(4)+"</b>。ここでRe_BはBurgers方程式における非線形移流と粘性の比を表す代表指標で、Navier–Stokes方程式のReynolds数そのものではありません。");
+    if(bs)a.push("初期速度場：Urms="+bs.rms.toPrecision(4)+"，Umax=max|u|="+bs.max.toPrecision(4)+"；Umaxを使った指標 Re_B,max=Umax L/ν="+(bs.max*L/nub).toPrecision(4)+"。");
+    a.push(tag("時間尺度")+"t_adv=L/Uref = "+tbadv.toPrecision(4)+"（非線形移流の代表時間），t_ν=L²/ν = "+tvis.toPrecision(4)+"（粘性拡散の代表時間）。"+(frames.length?" "+currentPhysicalTimeText(tbadv,"t_adv")+"；"+currentPhysicalTimeText(tvis,"t_ν"):""));
   }else if(t==="convection"){
-    var nu=Math.max(1e-9,num(E.nu,.03)),kap=Math.max(1e-9,num(E.D,.2)),dT=convectionDeltaT(),B=num(E.buoyancy,1),Pr=nu/kap;
-    a.push(tag("設定値から決定")+"Prandtl数 Pr=ν/κ = <b>"+Pr.toPrecision(4)+"</b>");
-    if(dT>0)a.push(tag("代表値")+"Rayleigh型指標 BΔT L³/(νκ) = <b>"+(B*dT*L**3/(nu*kap)).toPrecision(4)+"</b>（Bをgβに相当する無次元化係数として解釈）");
-    else a.push("固定温度差 ΔT が定義できないため、Rayleigh型指標は表示しません。");
+    var nu=Math.max(1e-9,num(E.nu,.03)),kap=Math.max(1e-9,num(E.D,.2)),dT=convectionDeltaT(),gb=num(E.buoyancy,1),Pr=nu/kap;
+    a.push(tag("記号")+"ν：動粘性係数，κ：温度Tの熱拡散係数，gβ：設定した浮力係数（gは重力加速度、βは熱膨張係数），ΔT：固定温度境界から得る代表温度差。渦度方程式では浮力項 (gβ)∂T/∂x として使います。");
+    a.push(tag("無次元数")+"Prandtl数 Pr=ν/κ = <b>"+Pr.toPrecision(4)+"</b>：運動量拡散と熱拡散の比。");
+    if(dT>0)a.push(tag("代表指標")+"Ra*=(gβ)ΔT L³/(νκ) = <b>"+(gb*dT*L**3/(nu*kap)).toPrecision(4)+"</b>。標準的なBoussinesq系のRayleigh数と同じ形ですが、このシミュレータの係数・変数のスケーリングに依存するため、ここではRayleigh型指標 Ra* として表示します。");
+    else a.push("固定温度境界から代表温度差ΔTを定義できないため、Rayleigh型指標 Ra* は表示しません。");
     var tk=L*L/kap,tn=L*L/nu;
-    a.push(tag("時間尺度")+"熱拡散 t_κ=L²/κ="+tk.toPrecision(4)+"，粘性 t_ν=L²/ν="+tn.toPrecision(4));
+    a.push(tag("時間尺度")+"t_κ=L²/κ="+tk.toPrecision(4)+"（熱拡散時間），t_ν=L²/ν="+tn.toPrecision(4)+"（粘性拡散時間）。");
   }else if(t==="wave"){
     if(E.waveModel.value==="generic"){
       var c=Math.max(1e-9,num(E.waveSpeed,1)),tw=L/c;
-      a.push(tag("設定値から決定")+"波の横断時間 t_wave=L/c = <b>"+tw.toPrecision(4)+"</b>"+(frames.length?"；"+currentPhysicalTimeText(tw,"t_wave"):""));
-      if(E.waveSourceMode.value!=="off")a.push("継続波源あり：波エネルギーは保存量ではありません。");
-      if(E.waveObstacleMode.value!=="off"&&E.dimension.value==="2d")a.push("内部反射境界あり：障害物界面の数値流束で q·n=0 を直接課します。");
+      a.push(tag("記号")+"c：通常波動方程式に設定した一定波速。");
+      a.push(tag("時間尺度")+"t_wave=L/c = <b>"+tw.toPrecision(4)+"</b>：波が領域長Lを進む時間。"+(frames.length?" "+currentPhysicalTimeText(tw,"t_wave"):""));
+      if(E.waveSourceMode.value!=="off")a.push("継続波源あり：外部から波を駆動しているため、閉じた無源系の波エネルギー保存とは直接比較できません。");
+      if(E.waveObstacleMode.value!=="off"&&E.dimension.value==="2d")a.push("内部反射境界あり：障害物境界の法線方向nに対して波動フラックス q の法線成分 q·n=0 を課します。");
     }else{
-      var H=num(E.waveWaterDepth,.2),kh=characteristicWaveNumber()*H;
-      a.push(tag("代表値")+"代表 kH ≈ <b>"+kh.toPrecision(3)+"</b>："+(E.waveModel.value==="shallow"?(kh<.3?"浅水近似に適した範囲":kh<.7?"浅水近似は要注意":"浅水近似には不適切"):(kh>3?"深水近似に適した範囲":kh>1.5?"深水近似は要注意":"深水近似には不適切")));
+      var H=num(E.waveWaterDepth,.2),k=characteristicWaveNumber(),kh=k*H;
+      var kdef=(E.initial.value==="sine")
+        ?"正弦波初期条件なので k=2π/L"
+        :"初期分布の代表幅ℓから k≈1/ℓ と見積もる（不連続初期条件では格子Nyquist波数を目安にする）";
+      a.push(tag("記号")+"H：基準水深，k：代表水平波数。"+kdef+"。したがってkHは「水深÷水平波長スケール」を表す無次元指標です。");
+      a.push(tag("無次元指標")+"kH ≈ <b>"+kh.toPrecision(3)+"</b>。浅水極限はkH≪1、深水極限はkH≫1を仮定します。現在の判定しきい値は教育用の目安で、厳密な境界ではありません。");
       if(E.waveModel.value==="shallow"){
-        var cs=Math.sqrt(num(E.waveWaterG,1)*H),ts=L/cs;
-        a.push(tag("時間尺度")+"長波横断時間 L/√(gH) = "+ts.toPrecision(4)+(frames.length?"；"+currentPhysicalTimeText(ts,"t_wave"):""));
+        var g=num(E.waveWaterG,1),cs=Math.sqrt(g*H),ts=L/cs;
+        a.push(tag("記号")+"g：重力加速度。浅水極限の線形長波速度 c₀=√(gH)="+cs.toPrecision(4)+"。");
+        a.push(tag("時間尺度")+"t_wave=L/c₀=L/√(gH) = "+ts.toPrecision(4)+(frames.length?"；"+currentPhysicalTimeText(ts,"t_wave"):""));
+      }else{
+        a.push(tag("分散関係")+"深水極限では各Fourierモードについて ω²=g|k|。ωは角周波数で、kによって位相速度が変わります。");
       }
     }
   }else if(t==="shallow-water"||t==="shallow-water-1d"){
-    var cg=Math.sqrt(num(E.shallowG,1)*num(E.shallowH0,1)),tsh=L/cg;
-    a.push(tag("設定値から決定")+"代表長波速度 √(gH₀) = <b>"+cg.toPrecision(4)+"</b>");
-    a.push(tag("時間尺度")+"t_wave=L/√(gH₀) = "+tsh.toPrecision(4)+(frames.length?"；"+currentPhysicalTimeText(tsh,"t_wave"):""));
+    var g0=num(E.shallowG,1),H0=num(E.shallowH0,1),cg=Math.sqrt(g0*H0),tsh=L/cg;
+    a.push(tag("記号")+"g：重力加速度，H₀：設定した基準水深，h：局所水深，u：水平流速。");
+    a.push(tag("代表速度")+"線形長波速度 c₀=√(gH₀) = <b>"+cg.toPrecision(4)+"</b>。");
+    a.push(tag("時間尺度")+"t_wave=L/c₀ = "+tsh.toPrecision(4)+"：長波が領域長Lを進む代表時間。"+(frames.length?" "+currentPhysicalTimeText(tsh,"t_wave"):""));
+    a.push(tag("局所指標")+"Froude数 Fr=|u|/√(gh)。Fr<1は亜臨界、Fr>1は超臨界の目安で、表示モード「Froude数」では各格子点のhとuから評価します。");
   }else if(t==="reaction-diffusion"){
     var Du=num(E.reactionDu,.0064),Dv=Math.max(1e-9,num(E.reactionDv,.0032));
-    a.push(tag("設定値から決定")+"拡散比 Dᵤ/Dᵥ = <b>"+(Du/Dv).toPrecision(4)+"</b>");
-    a.push(tag("時間尺度")+"L²/Dᵤ="+(L*L/Du).toPrecision(4)+"，L²/Dᵥ="+(L*L/Dv).toPrecision(4)+"（反応時間尺度はF,kにも依存）");
+    a.push(tag("記号")+"Dᵤ, Dᵥ：Gray–Scottモデルの場u,vの拡散係数。F：供給率（feed rate），k：除去率（kill rate）。ここでのkは波数ではありません。");
+    a.push(tag("代表指標")+"拡散比 Dᵤ/Dᵥ = <b>"+(Du/Dv).toPrecision(4)+"</b>。パターンはこの比だけでなくFとkにも依存します。");
+    a.push(tag("時間尺度")+"拡散だけを基準にした領域スケール時間 L²/Dᵤ="+(L*L/Du).toPrecision(4)+"，L²/Dᵥ="+(L*L/Dv).toPrecision(4)+"。反応を含む実際の発展時間はF,kにも依存します。");
   }else if(t==="cahn-hilliard"){
     var kapc=Math.max(1e-12,num(E.cahnKappa,.05)),M=Math.max(1e-12,num(E.cahnM,1));
-    a.push(tag("設定値から決定")+"界面長さの目安 √κ = <b>"+Math.sqrt(kapc).toPrecision(4)+"</b>");
-    a.push(tag("代表値")+"勾配項支配の時間尺度の目安 L⁴/(Mκ) = "+(L**4/(M*kapc)).toPrecision(4)+"（非線形バルク項もあるため厳密な緩和時間ではありません）");
-  }else a.push("現在の係数と保存量を直接比較してください。");
+    a.push(tag("記号")+"M：mobility（化学ポテンシャル勾配に対する保存流束の比例係数），κ：自由エネルギーの勾配エネルギー係数。現在の無次元化ではバルク自由エネルギー係数を1としているため、界面厚さの代表スケールはℓ_int≈√κです。");
+    a.push(tag("代表長さ")+"ℓ_int≈√κ = <b>"+Math.sqrt(kapc).toPrecision(4)+"</b>。これは格子で十分解像されている必要があります。");
+    a.push(tag("時間尺度")+"勾配項だけから得る目安 t_CH≈L⁴/(Mκ) = "+(L**4/(M*kapc)).toPrecision(4)+"。非線形バルク項も作用するため、厳密な相分離・粗大化時間ではありません。");
+  }else{
+    a.push("この方程式については、現在の診断パネルでは単一の代表無次元数を定義していません。");
+  }
   E.physicsDiagnostics.innerHTML=a.filter(Boolean).join("<br>");
   if(!skipSupport)updatePhysicsRegimeSupport();
 }
@@ -2554,44 +2783,44 @@ function physicsRegimeSummary(){
   if(t==="advection")return "<b>移流レジーム</b>：分布は速度場に沿って運ばれます。理想的には形を保って輸送され、数値的なにじみは離散化誤差です。";
   if(t==="advection-diffusion"){
     var U=characteristicAdvectionSpeed(),D=Math.max(1e-9,num(E.D,.2)),Pe=U*L/D;
-    return Pe>10?"<b>移流優勢</b>：Pe="+Pe.toPrecision(4)+" ≫ 1。運ばれる効果が拡散より強い条件です。":
-           Pe<.1?"<b>拡散優勢</b>：Pe="+Pe.toPrecision(4)+" ≪ 1。拡散による平滑化が移流より強い条件です。":
-           "<b>遷移レジーム</b>：Pe="+Pe.toPrecision(4)+"。移流と拡散の両方が重要です。";
+    return Pe>10?"<b>移流優勢</b>：Péclet数 Pe=Uchar L/D="+Pe.toPrecision(4)+" ≫ 1。運ばれる効果が拡散より強い条件です。":
+           Pe<.1?"<b>拡散優勢</b>：Péclet数 Pe=Uchar L/D="+Pe.toPrecision(4)+" ≪ 1。拡散による平滑化が移流より強い条件です。":
+           "<b>遷移レジーム</b>：Péclet数 Pe=Uchar L/D="+Pe.toPrecision(4)+"。移流と拡散の両方が重要です。";
   }
   if(t==="burgers"||t==="burgers-2d"){
     var nu=t==="burgers"?Math.max(1e-9,num(E.burgersNu,.02)):Math.max(1e-9,num(E.burgers2dNu,.02));
     var Re=burgersReferenceSpeed()*L/nu;
-    return Re>100?"<b>非線形移流が強いBurgersレジーム</b>：Re型比≈"+Re.toPrecision(4)+"。急峻化・衝撃波的構造が現れやすい条件です。":
-           Re<1?"<b>粘性優勢Burgersレジーム</b>：Re型比≈"+Re.toPrecision(4)+"。粘性平滑化が強い条件です。":
-           "<b>移流と粘性の競合レジーム</b>：Re型比≈"+Re.toPrecision(4)+"。";
+    return Re>100?"<b>非線形移流が強いBurgersレジーム</b>：Burgers指標 Re_B=Uref L/ν≈"+Re.toPrecision(4)+"。急峻化・衝撃波的構造が現れやすい条件です。":
+           Re<1?"<b>粘性優勢Burgersレジーム</b>：Burgers指標 Re_B=Uref L/ν≈"+Re.toPrecision(4)+"。粘性平滑化が強い条件です。":
+           "<b>移流と粘性の競合レジーム</b>：Burgers指標 Re_B=Uref L/ν≈"+Re.toPrecision(4)+"。";
   }
   if(t==="wave"){
     if(E.waveModel.value==="generic"){
       var extra=[];
       if(E.waveSourceMode.value!=="off")extra.push("継続波源あり");
       if(E.dimension.value==="2d"&&E.waveObstacleMode.value!=="off")extra.push("内部反射境界あり");
-      return "<b>一定波速・非分散波動レジーム</b>：波速cを一定として伝播します。"+(extra.length?" 現在は"+extra.join("・")+"です。":"");
+      return "<b>一定波速・非分散波動レジーム</b>：cは設定した一定波速で、すべての波長成分を同じcで伝播させます。"+(extra.length?" 現在は"+extra.join("・")+"です。":"");
     }
     var kh=characteristicWaveNumber()*num(E.waveWaterDepth,.2);
     if(E.waveModel.value==="shallow")
-      return kh<.3?"<b>浅水極限がよく成立</b>：kH≈"+kh.toPrecision(3)+"。長波として扱いやすい条件です。":
-             kh<.7?"<b>浅水極限の境界付近</b>：kH≈"+kh.toPrecision(3)+"。近似誤差に注意してください。":
-             "<b>浅水近似に不向き</b>：kH≈"+kh.toPrecision(3)+"。水深を浅くするか代表波長を長くする必要があります。";
-    return kh>3?"<b>深水極限がよく成立</b>：kH≈"+kh.toPrecision(3)+"。":
-           kh>1.5?"<b>深水極限の境界付近</b>：kH≈"+kh.toPrecision(3)+"。":
-           "<b>深水近似に不向き</b>：kH≈"+kh.toPrecision(3)+"。水深を深くするか代表波長を短くする必要があります。";
+      return kh<.3?"<b>浅水極限がよく成立</b>：kH≈"+kh.toPrecision(3)+"（k：代表水平波数、H：基準水深）。長波として扱いやすい条件です。":
+             kh<.7?"<b>浅水極限の境界付近</b>：kH≈"+kh.toPrecision(3)+"（k：代表水平波数、H：基準水深）。近似誤差に注意してください。":
+             "<b>浅水近似に不向き</b>：kH≈"+kh.toPrecision(3)+"（k：代表水平波数、H：基準水深）。水深を浅くするか代表波長を長くする必要があります。";
+    return kh>3?"<b>深水極限がよく成立</b>：kH≈"+kh.toPrecision(3)+"（k：代表水平波数、H：基準水深）。":
+           kh>1.5?"<b>深水極限の境界付近</b>：kH≈"+kh.toPrecision(3)+"（k：代表水平波数、H：基準水深）。":
+           "<b>深水近似に不向き</b>：kH≈"+kh.toPrecision(3)+"（k：代表水平波数、H：基準水深）。水深を深くするか代表波長を短くする必要があります。";
   }
   if(t==="convection"){
     var Pr=Math.max(1e-9,num(E.nu,.03))/Math.max(1e-9,num(E.D,.2)),dT=convectionDeltaT();
     var ptxt=Pr>2?"運動量拡散が熱拡散より相対的に強い":Pr<.5?"熱拡散が運動量拡散より相対的に強い":"運動量拡散と熱拡散が同程度";
-    return "<b>自然対流レジーム</b>：Pr="+Pr.toPrecision(4)+" で、"+ptxt+"条件です。"+(dT>0?" 固定壁間の代表温度差ΔT="+dT.toPrecision(4)+"。":" 固定壁の温度差が定義できないためRayleigh型診断は限定的です。");
+    return "<b>自然対流レジーム</b>：Prandtl数 Pr=ν/κ="+Pr.toPrecision(4)+" で、"+ptxt+"条件です。"+(dT>0?" 固定温度境界から得た代表温度差 ΔT="+dT.toPrecision(4)+"。":" 固定温度境界からΔTを定義できないためRayleigh型診断は限定的です。");
   }
   if(t==="reaction-diffusion"){
     var r=num(E.reactionDu,.0064)/Math.max(1e-9,num(E.reactionDv,.0032));
-    return "<b>反応拡散・パターン形成レジーム</b>：Dᵤ/Dᵥ="+r.toPrecision(4)+"。単一の「支配項」より、拡散比とF,kの組合せでパターンが決まります。";
+    return "<b>反応拡散・パターン形成レジーム</b>：拡散係数比 Dᵤ/Dᵥ="+r.toPrecision(4)+"。Dᵤ,Dᵥは場u,vの拡散係数、Fは供給率、kは除去率です。単一の「支配項」より、これらの組合せでパターンが決まります。";
   }
-  if(t==="cahn-hilliard")return "<b>保存型相分離レジーム</b>：平均φを保ちながら自由エネルギーを下げる方向へ相分離します。κが界面幅、Mが時間尺度を主に調整します。";
-  if(t==="shallow-water"||t==="shallow-water-1d")return "<b>浅水・長波レジーム</b>：鉛直加速度を無視した長波モデルです。代表長波速度は√(gH₀)です。";
+  if(t==="cahn-hilliard")return "<b>保存型相分離レジーム</b>：平均φを保ちながら自由エネルギーを下げる方向へ相分離します。κは勾配エネルギー係数、Mはmobilityです。現在の無次元化では界面厚さの代表スケールが√κとなり、Mは主に発展速度を調整します。";
+  if(t==="shallow-water"||t==="shallow-water-1d")return "<b>浅水・長波レジーム</b>：鉛直加速度を無視した長波モデルです。gを重力加速度、H₀を基準水深とすると、線形長波の代表速度は√(gH₀)です。";
   return "<b>診断</b>：この条件では単一の代表無次元数による支配レジーム分類を行っていません。";
 }
 
@@ -2601,10 +2830,10 @@ function physicsSupportButtons(){
   if(t==="diffusion"){add("Dを1/2","D-half");add("Dを2倍","D-double");}
   else if(t==="advection"){add("代表速度を1/2","speed-half");add("代表速度を2倍","speed-double");}
   else if(t==="advection-diffusion"){add("Pe≈0.1","Pe-0.1");add("Pe≈1","Pe-1");add("Pe≈10","Pe-10");add("Pe≈100","Pe-100");}
-  else if(t==="burgers"||t==="burgers-2d"){add("Re型≈10","Re-10");add("Re型≈100","Re-100");add("Re型≈1000","Re-1000");}
+  else if(t==="burgers"||t==="burgers-2d"){add("Re_B≈10","Re-10");add("Re_B≈100","Re-100");add("Re_B≈1000","Re-1000");}
   else if(t==="wave"&&E.waveModel.value==="generic"){add("cを1/2","c-half");add("cを2倍","c-double");}
   else if(t==="wave"){add("kH≈0.1","kH-0.1");add("kH≈1","kH-1");add("kH≈10","kH-10");}
-  else if(t==="convection"){add("Pr≈0.1","Pr-0.1");add("Pr≈1","Pr-1");add("Pr≈10","Pr-10");add("浮力係数Bを1/10","B-tenth");add("浮力係数Bを10倍","B-ten");}
+  else if(t==="convection"){add("Pr≈0.1","Pr-0.1");add("Pr≈1","Pr-1");add("Pr≈10","Pr-10");add("浮力係数 gβ を1/10","B-tenth");add("浮力係数 gβ を10倍","B-ten");}
   else if(t==="reaction-diffusion"){add("Dᵤ/Dᵥ≈0.5","Dr-0.5");add("Dᵤ/Dᵥ≈1","Dr-1");add("Dᵤ/Dᵥ≈2","Dr-2");}
   else if(t==="cahn-hilliard"){add("界面幅を約1/2","kappa-quarter");add("界面幅を約2倍","kappa-four");}
   else if(t==="shallow-water"||t==="shallow-water-1d"){add("H₀を1/2","H-half");add("H₀を2倍","H-double");}
@@ -4523,7 +4752,7 @@ function equationDefinition(type,dim){
     if(wm==="shallow")d={
       title:"水面重力波：浅水極限",
       f:dim==="1d"?"∂h/∂t+∂(hu)/∂x=0<br>∂(hu)/∂t+∂(hu²+gh²/2)/∂x=−gh∂b/∂x":"∂h/∂t+∇·(hu)=0<br>∂(hu)/∂t+∇·[hu⊗u+(gh²/2)I]=−gh∇b",
-      t:"波長が水深より十分長い kH≪1 の極限です。小振幅では c≈√(gH) となり、ほぼ非分散です。b は上向きを正とする海底高度で、地形源項はhydrostatic reconstructionでwell-balancedに扱います。"
+      t:"波長が水深より十分長い kH≪1 の極限です。小振幅では c≈√(gH) となり、ほぼ非分散です。b は上向きを正とする海底高度で、地形源項は hydrostatic reconstruction で処理し、η=h+b=一定・u=0 の静水状態を離散化後も保つ well-balanced 性を持たせます。"
     };
     else if(wm==="deep")d={
       title:"水面重力波：深水極限",
@@ -4563,7 +4792,7 @@ function equationDefinition(type,dim){
   else if(type==="convection") d={
     title:"Boussinesq自然対流",
     f:"∂T/∂t + ∇·(uT) = κ∇²T<br>∂ω/∂t + ∇·(uω) = ν∇²ω + gβ ∂T/∂x<br>∇²ψ = −ω,　u=∂ψ/∂y,　v=−∂ψ/∂x",
-    t:"温度 T の差が浮力を生み、渦度 ω と流速場 u を作り、その流れが再び温度を輸送します。κ は熱拡散率、ν は動粘性係数、β は熱膨張係数です。"
+    t:"温度 T の差が浮力を生み、渦度 ω と流速場 u を作り、その流れが再び温度を輸送します。κ は熱拡散率、ν は動粘性係数、g は重力加速度、β は熱膨張係数です。このシミュレータでは gβ の積を浮力係数として入力します。"
   };
   else if(type==="shallow-water-1d") d={
     title:"1D浅水方程式",
@@ -4803,11 +5032,11 @@ function analyticalSupportInfo(){
         state.equationType==="advection"||
         state.equationType==="advection-diffusion")){
       return {ok:true,type:"fourier1d-scalar",
-        description:"周期境界のFourier解析解。格子上の初期値を表すFourier級数を作り、各波数成分を exp(−Dk²t) exp(−iukt) で厳密に時間発展させます。"};
+        description:"周期境界のFourier解析解。格子上の初期値を周期Fourier補間した初期条件として、各波数成分を exp(−Dk²t) exp(−iukt) で解析的に時間発展させます。"};
     }
     if(state.equationKind==="wave"){
       return {ok:true,type:"fourier1d-wave",
-        description:"周期境界のFourier解析解。格子上の初期値をFourier級数で表し、初期波動フラックス q=0 として各波数成分を cos(c|k|t) で厳密に時間発展させます。"};
+        description:"周期境界のFourier解析解。格子上の初期値を周期Fourier補間した初期条件として表し、初期波動フラックス q=0 として各波数成分を cos(c|k|t) で解析的に時間発展させます。"};
     }
   }
 
@@ -4843,7 +5072,7 @@ function analyticalSupportInfo(){
           tp.equationType==="advection"||
           tp.equationType==="advection-diffusion")){
         return {ok:true,type:"sine2d-scalar",
-          description:"2D正弦波の閉形式解析解。一様速度場では移流による位相移動と拡散による指数減衰を厳密に計算します。"};
+          description:"2D正弦波の閉形式解析解。一様速度場では移流による位相移動と拡散による指数減衰を解析的に計算します。"};
       }
     }
     if(state.equationKind==="wave"){
@@ -8055,11 +8284,23 @@ E.comparisonPlay.addEventListener("click",function(){
   },50);
 });
 
+E.landingDim1d.addEventListener("click",function(){setLandingDimension("1d");});
+E.landingDim2d.addEventListener("click",function(){setLandingDimension("2d");});
+E.landingCustomMode.addEventListener("click",function(){openCustomSolver();});
+E.backToTitle.addEventListener("click",function(){showLanding();});
+E.switchToCustom.addEventListener("click",function(){
+  simulatorEntryMode="custom";
+  document.body.classList.remove("simple-mode");
+  updateEntryModeLabels();
+  updateModeUI();
+});
+
 E.dimension.addEventListener("change",function(){
   stop();
   var previousEquation=E.equationType.value;
   updateEquationOptionsForDimension(previousEquation);
   updateModeUI();
+  updateEntryModeLabels();
   calculate();
 });
 
@@ -8089,6 +8330,7 @@ E.equationType.addEventListener("change",function(){
     E.boundaryY.value="periodic";
   }
   updateModeUI();
+  updateEntryModeLabels();
   calculate();
 });
 
@@ -8374,7 +8616,9 @@ window.addEventListener("resize",draw);
 
 updateEquationOptionsForDimension(E.equationType.value);
 updateModeUI();
-calculate();
+renderLandingEquations();
+E.landingScreen.style.display="flex";
+E.simulatorScreen.classList.remove("active");
 
 })();
 
