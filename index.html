@@ -175,6 +175,12 @@ canvas{display:block;width:100%;height:430px}
       </div>
     </div>
 
+    <div class="group" id="transport-view-group" style="display:none">
+      <label for="transport-view-mode">表示</label>
+      <select id="transport-view-mode"></select>
+      <div class="hint" id="transport-view-description"></div>
+    </div>
+
     <div id="generic-perturbation-controls">
       <div class="group">
         <label for="generic-perturbation-mode">初期擾乱</label>
@@ -199,7 +205,17 @@ canvas{display:block;width:100%;height:430px}
         <input id="wave-speed" type="number" value="1.0" min="0.0001" max="100" step="0.1">
         <div class="hint">保存形の一次系として解きます。c が大きいほど波が速く伝播します。</div>
       </div>
-    </div>
+    
+
+      <div class="group" id="wave-view-group" style="display:none">
+        <label for="wave-view-mode">表示</label>
+        <select id="wave-view-mode">
+          <option value="wave-pressure">p 分布</option>
+          <option value="wave-flux">波動フラックスの大きさ |Q|</option>
+          <option value="wave-pressure-flux">p＋波動フラックスベクトル</option>
+        </select>
+        <div class="hint" id="wave-view-description">波動方程式の圧力（または波動変数）p(x,y,t) を表示します。</div>
+      </div></div>
 
     <div id="burgers-controls" style="display:none">
       <div class="group">
@@ -253,7 +269,18 @@ canvas{display:block;width:100%;height:430px}
         Gray–Scottモデルです。拡散は保存形のフラックスで書き、反応・供給・除去はソース項として扱います。
         プリセットはパターン形成を観察しやすい値を自動設定します。周期境界を用います。
       </div>
-    </div>
+    
+
+      <div class="group" id="reaction-view-group" style="display:none">
+        <label for="reaction-view-mode">表示</label>
+        <select id="reaction-view-mode">
+          <option value="reaction-v">V 濃度</option>
+          <option value="reaction-u">U 濃度</option>
+          <option value="reaction-difference">U−V</option>
+          <option value="reaction-rate">反応速度 UV²</option>
+        </select>
+        <div class="hint" id="reaction-view-description">Gray–Scott系の V 濃度を表示します。</div>
+      </div></div>
 
     <div id="convection-controls" style="display:none">
       <div class="group">
@@ -345,12 +372,6 @@ canvas{display:block;width:100%;height:430px}
           <option value="temperature-velocity">温度＋流速ベクトル</option>
         </select>
       </div>
-    </div>
-
-    <div class="group" id="scalar-view-group" style="display:none">
-      <label for="scalar-view-mode">表示</label>
-      <select id="scalar-view-mode"></select>
-      <div class="hint" id="scalar-view-description"></div>
     </div>
 
     <div class="group" id="grid-1d-group">
@@ -614,9 +635,15 @@ var E={
   shearRate:document.getElementById("shear-rate"),
   u1dGroup:document.getElementById("u1d-group"),
   u2dGroup:document.getElementById("u2d-group"),
-  scalarViewGroup:document.getElementById("scalar-view-group"),
-  scalarViewMode:document.getElementById("scalar-view-mode"),
-  scalarViewDescription:document.getElementById("scalar-view-description"),
+  transportViewGroup:document.getElementById("transport-view-group"),
+  transportViewMode:document.getElementById("transport-view-mode"),
+  transportViewDescription:document.getElementById("transport-view-description"),
+  waveViewGroup:document.getElementById("wave-view-group"),
+  waveViewMode:document.getElementById("wave-view-mode"),
+  waveViewDescription:document.getElementById("wave-view-description"),
+  reactionViewGroup:document.getElementById("reaction-view-group"),
+  reactionViewMode:document.getElementById("reaction-view-mode"),
+  reactionViewDescription:document.getElementById("reaction-view-description"),
   convectionControls:document.getElementById("convection-controls"),
   nu:document.getElementById("nu"),
   buoyancy:document.getElementById("buoyancy"),
@@ -1078,54 +1105,48 @@ function scalarViewDescription(mode){
 function updateScalarViewUI(){
   var type=E.equationType.value;
   var is2=E.dimension.value==="2d";
-  var active=is2 && type!=="convection";
-  E.scalarViewGroup.style.display=active?"grid":"none";
-  if(!active)return;
 
-  var options;
-  if(type==="diffusion"){
-    options=[
-      ["scalar","スカラー量 φ の分布"],
-      ["diffusive-flux","拡散フラックスの大きさ"],
-      ["scalar-diffusive-flux","φ＋拡散フラックスベクトル"]
-    ];
-  }else if(type==="advection"){
-    options=[
-      ["scalar","スカラー量 φ の分布"],
-      ["velocity","流速の大きさ"],
-      ["vorticity","渦度"],
-      ["scalar-velocity","φ＋流速ベクトル"]
-    ];
-  }else if(type==="advection-diffusion"){
-    options=[
-      ["scalar","スカラー量 φ の分布"],
-      ["velocity","流速の大きさ"],
-      ["vorticity","渦度"],
-      ["scalar-velocity","φ＋流速ベクトル"],
-      ["diffusive-flux","拡散フラックスの大きさ"],
-      ["scalar-diffusive-flux","φ＋拡散フラックスベクトル"],
-      ["total-flux","全輸送フラックスの大きさ"],
-      ["scalar-total-flux","φ＋全輸送フラックスベクトル"]
-    ];
+  E.transportViewGroup.style.display="none";
+  E.waveViewGroup.style.display="none";
+  E.reactionViewGroup.style.display="none";
+
+  if(!is2 || type==="convection")return;
+
+  if(type==="diffusion"||type==="advection"||type==="advection-diffusion"){
+    var options=[["scalar","スカラー量 φ の分布"]];
+    if(type==="diffusion"){
+      options.push(["diffusive-flux","拡散フラックスの大きさ"]);
+      options.push(["scalar-diffusive-flux","φ＋拡散フラックスベクトル"]);
+    }else if(type==="advection"){
+      options.push(["velocity","流速の大きさ"]);
+      options.push(["vorticity","渦度"]);
+      options.push(["scalar-velocity","φ＋流速ベクトル"]);
+    }else{
+      options.push(["velocity","流速の大きさ"]);
+      options.push(["vorticity","渦度"]);
+      options.push(["scalar-velocity","φ＋流速ベクトル"]);
+      options.push(["diffusive-flux","拡散フラックスの大きさ"]);
+      options.push(["scalar-diffusive-flux","φ＋拡散フラックスベクトル"]);
+      options.push(["total-flux","全輸送フラックスの大きさ"]);
+      options.push(["scalar-total-flux","φ＋全輸送フラックスベクトル"]);
+    }
+    setSelectOptions(E.transportViewMode,options,E.transportViewMode.value);
+    E.transportViewDescription.textContent=scalarViewDescription(E.transportViewMode.value);
+    E.transportViewGroup.style.display="grid";
   }else if(type==="wave"){
-    options=[
-      ["wave-pressure","p 分布"],
-      ["wave-flux","波動フラックスの大きさ |Q|"],
-      ["wave-pressure-flux","p＋波動フラックスベクトル"]
-    ];
+    E.waveViewGroup.style.display="grid";
+    E.waveViewDescription.textContent=scalarViewDescription(E.waveViewMode.value);
   }else if(type==="reaction-diffusion"){
-    options=[
-      ["reaction-v","V 濃度"],
-      ["reaction-u","U 濃度"],
-      ["reaction-difference","U−V"],
-      ["reaction-rate","反応速度 UV²"]
-    ];
-  }else{
-    options=[["scalar","スカラー量の分布"]];
+    E.reactionViewGroup.style.display="grid";
+    E.reactionViewDescription.textContent=scalarViewDescription(E.reactionViewMode.value);
   }
+}
 
-  setSelectOptions(E.scalarViewMode,options,E.scalarViewMode.value);
-  E.scalarViewDescription.textContent=scalarViewDescription(E.scalarViewMode.value);
+function active2DViewMode(){
+  if(state.equationKind==="wave")return E.waveViewMode.value;
+  if(state.equationKind==="reaction-diffusion")return E.reactionViewMode.value;
+  if(state.equationKind==="scalar")return E.transportViewMode.value;
+  return "scalar";
 }
 function updateModeUI(){
   updateLargeDomainWarning();
@@ -3058,7 +3079,7 @@ function draw2D(){
   var size=Math.max(120,Math.min(aw,ah));
   var ox=pad.l+(aw-size)/2,oy=pad.t+(ah-size)/2;
   var type=(state.transportParams&&state.transportParams.equationType)||"";
-  var mode=E.scalarViewGroup.style.display!=="none"?E.scalarViewMode.value:"scalar";
+  var mode=active2DViewMode();
   var vectorX=null,vectorY=null,quantity="φ",signed=false,fixedMin=null,fixedMax=null;
   var overlayMode=false;
 
@@ -3728,8 +3749,16 @@ E.duration.addEventListener("input",updateLargeDomainWarning);
 E.initial.addEventListener("change",function(){
   E.widthGroup.style.display=E.initial.value==="step"?"none":"grid";
 });
-E.scalarViewMode.addEventListener("change",function(){
-  E.scalarViewDescription.textContent=scalarViewDescription(E.scalarViewMode.value);
+E.transportViewMode.addEventListener("change",function(){
+  E.transportViewDescription.textContent=scalarViewDescription(E.transportViewMode.value);
+  draw();
+});
+E.waveViewMode.addEventListener("change",function(){
+  E.waveViewDescription.textContent=scalarViewDescription(E.waveViewMode.value);
+  draw();
+});
+E.reactionViewMode.addEventListener("change",function(){
+  E.reactionViewDescription.textContent=scalarViewDescription(E.reactionViewMode.value);
   draw();
 });
 E.calculate.addEventListener("click",calculate);
