@@ -196,8 +196,6 @@ canvas.shallow-1d-wide{height:300px}
         <option value="reaction-diffusion">反応拡散（Gray–Scott）</option>
         <option value="burgers-2d">Burgers方程式</option>
         <option value="cahn-hilliard">Cahn–Hilliard方程式</option>
-        <option value="shallow-water-1d">浅水方程式</option>
-        <option value="shallow-water">浅水方程式</option>
       </select>
     </div>
 
@@ -273,9 +271,32 @@ canvas.shallow-1d-wide{height:300px}
 
     <div id="wave-controls" style="display:none">
       <div class="group">
+        <label for="wave-model">波のモデル</label>
+        <select id="wave-model">
+          <option value="generic">通常の波動方程式</option>
+          <option value="shallow">水面重力波：浅水極限</option>
+          <option value="deep">水面重力波：深水極限（1D）</option>
+        </select>
+        <div class="hint" id="wave-model-description"></div>
+      </div>
+
+      <div class="group" id="generic-wave-speed-group">
         <label for="wave-speed">波速 c</label>
         <input id="wave-speed" type="number" value="1.0" min="0.0001" max="100" step="0.1">
-        <div class="hint">保存形の一次系として解きます。c が大きいほど波が速く伝播します。</div>
+        <div class="hint">通常の非分散波動方程式で使う一定波速です。</div>
+      </div>
+
+      <div id="water-wave-controls" style="display:none">
+        <div class="group">
+          <label for="wave-water-g">重力加速度 g</label>
+          <input id="wave-water-g" type="number" value="1.0" min="0.0001" max="100" step="0.1">
+        </div>
+        <div class="group">
+          <label for="wave-water-depth">基準水深 H</label>
+          <input id="wave-water-depth" type="number" value="0.20" min="0.001" max="1000" step="0.05">
+          <div class="hint">浅水極限では c≈√(gH)。深水極限では ω²=gk を使います。</div>
+        </div>
+        <div id="wave-regime-warning" class="shallow-validity ok"></div>
       </div>
     
 
@@ -879,6 +900,13 @@ var E={
   genericPerturbationAmplitudeGroup:document.getElementById("generic-perturbation-amplitude-group"),
   genericPerturbationAmplitude:document.getElementById("generic-perturbation-amplitude"),
   waveControls:document.getElementById("wave-controls"),
+  waveModel:document.getElementById("wave-model"),
+  waveModelDescription:document.getElementById("wave-model-description"),
+  genericWaveSpeedGroup:document.getElementById("generic-wave-speed-group"),
+  waterWaveControls:document.getElementById("water-wave-controls"),
+  waveWaterG:document.getElementById("wave-water-g"),
+  waveWaterDepth:document.getElementById("wave-water-depth"),
+  waveRegimeWarning:document.getElementById("wave-regime-warning"),
   waveSpeed:document.getElementById("wave-speed"),
   burgersControls:document.getElementById("burgers-controls"),
   burgersNu:document.getElementById("burgers-nu"),
@@ -1222,7 +1250,8 @@ function updateVelocityFieldUI(){
 function updateInitialOptions(){
   var is2=E.dimension.value==="2d";
   var eq=E.equationType.value;
-  var isShallow=(eq==="shallow-water"||eq==="shallow-water-1d");
+  var isShallow=(eq==="shallow-water"||eq==="shallow-water-1d"||
+                 (eq==="wave"&&(E.waveModel.value==="shallow"||E.waveModel.value==="deep")));
   var only2D={ring:true,checkerboard:true,circle:true,"multi-spots":true};
   var shallowOnly={"tsunami-uplift":true,"tsunami-dipole":true};
 
@@ -1318,6 +1347,7 @@ function markReactionCustom(){
 function fieldDisplayLabel(){
   if(state.equationKind==="burgers")return "u";
   if(state.equationKind==="wave")return "p";
+  if(state.equationKind==="wave-deep"||state.equationKind==="wave-shallow")return "η";
   if(state.equationKind==="reaction-diffusion")return "V";
   return "φ";
 }
@@ -1627,20 +1657,16 @@ var equationCatalog=[
   {value:"wave",label:"波動方程式",dims:["1d","2d"]},
 
   {value:"burgers",label:"Burgers方程式",dims:["1d"]},
-  {value:"shallow-water-1d",label:"浅水方程式",dims:["1d"]},
 
   {value:"convection",label:"自然対流",dims:["2d"]},
   {value:"reaction-diffusion",label:"反応拡散（Gray–Scott）",dims:["2d"]},
   {value:"burgers-2d",label:"Burgers方程式",dims:["2d"]},
-  {value:"cahn-hilliard",label:"Cahn–Hilliard方程式",dims:["2d"]},
-  {value:"shallow-water",label:"浅水方程式",dims:["2d"]}
+  {value:"cahn-hilliard",label:"Cahn–Hilliard方程式",dims:["2d"]}
 ];
 
 function equationCounterpartForDimension(value,dim){
   if(value==="burgers"&&dim==="2d")return "burgers-2d";
   if(value==="burgers-2d"&&dim==="1d")return "burgers";
-  if(value==="shallow-water-1d"&&dim==="2d")return "shallow-water";
-  if(value==="shallow-water"&&dim==="1d")return "shallow-water-1d";
   return null;
 }
 
@@ -1734,6 +1760,94 @@ function clearComparisonCanvases(){
   }
 }
 
+
+function waveCharacteristicWavenumber(){
+  var L=Math.max(1e-12,num(E.length,10));
+  var sigma=Math.max(.05,num(E.width,.65));
+  var init=E.initial.value;
+  var ell=sigma;
+
+  if(init==="sine")ell=L/(2*Math.PI);
+  else if(init==="pulse"||init==="step"||init==="left-right"||
+          init==="checkerboard"||init==="circle"||init==="random"){
+    var N=E.dimension.value==="2d"?integerGrid(E.grid2d,51,11,1001):integerGrid(E.grid1d,181,21,5001);
+    ell=L/N;
+  }else if(init==="tsunami-uplift"||init==="tsunami-dipole"){
+    ell=Math.max(.04*L,sigma);
+  }
+
+  return 1/Math.max(1e-12,ell);
+}
+
+function updateWaveRegimeWarning(){
+  if(!E.waveRegimeWarning)return;
+  var model=E.waveModel.value;
+  if(model==="generic"){E.waveRegimeWarning.innerHTML="";return;}
+
+  var H=Math.max(.001,num(E.waveWaterDepth,.20));
+  var k=waveCharacteristicWavenumber();
+  var kh=k*H;
+  var cls="ok",head="",body="";
+
+  if(model==="shallow"){
+    head=kh<=.3?"浅水極限として概ね妥当そうです":
+         kh<=.7?"注意：浅水極限がやや弱い設定です":"注意：浅水極限から外れやすい設定です";
+    cls=kh<=.3?"ok":(kh<=.7?"caution":"warn");
+    body="代表値 kH≈"+kh.toPrecision(3)+"。浅水極限は kH≪1（波長が水深より十分長い）を仮定します。";
+  }else{
+    head=kh>=3?"深水極限として概ね妥当そうです":
+         kh>=1.5?"注意：深水極限がやや弱い設定です":"注意：深水極限から外れやすい設定です";
+    cls=kh>=3?"ok":(kh>=1.5?"caution":"warn");
+    body="代表値 kH≈"+kh.toPrecision(3)+"。深水極限は kH≫1（波長に比べて十分深い）を仮定します。";
+  }
+
+  var discontinuous=(E.initial.value==="pulse"||E.initial.value==="step"||
+                     E.initial.value==="left-right"||E.initial.value==="checkerboard"||
+                     E.initial.value==="circle"||E.initial.value==="random");
+  if(discontinuous){
+    cls="warn";
+    body+=" 不連続・格子スケール成分は広い波数を含むため、単一の浅水／深水極限としての解釈には注意が必要です。";
+  }
+  E.waveRegimeWarning.className="shallow-validity "+cls;
+  E.waveRegimeWarning.innerHTML="<b>"+head+"</b><br>"+body+
+    "<br>※kH≈0.3, 0.7, 1.5, 3 は教育用の目安で、厳密な境界ではありません。";
+}
+
+function applyWaveModelPreset(model){
+  if(model==="shallow"){
+    E.initial.value="tsunami-uplift";
+    E.width.value=String(Math.max(2.0,0.22*num(E.length,10)));
+    E.waveWaterDepth.value="0.20";
+  }else if(model==="deep"){
+    E.initial.value="gaussian";
+    E.width.value=String(Math.max(.35,0.06*num(E.length,10)));
+    E.waveWaterDepth.value="5.0";
+    if(E.dimension.value==="2d"){
+      E.dimension.value="1d";
+      updateEquationOptionsForDimension("wave");
+    }
+  }else{
+    E.initial.value="gaussian";
+    E.width.value=".65";
+  }
+  updateInitialOptions();
+  updateWaveRegimeWarning();
+}
+
+function updateWaveModelUI(){
+  var model=E.waveModel.value;
+  E.genericWaveSpeedGroup.style.display=model==="generic"?"grid":"none";
+  E.waterWaveControls.style.display=model==="generic"?"none":"block";
+  if(model==="generic"){
+    E.waveModelDescription.textContent="一定波速 c の非分散波動方程式です。水深や重力は使いません。";
+  }else if(model==="shallow"){
+    E.waveModelDescription.textContent="浅水方程式を使用します。水量・水平運動量を保存形で発展させ、c≈√(gH) の長波を表します。";
+  }else{
+    E.waveModelDescription.textContent="深水重力波の分散関係 ω²=g|k| を用いて、1D周期領域をFourierモードごとに時間発展させます。";
+  }
+  updateWaveRegimeWarning();
+}
+
 function updateModeUI(){
   updateLargeDomainWarning();
 
@@ -1759,6 +1873,7 @@ function updateModeUI(){
   E.DLabel.textContent=isConv?"熱拡散率 κ":"拡散係数 D";
 
   E.waveControls.style.display=isWave?"block":"none";
+  if(isWave)updateWaveModelUI();
   E.burgersControls.style.display=isBurgers?"block":"none";
   E.reactionControls.style.display=isReaction?"block":"none";
   E.burgers2dControls.style.display=isBurgers2D?"block":"none";
@@ -1810,20 +1925,44 @@ function updateModeUI(){
   }
 
   if(isWave){
-    if(!is2){
+    var wm=E.waveModel.value;
+    if(wm==="shallow"){
+      if(!is2){
+        E.equation.innerHTML=
+          "∂h/∂t + ∂(hu)/∂x = 0" +
+          "<br>∂(hu)/∂t + ∂(hu² + gh²/2)/∂x = 0" +
+          "<br>（小振幅極限：∂²η/∂t² ≈ gH ∂²η/∂x²,　c≈√(gH)）";
+      }else{
+        E.equation.innerHTML=
+          "∂h/∂t + ∇·(h<b>u</b>) = 0" +
+          "<br>∂(h<b>u</b>)/∂t + ∇·[h<b>u</b>⊗<b>u</b>+(gh²/2)I] = 0";
+      }
+      E.subtitle.textContent="水面重力波：浅水極限。波長が水深より十分長い場合の長波を表します。";
+      E.note.textContent="浅水方程式を保存形Rusanov流束で解きます。この波動モードでは平坦海底を使い、通常の波動方程式との違いを水深依存の波速と非線形性として観察できます。";
+      E.legend.style.display=is2?"flex":"none";
+    }else if(wm==="deep"){
       E.equation.innerHTML=
-        "∂p/∂t + c ∂q/∂x = 0" +
-        "<br>∂q/∂t + c ∂p/∂x = 0" +
-        "<br>（⇒ ∂²p/∂t² = c² ∂²p/∂x²）";
+        "η̂ₖ,tt + g|k| η̂ₖ = 0" +
+        "<br>ω² = g|k|　（深水極限 kH≫1）";
+      E.subtitle.textContent="水面重力波：深水極限。波長ごとに波速が異なる分散性を観察します。";
+      E.note.textContent="1D周期領域で初期自由水面をFourier分解し、各モードを解析的に時間発展させます。これは深水線形重力波の分散を直接表すため、数値的な移流拡散とは区別できます。";
+      E.legend.style.display="none";
     }else{
-      E.equation.innerHTML=
-        "∂p/∂t + c(∂qₓ/∂x + ∂qᵧ/∂y) = 0" +
-        "<br>∂qₓ/∂t + c ∂p/∂x = 0,　∂qᵧ/∂t + c ∂p/∂y = 0" +
-        "<br>（⇒ ∂²p/∂t² = c²∇²p）";
+      if(!is2){
+        E.equation.innerHTML=
+          "∂p/∂t + c ∂q/∂x = 0" +
+          "<br>∂q/∂t + c ∂p/∂x = 0" +
+          "<br>（⇒ ∂²p/∂t² = c² ∂²p/∂x²）";
+      }else{
+        E.equation.innerHTML=
+          "∂p/∂t + c(∂qₓ/∂x + ∂qᵧ/∂y) = 0" +
+          "<br>∂qₓ/∂t + c ∂p/∂x = 0,　∂qᵧ/∂t + c ∂p/∂y = 0" +
+          "<br>（⇒ ∂²p/∂t² = c²∇²p）";
+      }
+      E.subtitle.textContent="通常の非分散波動方程式を一階の保存形双曲型システムとして解きます。";
+      E.note.textContent="保存形の2次精度Lax–Wendroff数値流束を用います。波速 c は一定で、波長による物理的分散はありません。";
+      E.legend.style.display=is2?"flex":"none";
     }
-    E.subtitle.textContent="波動方程式を一階の保存形双曲型システムとして解きます。表示量は p です。";
-    E.note.textContent="保存形の2次精度Lax–Wendroff数値流束を用います。2Dでは各方向の保存形更新をStrang分割で組み合わせます。Rusanov法より数値散逸が小さく、周期境界・十分な解像度では波形やエネルギーの数値減衰を抑えやすい方法ですが、離散エネルギーを厳密保存する手法ではありません。";
-    E.legend.style.display=is2?"flex":"none";
     return;
   }
 
@@ -1903,6 +2042,9 @@ function readParams(){
   var p={
     D:useDiff?clamp(num(E.D,.2),.0001,10):0,
     waveSpeed:clamp(num(E.waveSpeed,1),.0001,100),
+    waveModel:E.waveModel.value,
+    waveWaterG:clamp(num(E.waveWaterG,1),.0001,100),
+    waveWaterDepth:clamp(num(E.waveWaterDepth,.20),.001,1000),
     burgersNu:clamp(num(E.burgersNu,.02),0,10),
     reactionDu:clamp(num(E.reactionDu,.0064),.000001,10),
     reactionDv:clamp(num(E.reactionDv,.0032),.000001,10),
@@ -2845,6 +2987,91 @@ function waveLaxWendroffStep1D(pressure,q,c,dt,dx,boundary,bcLeft,bcRight){
   return [pn,qn];
 }
 
+
+function dftReal1D(a){
+  var N=a.length,re=new Float64Array(N),im=new Float64Array(N);
+  for(var k=0;k<N;k++){
+    var sr=0,si=0;
+    for(var n=0;n<N;n++){
+      var th=2*Math.PI*k*n/N;
+      sr+=a[n]*Math.cos(th);si-=a[n]*Math.sin(th);
+    }
+    re[k]=sr/N;im[k]=si/N;
+  }
+  return [re,im];
+}
+
+function inverseDeepFrame(re0,im0,t,g,L){
+  var N=re0.length,out=new Float64Array(N);
+  for(var n=0;n<N;n++){
+    var sum=0;
+    for(var k=0;k<N;k++){
+      var signedK=(k<=N/2)?k:k-N;
+      var kval=2*Math.PI*Math.abs(signedK)/L;
+      var omega=Math.sqrt(g*kval);
+      var fac=(kval===0)?1:Math.cos(omega*t);
+      var th=2*Math.PI*k*n/N;
+      sum+=fac*(re0[k]*Math.cos(th)-im0[k]*Math.sin(th));
+    }
+    out[n]=sum;
+  }
+  return out;
+}
+
+
+async function calcWaveShallow1D(p,serial){
+  var q=Object.assign({},p,{
+    shallowG:p.waveWaterG,shallowH0:p.waveWaterDepth,
+    shallowTerrain:"flat",shallowTerrainAmplitude:0,
+    shallowTsunamiAmplitude:.08
+  });
+  await calcShallowWater1D(q,serial);
+  state.waveModel="shallow";
+  state.waveWaterDepth=p.waveWaterDepth;
+}
+async function calcWaveShallow2D(p,serial){
+  var q=Object.assign({},p,{
+    shallowG:p.waveWaterG,shallowH0:p.waveWaterDepth,
+    shallowTerrain:"flat",shallowTerrainAmplitude:0,
+    shallowTsunamiAmplitude:.08
+  });
+  await calcShallowWater(q,serial);
+  state.waveModel="shallow";
+  state.waveWaterDepth=p.waveWaterDepth;
+}
+async function calcDeepWater1D(p,serial){
+  var N=p.grid1d,L=p.L,dx=L/N,frameCount=320,displayDt=p.T/(frameCount-1);
+  var eta=init1D(p.type,N,L,p.sigma,dx);
+  if(p.type==="tsunami-uplift"||p.type==="tsunami-dipole"){
+    // Use the selected shape directly as a small free-surface displacement.
+  }
+  if(p.genericPerturbationMode==="on")
+    eta=applyGenericPerturbation1D(eta,L,dx,p.genericPerturbationAmplitude);
+
+  var spec=dftReal1D(eta),re0=spec.re||spec[0],im0=spec.im||spec[1];
+  frames=[];times=[];
+  var max0=0;
+  for(var i=0;i<N;i++)max0=Math.max(max0,Math.abs(eta[i]));
+  if(max0===0)max0=1;
+
+  for(var f=0;f<frameCount;f++){
+    var t=f*displayDt;
+    frames.push(inverseDeepFrame(re0,im0,t,p.waveWaterG,L));
+    times.push(t);
+    updateCalculationProgress(100*f/(frameCount-1));
+    if(f%3===0)await maybeYieldToBrowser(serial,false);
+  }
+
+  state={
+    mode:"1d",equationKind:"wave-deep",fieldLabel:"η",fieldAxisLabel:"自由水面 η(x,t)",
+    L:L,N:N,dx:dx,periodic:true,plotMin:-1.08*max0,plotMax:1.08*max0,
+    initialType:p.type,waveModel:"deep",waveWaterG:p.waveWaterG,waveWaterDepth:p.waveWaterDepth
+  };
+  E.dx.textContent="N = "+N+"　Δx = "+dx.toPrecision(4);
+  E.dt.textContent="各保存フレームを分散関係から直接評価";
+  E.mass.textContent="深水分散：ω²=g|k|";
+}
+
 async function calcWave1D(p,serial){
   var N=p.grid1d,periodic=(p.boundary1d==="periodic");
   var dx=periodic?p.L/N:p.L/(N-1);
@@ -3628,13 +3855,24 @@ function equationDefinition(type,dim){
     f:dim==="1d"?"∂φ/∂t + ∂(uφ−D∂φ/∂x)/∂x = 0":"∂φ/∂t + ∇·(uφ−D∇φ) = 0",
     t:"移流フラックス uφ と拡散フラックス −D∇φ を同時に扱います。境界を通る流束がなければ総量保存と整合する保存形です。"
   };
-  else if(type==="wave") d={
-    title:"波動方程式",
-    f:dim==="1d"
-      ?"∂p/∂t + c∂q/∂x = 0<br>∂q/∂t + c∂p/∂x = 0<br>⇒ ∂²p/∂t² = c²∂²p/∂x²"
-      :"∂p/∂t + c∇·Q = 0<br>∂Q/∂t + c∇p = 0<br>⇒ ∂²p/∂t² = c²∇²p",
-    t:"p は波動変数、q または Q は波動フラックス、c は波速です。このアプリでは二階の波動方程式を一階の保存形システムとして解きます。"
-  };
+  else if(type==="wave"){
+    var wm=E.waveModel.value;
+    if(wm==="shallow")d={
+      title:"水面重力波：浅水極限",
+      f:dim==="1d"?"∂h/∂t+∂(hu)/∂x=0<br>∂(hu)/∂t+∂(hu²+gh²/2)/∂x=0":"∂h/∂t+∇·(hu)=0<br>∂(hu)/∂t+∇·[hu⊗u+(gh²/2)I]=0",
+      t:"波長が水深より十分長い kH≪1 の極限です。小振幅では c≈√(gH) となり、ほぼ非分散です。"
+    };
+    else if(wm==="deep")d={
+      title:"水面重力波：深水極限",
+      f:"η̂ₖ,tt+g|k|η̂ₖ=0<br>ω²=g|k|",
+      t:"kH≫1 の深水極限です。位相速度 √(g/|k|) が波長に依存するため、波束は物理的に分散します。"
+    };
+    else d={
+      title:"通常の波動方程式",
+      f:dim==="1d"?"∂p/∂t+c∂q/∂x=0<br>∂q/∂t+c∂p/∂x=0<br>⇒∂²p/∂t²=c²∂²p/∂x²":"∂p/∂t+c∇·Q=0<br>∂Q/∂t+c∇p=0<br>⇒∂²p/∂t²=c²∇²p",
+      t:"一定波速 c の非分散波動方程式です。水面波に限定されない抽象的な波動モデルです。"
+    };
+  }
   else if(type==="burgers") d={
     title:"Burgers方程式",
     f:"∂u/∂t + ∂/∂x (u²/2 − ν∂u/∂x) = 0",
@@ -6203,8 +6441,16 @@ async function calculate(){
     if(p.equationType==="convection"){
       await calcConvection(p,serial);
     }else if(p.equationType==="wave"){
-      if(p.mode==="1d")await calcWave1D(p,serial);
-      else await calcWave2D(p,serial);
+      if(p.waveModel==="shallow"){
+        if(p.mode==="1d")await calcWaveShallow1D(p,serial);
+        else await calcWaveShallow2D(p,serial);
+      }else if(p.waveModel==="deep"){
+        if(p.mode!=="1d")throw new Error("深水極限モードは現在1D表示で使用してください。");
+        await calcDeepWater1D(p,serial);
+      }else{
+        if(p.mode==="1d")await calcWave1D(p,serial);
+        else await calcWave2D(p,serial);
+      }
     }else if(p.equationType==="burgers"){
       await calcBurgers1D(p,serial);
     }else if(p.equationType==="reaction-diffusion"){
@@ -6332,6 +6578,25 @@ E.equationType.addEventListener("change",function(){
   }
   updateModeUI();
   calculate();
+});
+
+
+E.waveModel.addEventListener("change",function(){
+  stop();
+  if(E.waveModel.value==="deep"&&E.dimension.value==="2d"){
+    E.dimension.value="1d";
+    updateEquationOptionsForDimension("wave");
+    E.equationType.value="wave";
+  }
+  applyWaveModelPreset(E.waveModel.value);
+  updateModeUI();
+  calculate();
+});
+[E.waveWaterG,E.waveWaterDepth].forEach(function(el){
+  el.addEventListener("change",function(){updateWaveRegimeWarning();calculate();});
+});
+E.width.addEventListener("input",function(){
+  if(E.equationType.value==="wave")updateWaveRegimeWarning();
 });
 
 E.genericPerturbationMode.addEventListener("change",function(){
@@ -6502,6 +6767,7 @@ E.duration.addEventListener("input",updateLargeDomainWarning);
 E.initial.addEventListener("change",function(){
   E.widthGroup.style.display=E.initial.value==="step"?"none":"grid";
   updateShallowValidityWarning();
+  if(E.equationType.value==="wave")updateWaveRegimeWarning();
 });
 E.width.addEventListener("input",updateShallowValidityWarning);
 E.burgers2dInitialVector.addEventListener("change",function(){
