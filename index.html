@@ -3485,14 +3485,27 @@ function draw2D(){
     }
   }
 
-  var vmin=Infinity,vmax=-Infinity,k;
-  if(fixedMin!==null&&fixedMax!==null){vmin=fixedMin;vmax=fixedMax;}
-  else{
-    for(k=0;k<data.length;k++){if(data[k]<vmin)vmin=data[k];if(data[k]>vmax)vmax=data[k];}
-    if(signed){
-      var amax=Math.max(Math.abs(vmin),Math.abs(vmax));
-      if(amax<1e-14)amax=1;vmin=-amax;vmax=amax;
-    }else if(Math.abs(vmax-vmin)<1e-14){vmax=vmin+1;}
+  // Keep the physical extrema separate from the color-map range.
+  // A uniform field needs a finite plotting range, but that artificial
+  // range must never be reported as the actual data min/max.
+  var dataMin=Infinity,dataMax=-Infinity,k;
+  for(k=0;k<data.length;k++){
+    if(data[k]<dataMin)dataMin=data[k];
+    if(data[k]>dataMax)dataMax=data[k];
+  }
+  if(!Number.isFinite(dataMin)||!Number.isFinite(dataMax)){dataMin=0;dataMax=0;}
+
+  var vmin=dataMin,vmax=dataMax;
+  if(fixedMin!==null&&fixedMax!==null){
+    vmin=fixedMin;vmax=fixedMax;
+  }else if(signed){
+    var amax=Math.max(Math.abs(dataMin),Math.abs(dataMax));
+    if(amax<1e-14)amax=1;
+    vmin=-amax;vmax=amax;
+  }else if(Math.abs(dataMax-dataMin)<1e-14){
+    var padScale=Math.max(1,Math.abs(dataMin));
+    vmin=dataMin-0.5*padScale;
+    vmax=dataMax+0.5*padScale;
   }
 
   var off=document.createElement("canvas");off.width=N;off.height=N;
@@ -3521,8 +3534,8 @@ function draw2D(){
     var xv=ox+size*i/4;ctx.fillText((state.L*i/4).toFixed(1),xv-9,oy+size+20);
     var yv=oy+size*(1-i/4);ctx.fillText((state.L*i/4).toFixed(1),ox-38,yv+4);
   }
-  ctx.fillText(quantity+" scale min="+vmin.toPrecision(4),ox+5,oy+14);
-  ctx.fillText(quantity+" scale max="+vmax.toPrecision(4),ox+5,oy+30);
+  ctx.fillText(quantity+" min="+dataMin.toPrecision(4),ox+5,oy+14);
+  ctx.fillText(quantity+" max="+dataMax.toPrecision(4),ox+5,oy+30);
 
   if(mode==="scalar-velocity")ctx.fillText("vectors: u",ox+5,oy+46);
   else if(mode==="scalar-diffusive-flux")ctx.fillText("vectors: J_D = −D∇φ",ox+5,oy+46);
