@@ -191,6 +191,15 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
 #comparison-time-controls{margin:12px 0 14px}
 #comparison-time-controls input[type="range"]{width:100%;margin:8px 0 3px}
 #comparison-time-output{display:block;font-weight:700;font-size:14px}
+.comparison-advanced{margin:12px 0;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--card)}
+.comparison-advanced-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.comparison-advanced-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:10px}
+.comparison-case{padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--chart)}
+.comparison-case-title{font-weight:700;font-size:13px;margin-bottom:8px}
+.comparison-case .group{margin-bottom:8px}
+.comparison-case input,.comparison-case select{width:100%}
+@media(max-width:720px){.comparison-advanced-grid{grid-template-columns:1fr}}
+
 .comparison-time-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
 #comparison-play{padding:7px 16px;border-radius:9px;border:1px solid var(--line);background:#fff;font-weight:700;cursor:pointer}
 #comparison-play.active{background:var(--accent);border-color:var(--accent);color:#fff}
@@ -892,6 +901,18 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
       <div class="group"><label for="comparison-eq1">比較1</label><select id="comparison-eq1"></select></div>
       <div class="group"><label for="comparison-eq2">比較2</label><select id="comparison-eq2"></select></div>
       <div class="group"><label for="comparison-eq3">比較3</label><select id="comparison-eq3"></select></div>
+      <div class="comparison-advanced">
+        <div class="comparison-advanced-head">
+          <div><b>詳細設定モード</b><div class="hint">比較1〜3それぞれに、上の通常シミュレータの完全な設定一式を保存します。方程式固有設定・境界条件・速度場・地形などもすべて含みます。</div></div>
+          <select id="comparison-advanced-enabled" style="width:auto">
+            <option value="off">使用しない</option><option value="on">使用する</option>
+          </select>
+        </div>
+        <div id="comparison-advanced-panel" style="display:none">
+          <div class="comparison-advanced-grid" id="comparison-advanced-grid"></div>
+          <div class="hint">設定編集には上の通常シミュレータそのものを使用するため、詳細設定で使える項目は通常設定と完全に同じです。設定後に各ケースの「現在の通常設定を保存」を押してください。</div>
+        </div>
+      </div>
       <button id="comparison-start" class="comparison-start-button" type="button">比較開始</button>
       <div id="comparison-status" class="comparison-status">比較する方程式を選び、「比較開始」を押してください。</div>
       <div id="comparison-time-controls" style="display:none">
@@ -1107,6 +1128,9 @@ var E={
   comparisonEq1:document.getElementById("comparison-eq1"),
   comparisonEq2:document.getElementById("comparison-eq2"),
   comparisonEq3:document.getElementById("comparison-eq3"),
+  comparisonAdvancedEnabled:document.getElementById("comparison-advanced-enabled"),
+  comparisonAdvancedPanel:document.getElementById("comparison-advanced-panel"),
+  comparisonAdvancedGrid:document.getElementById("comparison-advanced-grid"),
   comparisonStart:document.getElementById("comparison-start"),
   comparisonStatus:document.getElementById("comparison-status"),
   comparisonTimeControls:document.getElementById("comparison-time-controls"),
@@ -1819,10 +1843,82 @@ var comparisonEquationCatalog=[
   ["wave","通常波動"]
 ];
 
+var comparisonAdvancedSnapshots=[null,null,null];
+
+function comparisonSnapshotSummary(p){
+  if(!p)return "未保存です。上の通常シミュレータで条件を設定し、「現在の通常設定を保存」を押してください。";
+  var eq=comparisonLabel(p.equationType);
+  var grid=p.mode==="2d"?p.grid2d+"×"+p.grid2d:p.grid1d;
+  return "次元："+(p.mode==="2d"?"2D":"1D")+" ／ 方程式："+eq+
+    " ／ 初期条件："+p.type+" ／ L="+p.L+" ／ T="+p.T+" ／ 格子="+grid;
+}
+function rebuildComparisonAdvanced(){
+  if(!E.comparisonAdvancedGrid)return;
+  var html="";
+  for(var i=0;i<3;i++){
+    html+='<div class="comparison-case" data-case="'+i+'">'+
+      '<div class="comparison-case-title">比較'+(i+1)+' の完全設定</div>'+
+      '<div class="hint comparison-snapshot-summary" style="min-height:52px">'+
+      escDef(comparisonSnapshotSummary(comparisonAdvancedSnapshots[i]))+'</div>'+
+      '<button type="button" data-save-case="'+i+'" style="width:100%;margin-top:8px">現在の通常設定を保存</button>'+
+      '<button type="button" data-load-case="'+i+'" style="width:100%;margin-top:6px">この設定を通常画面へ読み込む</button>'+
+      '</div>';
+  }
+  E.comparisonAdvancedGrid.innerHTML=html;
+}
+function comparisonAdvancedParams(base,index,eq){
+  if(E.comparisonAdvancedEnabled.value!=="on")return comparisonParams(base,eq);
+  var snap=comparisonAdvancedSnapshots[index];
+  if(!snap)throw new Error("比較"+(index+1)+"の詳細設定が保存されていません。");
+  return Object.assign({},snap);
+}
+function setControlValue(el,v){
+  if(!el||v===undefined||v===null)return;
+  el.value=String(v);
+}
+function applyParamsToNormalUI(p){
+  setControlValue(E.dimension,p.mode);
+  updateEquationOptionsForDimension(p.equationType);
+  setControlValue(E.equationType,p.equationType);
+  setControlValue(E.D,p.D);setControlValue(E.waveSpeed,p.waveSpeed);
+  setControlValue(E.waveModel,p.waveModel);setControlValue(E.waveWaterG,p.waveWaterG);
+  setControlValue(E.waveWaterDepth,p.waveWaterDepth);setControlValue(E.burgersNu,p.burgersNu);
+  setControlValue(E.reactionDu,p.reactionDu);setControlValue(E.reactionDv,p.reactionDv);
+  setControlValue(E.reactionFeed,p.reactionFeed);setControlValue(E.reactionKill,p.reactionKill);
+  setControlValue(E.reactionInitial,p.reactionInitial);setControlValue(E.burgers2dNu,p.burgers2dNu);
+  setControlValue(E.burgers2dInitialVector,p.burgers2dInitialVector);
+  setControlValue(E.cahnM,p.cahnM);setControlValue(E.cahnKappa,p.cahnKappa);
+  setControlValue(E.shallowG,p.shallowG);setControlValue(E.shallowH0,p.shallowH0);
+  setControlValue(E.shallowTerrain,p.shallowTerrain);setControlValue(E.shallowTerrainAmplitude,p.shallowTerrainAmplitude);
+  setControlValue(E.shallowTerrainPositionX,p.shallowTerrainPositionX);setControlValue(E.shallowTerrainPositionY,p.shallowTerrainPositionY);
+  setControlValue(E.shallowTerrainWidth,p.shallowTerrainWidth);setControlValue(E.shallowTsunamiAmplitude,p.shallowTsunamiAmplitude);
+  setControlValue(E.genericPerturbationMode,p.genericPerturbationMode);setControlValue(E.genericPerturbationAmplitude,p.genericPerturbationAmplitude);
+  setControlValue(E.u,p.u);setControlValue(E.ux,p.ux);setControlValue(E.uy,p.uy);
+  setControlValue(E.velocityField,p.velocityField);setControlValue(E.rotationOmega,p.rotationOmega);setControlValue(E.shearRate,p.shearRate);
+  setControlValue(E.nu,p.nu);setControlValue(E.buoyancy,p.buoyancy);setControlValue(E.convInitial,p.convInitial);
+  setControlValue(E.thermalBoundary,p.thermalBoundary);setControlValue(E.tBottom,p.tBottom);setControlValue(E.tTop,p.tTop);
+  setControlValue(E.hotspotX,p.hotspotX);setControlValue(E.hotspotY,p.hotspotY);setControlValue(E.hotspotSize,p.hotspotSize);
+  setControlValue(E.hotspotTemperature,p.hotspotTemperature);setControlValue(E.perturbationMode,p.perturbationMode);
+  setControlValue(E.perturbationAmplitude,p.perturbationAmplitude);setControlValue(E.grid1d,p.grid1d);
+  setControlValue(E.grid2d,p.grid2d);setControlValue(E.gridConvection,p.gridConvection);
+  setControlValue(E.length,p.L);setControlValue(E.duration,p.T);setControlValue(E.width,p.sigma);setControlValue(E.initial,p.type);
+  setControlValue(E.advectionScheme,p.advectionScheme);setControlValue(E.fluxLimiter,p.fluxLimiter);
+  setControlValue(E.boundary1d,p.boundary1d);setControlValue(E.boundaryX,p.boundaryX);setControlValue(E.boundaryY,p.boundaryY);
+  setControlValue(E.dirichletLeft,p.dirichletLeft);setControlValue(E.dirichletRight,p.dirichletRight);
+  setControlValue(E.dirichletXmin,p.dirichletXmin);setControlValue(E.dirichletXmax,p.dirichletXmax);
+  setControlValue(E.dirichletYmin,p.dirichletYmin);setControlValue(E.dirichletYmax,p.dirichletYmax);
+  setControlValue(E.inflow1d,p.inflow1d);setControlValue(E.inflowX,p.inflowX);setControlValue(E.inflowY,p.inflowY);
+  setControlValue(E.robinAlpha,p.robinAlpha);setControlValue(E.robinBeta,p.robinBeta);setControlValue(E.robinGamma,p.robinGamma);
+  updateModeUI();
+}
+
 function updateComparisonUI(){
   var enabled=E.comparisonEnabled.value==="on";
   E.comparisonSelectors.style.display=enabled?"block":"none";
+  if(E.comparisonAdvancedPanel)E.comparisonAdvancedPanel.style.display=(enabled&&E.comparisonAdvancedEnabled.value==="on")?"block":"none";
   var selects=[E.comparisonEq1,E.comparisonEq2,E.comparisonEq3];
+  for(var q=0;q<selects.length;q++)selects[q].parentElement.style.display=
+    (enabled&&E.comparisonAdvancedEnabled.value==="on")?"none":"grid";
   var defaults=["diffusion","advection","advection-diffusion"];
   for(var sidx=0;sidx<selects.length;sidx++){
     var sel=selects[sidx],old=sel.value;
@@ -5429,10 +5525,10 @@ function drawShallowTerrainSurface1D(){
   }
   ctx.stroke();
 
-  // Show h as the vertical distance between bottom and surface at a
-  // representative position. Choose the point of maximum water depth.
-  var sample=0,maxDepth=-Infinity;
-  for(i=0;i<h.length;i++)if(h[i]>maxDepth){maxDepth=h[i];sample=i;}
+  // Show h at a fixed horizontal location. Do not attach the annotation
+  // to the instantaneous maximum: that makes the marker jump as the wave moves.
+  // A fixed x position is also a clearer illustration that h(x,t)=eta-b is local depth.
+  var sample=Math.max(0,Math.min(h.length-1,Math.round(0.18*(h.length-1))));
   var xs=X(sample),yb0=Y(b[sample]),ye0=Y(eta[sample]);
   ctx.strokeStyle=css('--muted');ctx.lineWidth=1.5;
   ctx.beginPath();ctx.moveTo(xs,yb0);ctx.lineTo(xs,ye0);ctx.stroke();
@@ -6457,22 +6553,29 @@ function comparisonParams(base,eq){
   return p;
 }
 
-async function runComparisonEquation(base,eq,serial){
-  var p=comparisonParams(base,eq);
+async function runComparisonEquation(base,eq,serial,index){
+  var p=comparisonAdvancedParams(base,index,eq);
   frames=[];times=[];state={};
+  var actual=p.equationType;
 
-  if(eq==="wave"){
-    if(p.mode==="1d")await calcWave1D(p,serial);
-    else await calcWave2D(p,serial);
-  }else{
-    if(p.mode==="1d")await calc1D(p,serial);
-    else await calc2D(p,serial);
-  }
+  if(actual==="convection")await calcConvection(p,serial);
+  else if(actual==="wave"){
+    if(p.waveModel==="shallow"){
+      if(p.mode==="1d")await calcWaveShallow1D(p,serial); else await calcWaveShallow2D(p,serial);
+    }else if(p.waveModel==="deep"){
+      if(p.mode!=="1d")throw new Error("深水極限は1Dのみです。");
+      await calcDeepWater1D(p,serial);
+    }else if(p.mode==="1d")await calcWave1D(p,serial); else await calcWave2D(p,serial);
+  }else if(actual==="burgers")await calcBurgers1D(p,serial);
+  else if(actual==="reaction-diffusion")await calcReactionDiffusion2D(p,serial);
+  else if(actual==="burgers-2d")await calcBurgers2D(p,serial);
+  else if(actual==="cahn-hilliard")await calcCahnHilliard(p,serial);
+  else if(actual==="shallow-water-1d")await calcShallowWater1D(p,serial);
+  else if(actual==="shallow-water")await calcShallowWater(p,serial);
+  else if(p.mode==="1d")await calc1D(p,serial); else await calc2D(p,serial);
 
-  return {
-    equation:eq,label:comparisonLabel(eq),
-    frames:frames,times:times,state:state
-  };
+  return {equation:actual,label:comparisonLabel(actual)+(E.comparisonAdvancedEnabled.value==="on"?"［詳細設定］":""),
+    params:p,frames:frames,times:times,state:state};
 }
 
 async function calculateComparisons(base,serial){
@@ -6485,12 +6588,15 @@ async function calculateComparisons(base,serial){
   var mainFrames=frames,mainTimes=times,mainState=state;
   var stats=[E.dx.textContent,E.dt.textContent,E.mass.textContent];
   var eqs=[E.comparisonEq1.value,E.comparisonEq2.value,E.comparisonEq3.value];
+  if(E.comparisonAdvancedEnabled.value==="on"){
+    for(var qi=0;qi<3;qi++)if(comparisonAdvancedSnapshots[qi])eqs[qi]=comparisonAdvancedSnapshots[qi].equationType;
+  }
   var runs=[];
 
   try{
     for(var i=0;i<eqs.length;i++){
       ensureCalculationActive(serial);
-      runs.push(await runComparisonEquation(base,eqs[i],serial));
+      runs.push(await runComparisonEquation(base,eqs[i],serial,i));
     }
     comparisonRuns=runs;
   }finally{
@@ -6809,8 +6915,40 @@ E.comparisonEnabled.addEventListener("change",function(){
       clearComparisonCanvases();
       E.comparisonTimeControls.style.display="none";
       E.comparisonStatus.textContent="比較条件が変更されました。「比較開始」を押して再計算してください。";
+      if(E.comparisonAdvancedEnabled.value==="on")rebuildComparisonAdvanced();
     }
   });
+});
+E.comparisonAdvancedEnabled.addEventListener("change",function(){
+  stopComparisonPlayback();comparisonRuns=[];clearComparisonCanvases();
+  E.comparisonTimeControls.style.display="none";
+  E.comparisonAdvancedPanel.style.display=(this.value==="on")?"block":"none";
+  if(this.value==="on")rebuildComparisonAdvanced();
+  updateComparisonUI();
+  E.comparisonStatus.textContent=this.value==="on"
+    ?"詳細設定モードです。3ケースの条件を個別に設定して「比較開始」を押してください。"
+    :"通常比較モードです。上のシミュレータ設定を共通条件として使用します。";
+});
+E.comparisonAdvancedGrid.addEventListener("click",function(ev){
+  var save=ev.target.closest("[data-save-case]");
+  var load=ev.target.closest("[data-load-case]");
+  if(save){
+    var i=Number(save.dataset.saveCase);
+    var snap=readParams();
+    comparisonAdvancedSnapshots[i]=Object.assign({},snap);
+    var eqSelect=[E.comparisonEq1,E.comparisonEq2,E.comparisonEq3][i];
+    eqSelect.value=snap.equationType;
+    stopComparisonPlayback();comparisonRuns=[];clearComparisonCanvases();
+    E.comparisonTimeControls.style.display="none";
+    rebuildComparisonAdvanced();
+    E.comparisonStatus.textContent="比較"+(i+1)+"に現在の通常設定一式を保存しました。";
+  }else if(load){
+    var j=Number(load.dataset.loadCase),snap2=comparisonAdvancedSnapshots[j];
+    if(!snap2){showAvailabilityMessage("比較"+(j+1)+"にはまだ設定が保存されていません。");return;}
+    applyParamsToNormalUI(snap2);
+    E.comparisonStatus.textContent="比較"+(j+1)+"の設定を上の通常シミュレータへ読み込みました。編集後、もう一度保存してください。";
+    window.scrollTo({top:0,behavior:"smooth"});
+  }
 });
 E.comparisonStart.addEventListener("click",startComparison);
 E.comparisonTimeSlider.addEventListener("input",function(){
