@@ -255,12 +255,6 @@ canvas{display:block;width:100%;height:430px}
       </div>
     </div>
 
-    <div class="group" id="scalar-view-group" style="display:none">
-      <label for="scalar-view-mode">2D表示</label>
-      <select id="scalar-view-mode"></select>
-      <div class="hint" id="scalar-view-description"></div>
-    </div>
-
     <div id="convection-controls" style="display:none">
       <div class="group">
         <label for="nu">動粘性係数 ν</label>
@@ -351,6 +345,12 @@ canvas{display:block;width:100%;height:430px}
           <option value="temperature-velocity">温度＋流速ベクトル</option>
         </select>
       </div>
+    </div>
+
+    <div class="group" id="scalar-view-group" style="display:none">
+      <label for="scalar-view-mode">表示</label>
+      <select id="scalar-view-mode"></select>
+      <div class="hint" id="scalar-view-description"></div>
     </div>
 
     <div class="group" id="grid-1d-group">
@@ -1051,38 +1051,82 @@ function scalarViewDescription(mode){
   if(mode==="scalar-total-flux"){
     return "スカラー場 φ の上に全輸送フラックス J = uφ − D∇φ を重ねます。";
   }
+  if(mode==="wave-pressure"){
+    return "波動方程式の圧力（または波動変数）p(x,y,t) を表示します。";
+  }
+  if(mode==="wave-flux"){
+    return "保存形波動系で同時に発展させている波動フラックスベクトル Q=(Qx,Qy) の大きさを表示します。";
+  }
+  if(mode==="wave-pressure-flux"){
+    return "p の分布の上に波動フラックスベクトル Q を重ねます。";
+  }
+  if(mode==="reaction-v"){
+    return "Gray–Scott系の V 濃度を表示します。";
+  }
+  if(mode==="reaction-u"){
+    return "Gray–Scott系の U 濃度を表示します。";
+  }
+  if(mode==="reaction-difference"){
+    return "U−V を表示し、2成分の空間的な違いを見やすくします。";
+  }
+  if(mode==="reaction-rate"){
+    return "非線形反応項 UV² の大きさを表示します。V が自己触媒的に生成される場所を示します。";
+  }
   return "スカラー量 φ(x,y,t) の分布を表示します。";
 }
 
 function updateScalarViewUI(){
   var type=E.equationType.value;
   var is2=E.dimension.value==="2d";
-  var active=is2 && (type==="diffusion"||type==="advection"||type==="advection-diffusion");
+  var active=is2 && type!=="convection";
   E.scalarViewGroup.style.display=active?"grid":"none";
   if(!active)return;
 
-  var options=[["scalar","φ 分布"]];
+  var options;
   if(type==="diffusion"){
-    options.push(["diffusive-flux","拡散フラックス |J_D|"]);
-    options.push(["scalar-diffusive-flux","φ ＋ 拡散フラックスベクトル"]);
+    options=[
+      ["scalar","スカラー量 φ の分布"],
+      ["diffusive-flux","拡散フラックスの大きさ"],
+      ["scalar-diffusive-flux","φ＋拡散フラックスベクトル"]
+    ];
   }else if(type==="advection"){
-    options.push(["velocity","速度の大きさ |u|"]);
-    options.push(["vorticity","速度場の渦度 ω"]);
-    options.push(["scalar-velocity","φ ＋ 速度ベクトル"]);
+    options=[
+      ["scalar","スカラー量 φ の分布"],
+      ["velocity","流速の大きさ"],
+      ["vorticity","渦度"],
+      ["scalar-velocity","φ＋流速ベクトル"]
+    ];
+  }else if(type==="advection-diffusion"){
+    options=[
+      ["scalar","スカラー量 φ の分布"],
+      ["velocity","流速の大きさ"],
+      ["vorticity","渦度"],
+      ["scalar-velocity","φ＋流速ベクトル"],
+      ["diffusive-flux","拡散フラックスの大きさ"],
+      ["scalar-diffusive-flux","φ＋拡散フラックスベクトル"],
+      ["total-flux","全輸送フラックスの大きさ"],
+      ["scalar-total-flux","φ＋全輸送フラックスベクトル"]
+    ];
+  }else if(type==="wave"){
+    options=[
+      ["wave-pressure","p 分布"],
+      ["wave-flux","波動フラックスの大きさ |Q|"],
+      ["wave-pressure-flux","p＋波動フラックスベクトル"]
+    ];
+  }else if(type==="reaction-diffusion"){
+    options=[
+      ["reaction-v","V 濃度"],
+      ["reaction-u","U 濃度"],
+      ["reaction-difference","U−V"],
+      ["reaction-rate","反応速度 UV²"]
+    ];
   }else{
-    options.push(["velocity","速度の大きさ |u|"]);
-    options.push(["vorticity","速度場の渦度 ω"]);
-    options.push(["scalar-velocity","φ ＋ 速度ベクトル"]);
-    options.push(["diffusive-flux","拡散フラックス |J_D|"]);
-    options.push(["scalar-diffusive-flux","φ ＋ 拡散フラックスベクトル"]);
-    options.push(["total-flux","全輸送フラックス |J|"]);
-    options.push(["scalar-total-flux","φ ＋ 全輸送フラックスベクトル"]);
+    options=[["scalar","スカラー量の分布"]];
   }
 
   setSelectOptions(E.scalarViewMode,options,E.scalarViewMode.value);
   E.scalarViewDescription.textContent=scalarViewDescription(E.scalarViewMode.value);
 }
-
 function updateModeUI(){
   updateLargeDomainWarning();
 
@@ -2190,6 +2234,7 @@ async function calcWave2D(p,serial){
 
   frames=[new Float64Array(P)];
   times=[0];
+  var qxFrames=[new Float64Array(Qx)],qyFrames=[new Float64Array(Qy)];
   var energyFrames=[waveEnergy2D(P,Qx,Qy,dx,dy,px,py,N)];
 
   for(f=1;f<frameCount;f++){
@@ -2214,6 +2259,8 @@ async function calcWave2D(p,serial){
     }
 
     frames.push(new Float64Array(P));
+    qxFrames.push(new Float64Array(Qx));
+    qyFrames.push(new Float64Array(Qy));
     times.push(f*displayDt);
     updateCalculationProgress(100*f/(frameCount-1));
     energyFrames.push(waveEnergy2D(P,Qx,Qy,dx,dy,px,py,N));
@@ -2222,6 +2269,7 @@ async function calcWave2D(p,serial){
 
   state={
     mode:"2d",equationKind:"wave",fieldLabel:"p",L:p.L,N:N,dx:dx,dy:dy,px:px,py:py,
+    qxFrames:qxFrames,qyFrames:qyFrames,
     energyFrames:energyFrames,plotMin:-1.08*max0,plotMax:1.08*max0
   };
   E.dx.textContent="N = "+N+"×"+N+"　Δx = "+dx.toPrecision(4)+", Δy = "+dy.toPrecision(4);
@@ -2409,6 +2457,7 @@ async function calcReactionDiffusion2D(p,serial){
   var f,m,i,j,k,im,ip,jm,jp,lapU,lapV,uvv;
 
   frames=[new Float64Array(V)];times=[0];
+  var uFrames=[new Float64Array(U)];
   var meanUFrames=[mass2D(U,dx,dy,true,true,N)/(p.L*p.L)];
   var meanVFrames=[mass2D(V,dx,dy,true,true,N)/(p.L*p.L)];
 
@@ -2432,7 +2481,9 @@ async function calcReactionDiffusion2D(p,serial){
       if(m%8===7)await maybeYieldToBrowser(serial,false);
     }
 
-    frames.push(new Float64Array(V));times.push(f*displayDt);
+    frames.push(new Float64Array(V));
+    uFrames.push(new Float64Array(U));
+    times.push(f*displayDt);
     updateCalculationProgress(100*f/(frameCount-1));
     meanUFrames.push(mass2D(U,dx,dy,true,true,N)/(p.L*p.L));
     meanVFrames.push(mass2D(V,dx,dy,true,true,N)/(p.L*p.L));
@@ -2441,6 +2492,7 @@ async function calcReactionDiffusion2D(p,serial){
 
   state={
     mode:"2d",equationKind:"reaction-diffusion",fieldLabel:"V",L:p.L,N:N,dx:dx,dy:dy,px:true,py:true,
+    uFrames:uFrames,reactionFeed:F,reactionKill:K,
     meanUFrames:meanUFrames,meanVFrames:meanVFrames,plotMin:0,plotMax:.35
   };
   E.dx.textContent="N = "+N+"×"+N+"　Δx = Δy = "+dx.toPrecision(4);
@@ -2969,127 +3021,136 @@ function drawVectorOverlay(data,mode,ox,oy,size){
   return maxMag;
 }
 
+function drawArrayVectorOverlay(vx,vy,ox,oy,size){
+  var N=state.N,i,j,k,mag,maxMag=0;
+  var stride=Math.max(3,Math.round(N/10));
+  for(k=0;k<vx.length;k++){
+    mag=Math.hypot(vx[k],vy[k]);
+    if(mag>maxMag)maxMag=mag;
+  }
+  if(maxMag<=1e-30)return 0;
+
+  ctx.strokeStyle="#111827";ctx.fillStyle="#111827";ctx.lineWidth=1.2;
+  for(j=Math.floor(stride/2);j<N;j+=stride){
+    for(i=Math.floor(stride/2);i<N;i+=stride){
+      k=j*N+i;mag=Math.hypot(vx[k],vy[k]);
+      if(mag<maxMag*.025)continue;
+      var px=ox+size*i/(N-1),py=oy+size*(1-j/(N-1));
+      var len=3+13*mag/maxMag;
+      var ex=px+len*vx[k]/mag,ey=py-len*vy[k]/mag;
+      ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(ex,ey);ctx.stroke();
+      var ang=Math.atan2(ey-py,ex-px);
+      ctx.beginPath();ctx.moveTo(ex,ey);
+      ctx.lineTo(ex-4*Math.cos(ang-.5),ey-4*Math.sin(ang-.5));
+      ctx.lineTo(ex-4*Math.cos(ang+.5),ey-4*Math.sin(ang+.5));
+      ctx.closePath();ctx.fill();
+    }
+  }
+  return maxMag;
+}
+
 function draw2D(){
   var sz=canvasSize(),w=sz.w,h=sz.h;
   ctx.clearRect(0,0,w,h);
 
-  var N=state.N,data=frames[current],initial=frames[0],pad={l:52,r:18,t:18,b:44};
+  var N=state.N,base=frames[current],data=base,initial=frames[0],pad={l:52,r:18,t:18,b:44};
   var aw=w-pad.l-pad.r,ah=h-pad.t-pad.b;
   var size=Math.max(120,Math.min(aw,ah));
   var ox=pad.l+(aw-size)/2,oy=pad.t+(ah-size)/2;
-
   var type=(state.transportParams&&state.transportParams.equationType)||"";
-  var isTransport=(state.equationKind==="scalar" &&
-    (type==="diffusion"||type==="advection"||type==="advection-diffusion"));
-  var mode=isTransport?E.scalarViewMode.value:"scalar";
+  var mode=E.scalarViewGroup.style.display!=="none"?E.scalarViewMode.value:"scalar";
+  var vectorX=null,vectorY=null,quantity="φ",signed=false,fixedMin=null,fixedMax=null;
+  var overlayMode=false;
 
-  var overlayMode=(mode==="scalar-velocity"||
-                   mode==="scalar-diffusive-flux"||
-                   mode==="scalar-total-flux");
-  var scalarBackground=(mode==="scalar"||overlayMode);
-
-  var off=document.createElement("canvas");
-  off.width=N;off.height=N;
-  var octx=off.getContext("2d");
-  var img=octx.createImageData(N,N);
-  var i,j,k,pix,rgb,val,vec;
-
-  var vmin=Infinity,vmax=-Infinity,maxVal=0;
-
-  if(scalarBackground){
-    vmin=(Number.isFinite(state.plotMin)?state.plotMin:Infinity);
-    vmax=(Number.isFinite(state.plotMax)?state.plotMax:-Infinity);
-    if(!Number.isFinite(state.plotMin)||!Number.isFinite(state.plotMax)){
-      for(k=0;k<initial.length;k++){
-        if(initial[k]<vmin)vmin=initial[k];
-        if(initial[k]>vmax)vmax=initial[k];
-      }
+  // Build the scalar quantity shown by the selected 2D view.
+  if(state.equationKind==="wave"){
+    quantity="p";signed=true;
+    if(mode==="wave-flux"||mode==="wave-pressure-flux"){
+      vectorX=state.qxFrames[current];vectorY=state.qyFrames[current];
     }
-    if(!Number.isFinite(vmin)||!Number.isFinite(vmax)){vmin=0;vmax=1;}
-    if(Math.abs(vmax-vmin)<1e-14)vmax=vmin+1;
-  }else if(mode==="vorticity"){
-    for(j=0;j<N;j++){
-      for(i=0;i<N;i++){
-        val=Math.abs(velocityVorticityAt(i,j));
-        if(val>maxVal)maxVal=val;
-      }
+    if(mode==="wave-flux"){
+      data=new Float64Array(N*N);signed=false;quantity="|Q|";
+      for(var wk=0;wk<data.length;wk++)data[wk]=Math.hypot(vectorX[wk],vectorY[wk]);
+    }else{
+      data=base;fixedMin=state.plotMin;fixedMax=state.plotMax;
+      overlayMode=(mode==="wave-pressure-flux");
     }
-    if(maxVal<=1e-30)maxVal=1;
+  }else if(state.equationKind==="reaction-diffusion"){
+    var U=state.uFrames[current],V=base;
+    if(mode==="reaction-u"){
+      data=U;quantity="U";fixedMin=0;fixedMax=1;
+    }else if(mode==="reaction-difference"){
+      data=new Float64Array(N*N);quantity="U−V";signed=true;
+      for(var rk=0;rk<data.length;rk++)data[rk]=U[rk]-V[rk];
+    }else if(mode==="reaction-rate"){
+      data=new Float64Array(N*N);quantity="UV²";
+      for(var rr=0;rr<data.length;rr++)data[rr]=U[rr]*V[rr]*V[rr];
+    }else{
+      data=V;quantity="V";fixedMin=0;fixedMax=.35;
+    }
   }else{
-    for(j=0;j<N;j++){
-      for(i=0;i<N;i++){
-        vec=transportVectorAt(mode,data,i,j);
-        val=Math.hypot(vec[0],vec[1]);
-        if(val>maxVal)maxVal=val;
+    var overlayTransport=(mode==="scalar-velocity"||mode==="scalar-diffusive-flux"||mode==="scalar-total-flux");
+    if(mode==="scalar"||overlayTransport){
+      data=base;quantity="φ";overlayMode=overlayTransport;
+    }else if(mode==="vorticity"){
+      data=new Float64Array(N*N);quantity="ω";signed=true;
+      for(var vj=0;vj<N;vj++)for(var vi=0;vi<N;vi++)data[vj*N+vi]=velocityVorticityAt(vi,vj);
+    }else{
+      data=new Float64Array(N*N);
+      for(var tj=0;tj<N;tj++)for(var ti=0;ti<N;ti++){
+        var tv=transportVectorAt(mode,base,ti,tj);
+        data[tj*N+ti]=Math.hypot(tv[0],tv[1]);
       }
-    }
-    if(maxVal<=1e-30)maxVal=1;
-  }
-
-  for(j=0;j<N;j++){
-    for(i=0;i<N;i++){
-      k=j*N+i;
-      if(scalarBackground){
-        rgb=colorMap((data[k]-vmin)/(vmax-vmin));
-      }else if(mode==="vorticity"){
-        rgb=divergingColor(velocityVorticityAt(i,j),maxVal);
-      }else{
-        vec=transportVectorAt(mode,data,i,j);
-        val=Math.hypot(vec[0],vec[1]);
-        rgb=colorMap(val/maxVal);
-      }
-
-      pix=4*((N-1-j)*N+i);
-      img.data[pix]=rgb[0];
-      img.data[pix+1]=rgb[1];
-      img.data[pix+2]=rgb[2];
-      img.data[pix+3]=255;
+      quantity=(mode==="velocity")?"|u|":(mode==="diffusive-flux"?"|J_D|":"|J|");
     }
   }
 
+  var vmin=Infinity,vmax=-Infinity,k;
+  if(fixedMin!==null&&fixedMax!==null){vmin=fixedMin;vmax=fixedMax;}
+  else{
+    for(k=0;k<data.length;k++){if(data[k]<vmin)vmin=data[k];if(data[k]>vmax)vmax=data[k];}
+    if(signed){
+      var amax=Math.max(Math.abs(vmin),Math.abs(vmax));
+      if(amax<1e-14)amax=1;vmin=-amax;vmax=amax;
+    }else if(Math.abs(vmax-vmin)<1e-14){vmax=vmin+1;}
+  }
+
+  var off=document.createElement("canvas");off.width=N;off.height=N;
+  var octx=off.getContext("2d"),img=octx.createImageData(N,N),i,j,pix,rgb;
+  for(j=0;j<N;j++)for(i=0;i<N;i++){
+    k=j*N+i;
+    rgb=signed?divergingColor(data[k],Math.max(Math.abs(vmin),Math.abs(vmax)))
+              :colorMap((data[k]-vmin)/(vmax-vmin));
+    pix=4*((N-1-j)*N+i);
+    img.data[pix]=rgb[0];img.data[pix+1]=rgb[1];img.data[pix+2]=rgb[2];img.data[pix+3]=255;
+  }
   octx.putImageData(img,0,0);
-  ctx.imageSmoothingEnabled=true;
-  ctx.drawImage(off,ox,oy,size,size);
+  ctx.imageSmoothingEnabled=true;ctx.drawImage(off,ox,oy,size,size);
   ctx.strokeStyle=css("--muted");ctx.lineWidth=1;ctx.strokeRect(ox,oy,size,size);
 
-  var overlayMax=0;
   if(overlayMode){
-    overlayMax=drawVectorOverlay(data,mode,ox,oy,size);
-  }
-
-  ctx.fillStyle=css("--muted");
-  ctx.font="12px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif";
-
-  for(i=0;i<=4;i++){
-    var xv=ox+size*i/4;
-    ctx.fillText((state.L*i/4).toFixed(1),xv-9,oy+size+20);
-    var yv=oy+size*(1-i/4);
-    ctx.fillText((state.L*i/4).toFixed(1),ox-38,yv+4);
-  }
-
-  if(scalarBackground){
-    ctx.fillText("φ scale min="+vmin.toPrecision(4),ox+5,oy+14);
-    ctx.fillText("φ scale max="+vmax.toPrecision(4),ox+5,oy+30);
-    if(mode==="scalar-velocity"){
-      ctx.fillText("vectors: u",ox+5,oy+46);
-    }else if(mode==="scalar-diffusive-flux"){
-      ctx.fillText("vectors: J_D = −D∇φ",ox+5,oy+46);
-    }else if(mode==="scalar-total-flux"){
-      ctx.fillText("vectors: J = uφ − D∇φ",ox+5,oy+46);
+    if(state.equationKind==="wave"){
+      drawArrayVectorOverlay(vectorX,vectorY,ox,oy,size);
+    }else{
+      drawVectorOverlay(base,mode,ox,oy,size);
     }
-  }else if(mode==="velocity"){
-    ctx.fillText("max |u|="+maxVal.toPrecision(4),ox+5,oy+14);
-  }else if(mode==="vorticity"){
-    ctx.fillText("max |ω|="+maxVal.toPrecision(4),ox+5,oy+14);
-  }else if(mode==="diffusive-flux"){
-    ctx.fillText("max |J_D|="+maxVal.toPrecision(4),ox+5,oy+14);
-  }else if(mode==="total-flux"){
-    ctx.fillText("max |J|="+maxVal.toPrecision(4),ox+5,oy+14);
   }
+
+  ctx.fillStyle=css("--muted");ctx.font="12px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif";
+  for(i=0;i<=4;i++){
+    var xv=ox+size*i/4;ctx.fillText((state.L*i/4).toFixed(1),xv-9,oy+size+20);
+    var yv=oy+size*(1-i/4);ctx.fillText((state.L*i/4).toFixed(1),ox-38,yv+4);
+  }
+  ctx.fillText(quantity+" scale min="+vmin.toPrecision(4),ox+5,oy+14);
+  ctx.fillText(quantity+" scale max="+vmax.toPrecision(4),ox+5,oy+30);
+
+  if(mode==="scalar-velocity")ctx.fillText("vectors: u",ox+5,oy+46);
+  else if(mode==="scalar-diffusive-flux")ctx.fillText("vectors: J_D = −D∇φ",ox+5,oy+46);
+  else if(mode==="scalar-total-flux")ctx.fillText("vectors: J = uφ − D∇φ",ox+5,oy+46);
+  else if(mode==="wave-pressure-flux")ctx.fillText("vectors: Q",ox+5,oy+46);
 
   ctx.font="13px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif";
-  ctx.fillText("x",ox+size+7,oy+size+3);
-  ctx.fillText("y",ox-3,oy-7);
+  ctx.fillText("x",ox+size+7,oy+size+3);ctx.fillText("y",ox-3,oy-7);
 }
 
 function divergingColor(v,scale){
