@@ -55,7 +55,8 @@ canvas{display:block;width:100%;height:430px}
 @media(max-width:720px){.compare-grid{grid-template-columns:1fr}}
 
 .history-title{font-size:13px;font-weight:700;margin-bottom:6px}
-.history-subtitle{font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.4}
+.history-subtitle{font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.65}
+.history-subtitle b{color:var(--text)}
 #history-chart{display:block;width:100%;height:220px;background:var(--chart);border:1px solid var(--border);border-radius:10px}
 .playback-buttons{display:flex;gap:8px;align-items:center}
 .time-row output{font-weight:700;font-variant-numeric:tabular-nums;min-width:92px;text-align:right}
@@ -190,6 +191,9 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
 #comparison-time-controls{margin:12px 0 14px}
 #comparison-time-controls input[type="range"]{width:100%;margin:8px 0 3px}
 #comparison-time-output{display:block;font-weight:700;font-size:14px}
+.comparison-time-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+#comparison-play{padding:7px 16px;border-radius:9px;border:1px solid var(--line);background:#fff;font-weight:700;cursor:pointer}
+#comparison-play.active{background:var(--accent);border-color:var(--accent);color:#fff}
 
 </style>
 </head>
@@ -893,8 +897,11 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
       <div id="comparison-time-controls" style="display:none">
         <label for="comparison-time-slider"><b>比較時刻</b></label>
         <input id="comparison-time-slider" type="range" min="0" max="1000" value="0" step="1">
-        <output id="comparison-time-output">t = 0.000</output>
-        <div class="hint">このスライダーだけで3つの比較結果を同じ計算時刻に同期して更新します。通常表示の再生・時間スライダーとは独立しています。</div>
+        <div class="comparison-time-row">
+          <output id="comparison-time-output">t = 0.000</output>
+          <button id="comparison-play" type="button">自動再生</button>
+        </div>
+        <div class="hint">スライダーまたは「自動再生」で、3つの比較結果を同じ計算時刻に同期して更新します。通常表示の再生・時間スライダーとは独立しています。</div>
       </div>
       <div class="compare-grid">
         <div class="compare-card"><div class="compare-card-title" id="compare-title-1"></div><canvas id="compare-canvas-1" width="360" height="190"></canvas></div>
@@ -1105,6 +1112,7 @@ var E={
   comparisonTimeControls:document.getElementById("comparison-time-controls"),
   comparisonTimeSlider:document.getElementById("comparison-time-slider"),
   comparisonTimeOutput:document.getElementById("comparison-time-output"),
+  comparisonPlay:document.getElementById("comparison-play"),
   compareTitle1:document.getElementById("compare-title-1"),
   compareTitle2:document.getElementById("compare-title-2"),
   compareTitle3:document.getElementById("compare-title-3"),
@@ -1118,6 +1126,8 @@ var hctx=E.historyChart.getContext("2d");
 var frames=[],times=[],current=0,playing=false,raf=null,lastTs=0;
 var comparisonRuns=[];
 var comparisonTimeFraction=0;
+var comparisonPlaying=false;
+var comparisonPlayTimer=null;
 var lastParams=null;
 var analyticalViewActive=false;
 var analyticalCache=null;
@@ -1826,6 +1836,7 @@ function updateComparisonUI(){
     sel.value=old||defaults[sidx];
   }
   if(!enabled){
+    stopComparisonPlayback();
     comparisonRuns=[];
     comparisonTimeFraction=0;
     clearComparisonCanvases();
@@ -5584,6 +5595,54 @@ function buildHistorySeries(){
   }
   return series;
 }
+function historyExplanation(){
+  var common="グラフでは各曲線を初期値（初期値がほぼ0なら代表スケール）で個別に規格化しています。したがって、種類の異なる曲線どうしの縦軸の絶対値は直接比較できません。縦線は現在時刻です。";
+  var kind=state.equationKind;
+
+  if(kind==="wave"&&state.energyFrames){
+    return "<b>波エネルギー</b>：波を構成する場に蓄えられたエネルギーの指標です。理想的な通常波動・深水波では、散逸がなければほぼ一定であることが期待されます。浅水極限では下記の水量・運動量・全エネルギーを別に表示します。<br>"+common;
+  }
+  if(kind==="burgers2d"&&state.burgersHistory){
+    return "<b>∫u dA, ∫v dA</b>：領域全体で速度成分 u, v を積分した診断量です。この2D Burgers系では一般に保存量とは限りません。<br><b>運動エネルギー</b>：½∫(u²+v²)dA。粘性 ν が速度の勾配を平滑化するため、通常は時間とともに減衰する方向に働きます。<br>"+common;
+  }
+  if(kind==="reaction-diffusion"){
+    return "<b>平均U・平均V</b>：Gray–Scott系の2成分 U, V の空間平均濃度です。反応項によってUとVが生成・消費されるため、一般には保存されません。パターン形成に伴って領域全体の組成がどう変わるかを見る診断量です。<br>"+common;
+  }
+  if(kind==="cahn"){
+    return "<b>平均φ</b>：秩序変数 φ の空間平均です。Cahn–Hilliard方程式は保存型なので、周期境界ではほぼ一定に保たれることが期待されます。<br><b>自由エネルギー</b>：相分離を駆動するバルク項と界面の勾配エネルギーを合わせた量です。系は自由エネルギーを下げる向きに発展するため、通常は非増加になることが期待されます。<br>"+common;
+  }
+  if(kind==="shallow"||kind==="shallow1d"){
+    var mom=kind==="shallow1d"?
+      "<br><b>総運動量</b>：∫hu dx。水平方向の運動量です。平坦な海底・周期境界では保存が期待されますが、海底勾配がある場合は地形から力を受けるため一般には一定ではありません。":"";
+    return "<b>総水量</b>：水深 h を領域全体で積分した量です。周期境界では水が領域外へ出ないため、ほぼ一定であることが期待されます。"+mom+
+      "<br><b>全エネルギー</b>：流れの運動エネルギーと重力による位置エネルギーを合わせた指標です。理想的な連続方程式では保存されますが、数値流束の散逸によって少し減少することがあります。<br>"+common;
+  }
+  if(state.mode==="convection"){
+    return "<b>平均T</b>：領域全体の温度の空間平均です。断熱壁なら総熱量に対応してほぼ一定ですが、上下面固定温度では境界から熱が出入りするため一般には一定ではありません。<br><b>運動エネルギー</b>：½∫|u|²dA。浮力が温度差から流れを駆動して増加させ、粘性が散逸させます。対流の立ち上がりや定常化を見る指標です。<br>"+common;
+  }
+
+  if(state.mode==="1d"||state.mode==="2d"){
+    var eq=E.equationType.value;
+    var dA=state.mode==="1d"?"dx":"dA";
+    var total=state.mode==="1d"?"∫φ dx":"∫φ dA";
+    var sq=state.mode==="1d"?"½∫φ² dx":"½∫φ² dA";
+    if(eq==="diffusion"){
+      return "<b>総量</b>："+total+"。φが濃度や温度なら、領域全体に存在する量に対応します。流束のない境界や周期境界では保存が期待されます。<br><b>二乗積分/2</b>："+sq+"。場のむら・振幅の強さを表す指標です。拡散は空間的不均一をならすため、この量は通常減少します。<br>"+common;
+    }
+    if(eq==="advection"){
+      return "<b>総量</b>："+total+"。保存形の移流方程式で運ばれるφの領域全体量です。周期境界など、正味の境界流出入がない条件では保存が期待されます。<br><b>二乗積分/2</b>："+sq+"。φの振幅の強さを表します。連続な非圧縮移流では保存されますが、数値計算では数値拡散によって低下することがあります。<br>"+common;
+    }
+    if(eq==="advection-diffusion"){
+      return "<b>総量</b>："+total+"。移流と拡散で運ばれるφの全量です。正味の境界流束がなければ保存が期待されます。<br><b>二乗積分/2</b>："+sq+"。場の振幅・むらの強さを表します。移流だけなら保たれ得ますが、拡散項 D∇²φ によって通常は減少します。<br>"+common;
+    }
+    if(eq==="burgers"){
+      return "<b>総量</b>：∫u dx。保存形Burgers方程式でのuの領域積分です。周期境界では保存が期待されます。<br><b>二乗積分/2</b>：½∫u²dx。Burgers方程式では運動エネルギーに相当する代表的な二次量です。粘性 ν があると速度勾配で散逸するため、通常は減少します。<br>"+common;
+    }
+    return "<b>総量</b>："+total+"。表示している場を領域全体で積分した量です。保存されるかどうかは方程式と境界条件に依存します。<br><b>二乗積分/2</b>："+sq+"。場の振幅・不均一さを測る二次量で、必ずしも保存量ではありません。<br>"+common;
+  }
+  return common;
+}
+
 function drawHistory(){
   var canvas=E.historyChart,rect=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1;
   var W=Math.max(300,Math.round(rect.width*dpr)),H=Math.round(220*dpr);
@@ -5642,8 +5701,7 @@ function drawHistory(){
   hctx.beginPath();hctx.moveTo(cx,pad.t);hctx.lineTo(cx,pad.t+ph);hctx.stroke();hctx.setLineDash([]);
   hctx.fillStyle=css("--muted");hctx.fillText("t",pad.l+pw+7,pad.t+ph+4);
 
-  E.historyDescription.textContent=
-    "各曲線は初期値（初期値がほぼ0なら代表スケール）で個別に規格化しています。したがって異なる曲線どうしの縦軸絶対値は直接比較できません。縦線は現在時刻です。保存量・診断量・エネルギーの時間変化を比較できます。";
+  E.historyDescription.innerHTML=historyExplanation();
 }
 
 function draw(){
@@ -6441,6 +6499,18 @@ async function calculateComparisons(base,serial){
   }
 }
 
+function stopComparisonPlayback(){
+  comparisonPlaying=false;
+  if(comparisonPlayTimer!==null){
+    clearInterval(comparisonPlayTimer);
+    comparisonPlayTimer=null;
+  }
+  if(E.comparisonPlay){
+    E.comparisonPlay.classList.remove("active");
+    E.comparisonPlay.textContent="自動再生";
+  }
+}
+
 function comparisonEndTime(){
   if(comparisonRuns.length!==3)return 0;
   var tEnd=Infinity;
@@ -6544,6 +6614,7 @@ function drawComparisons(){
 
 
 async function startComparison(){
+  stopComparisonPlayback();
   if(E.comparisonEnabled.value!=="on"){
     showAvailabilityMessage("「比較表示」を「使用する」に設定した時のみ比較開始を使用できます。");
     return;
@@ -6732,6 +6803,7 @@ E.comparisonEnabled.addEventListener("change",function(){
 [E.comparisonEq1,E.comparisonEq2,E.comparisonEq3].forEach(function(el){
   el.addEventListener("change",function(){
     if(E.comparisonEnabled.value==="on"){
+      stopComparisonPlayback();
       comparisonRuns=[];
       comparisonTimeFraction=0;
       clearComparisonCanvases();
@@ -6742,6 +6814,7 @@ E.comparisonEnabled.addEventListener("change",function(){
 });
 E.comparisonStart.addEventListener("click",startComparison);
 E.comparisonTimeSlider.addEventListener("input",function(){
+  if(comparisonPlaying)stopComparisonPlayback();
   if(comparisonRuns.length!==3){
     showAvailabilityMessage("比較時刻は、比較計算が完了した後に使用できます。");
     return;
@@ -6749,6 +6822,38 @@ E.comparisonTimeSlider.addEventListener("input",function(){
   comparisonTimeFraction=clamp(Number(E.comparisonTimeSlider.value)/1000,0,1);
   updateComparisonTimeOutput();
   drawComparisons();
+});
+E.comparisonPlay.addEventListener("click",function(){
+  if(comparisonRuns.length!==3){
+    showAvailabilityMessage("自動再生は、比較計算が完了した後に使用できます。");
+    return;
+  }
+  if(comparisonPlaying){
+    stopComparisonPlayback();
+    return;
+  }
+
+  // If playback has reached the end, restart from t=0.
+  if(comparisonTimeFraction>=1){
+    comparisonTimeFraction=0;
+    E.comparisonTimeSlider.value="0";
+    updateComparisonTimeOutput();
+    drawComparisons();
+  }
+
+  comparisonPlaying=true;
+  E.comparisonPlay.classList.add("active");
+  E.comparisonPlay.textContent="一時停止";
+
+  // About 10 seconds from start to end. The displayed frames are still
+  // selected by the common physical time, so all three results stay synced.
+  comparisonPlayTimer=setInterval(function(){
+    comparisonTimeFraction=Math.min(1,comparisonTimeFraction+0.005);
+    E.comparisonTimeSlider.value=String(Math.round(1000*comparisonTimeFraction));
+    updateComparisonTimeOutput();
+    drawComparisons();
+    if(comparisonTimeFraction>=1)stopComparisonPlayback();
+  },50);
 });
 
 E.dimension.addEventListener("change",function(){
