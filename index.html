@@ -168,23 +168,23 @@ canvas{display:block;width:100%;height:430px}
     <div id="reaction-controls" style="display:none">
       <div class="group">
         <label for="reaction-du">U の拡散係数 Dᵤ</label>
-        <input id="reaction-du" type="number" value="0.006" min="0.000001" max="10" step="0.001">
+        <input id="reaction-du" type="number" value="0.0064" min="0.000001" max="10" step="0.0001">
       </div>
       <div class="group">
         <label for="reaction-dv">V の拡散係数 Dᵥ</label>
-        <input id="reaction-dv" type="number" value="0.003" min="0.000001" max="10" step="0.001">
+        <input id="reaction-dv" type="number" value="0.0032" min="0.000001" max="10" step="0.0001">
       </div>
       <div class="group">
         <label for="reaction-feed">供給率 F</label>
-        <input id="reaction-feed" type="number" value="0.035" min="0" max="1" step="0.001">
+        <input id="reaction-feed" type="number" value="0.0367" min="0" max="1" step="0.0001">
       </div>
       <div class="group">
         <label for="reaction-kill">除去率 k</label>
-        <input id="reaction-kill" type="number" value="0.065" min="0" max="1" step="0.001">
+        <input id="reaction-kill" type="number" value="0.0649" min="0" max="1" step="0.0001">
       </div>
       <div class="hint">
-        Gray–Scottモデルです。輸送部分は保存形の拡散フラックスで書き、反応・供給・除去はソース項として扱います。
-        現段階では中央シードを初期状態、周期境界を用います。
+        Gray–Scottモデルです。拡散は保存形のフラックスで書き、反応・供給・除去はソース項として扱います。
+        デフォルト値はスポット／迷路状パターンが発達しやすい設定です。周期境界を用います。
       </div>
     </div>
 
@@ -903,7 +903,7 @@ function updateModeUI(){
     E.equation.innerHTML=
       "∂U/∂t + ∇·(−Dᵤ∇U) = −UV² + F(1−U)" +
       "<br>∂V/∂t + ∇·(−Dᵥ∇V) = UV² − (F+k)V";
-    E.subtitle.textContent="Gray–Scott反応拡散系。表示量は V 濃度です。";
+    E.subtitle.textContent="Gray–Scott反応拡散系。表示量は V 濃度で、スポット／迷路状構造の形成を観察できます。";
     E.note.textContent="拡散は保存形のフラックスで書けますが、反応・供給・除去がソース項なので、系全体はソースなしの保存則ではなく保存形＋ソース項のbalance lawです。";
     E.legend.style.display="flex";
     return;
@@ -938,10 +938,10 @@ function readParams(){
     D:useDiff?clamp(num(E.D,.2),.0001,10):0,
     waveSpeed:clamp(num(E.waveSpeed,1),.0001,100),
     burgersNu:clamp(num(E.burgersNu,.02),0,10),
-    reactionDu:clamp(num(E.reactionDu,.006),.000001,10),
-    reactionDv:clamp(num(E.reactionDv,.003),.000001,10),
-    reactionFeed:clamp(num(E.reactionFeed,.035),0,1),
-    reactionKill:clamp(num(E.reactionKill,.065),0,1),
+    reactionDu:clamp(num(E.reactionDu,.0064),.000001,10),
+    reactionDv:clamp(num(E.reactionDv,.0032),.000001,10),
+    reactionFeed:clamp(num(E.reactionFeed,.0367),0,1),
+    reactionKill:clamp(num(E.reactionKill,.0649),0,1),
     u:useAdv?clamp(num(E.u,.5),-10,10):0,
     ux:useAdv?clamp(num(E.ux,.5),-10,10):0,
     uy:useAdv?clamp(num(E.uy,.25),-10,10):0,
@@ -1995,18 +1995,43 @@ async function calcBurgers1D(p,serial){
 
 function initGrayScott(N){
   var U=new Float64Array(N*N),V=new Float64Array(N*N);
-  var i,j,k,r=Math.max(2,Math.floor(N*.07)),c=Math.floor(N/2);
+  var i,j,k;
+  var c=Math.floor(N/2);
+  var r=Math.max(2,Math.floor(N*.045));
+
   for(k=0;k<N*N;k++){U[k]=1;V[k]=0;}
-  for(j=c-r;j<=c+r;j++){
-    for(i=c-r;i<=c+r;i++){
-      if(i>=0&&i<N&&j>=0&&j<N){
-        k=j*N+i;U[k]=.50;V[k]=.25;
+
+  var seeds=[
+    [c,c],
+    [Math.floor(.38*N),Math.floor(.43*N)],
+    [Math.floor(.62*N),Math.floor(.57*N)],
+    [Math.floor(.43*N),Math.floor(.64*N)],
+    [Math.floor(.58*N),Math.floor(.34*N)]
+  ];
+
+  for(var sidx=0;sidx<seeds.length;sidx++){
+    var cx=seeds[sidx][0],cy=seeds[sidx][1];
+    for(j=cy-r;j<=cy+r;j++){
+      for(i=cx-r;i<=cx+r;i++){
+        if(i<0||i>=N||j<0||j>=N)continue;
+        k=j*N+i;
+        var noise=.018*Math.sin(1.73*i+2.11*j)+.012*Math.cos(2.37*i-.91*j);
+        U[k]=clamp(.50-noise,0,1);
+        V[k]=clamp(.25+noise,0,1);
       }
+    }
+  }
+
+  for(j=0;j<N;j++){
+    for(i=0;i<N;i++){
+      k=j*N+i;
+      var eps=.0025*Math.sin(.47*i+1.13*j)*Math.cos(.83*i-.39*j);
+      U[k]=clamp(U[k]-eps,0,1);
+      V[k]=clamp(V[k]+eps,0,1);
     }
   }
   return [U,V];
 }
-
 async function calcReactionDiffusion2D(p,serial){
   var N=p.grid2d,dx=p.L/N,dy=dx,frameCount=160,displayDt=p.T/(frameCount-1);
   var Du=p.reactionDu,Dv=p.reactionDv,F=p.reactionFeed,K=p.reactionKill;
@@ -2052,7 +2077,7 @@ async function calcReactionDiffusion2D(p,serial){
 
   state={
     mode:"2d",equationKind:"reaction-diffusion",L:p.L,N:N,dx:dx,dy:dy,px:true,py:true,
-    meanUFrames:meanUFrames,meanVFrames:meanVFrames,plotMin:0,plotMax:.5
+    meanUFrames:meanUFrames,meanVFrames:meanVFrames,plotMin:0,plotMax:.35
   };
   E.dx.textContent="N = "+N+"×"+N+"　Δx = Δy = "+dx.toPrecision(4);
   E.dt.textContent="Δt = "+dt.toPrecision(4);
@@ -2917,6 +2942,8 @@ E.equationType.addEventListener("change",function(){
     E.boundary1d.value="periodic";
     E.boundaryX.value="periodic";
     E.boundaryY.value="periodic";
+  }else if(type==="reaction-diffusion"){
+    if(Math.abs(num(E.duration,10)-10)<1e-12)E.duration.value="120";
   }
   updateModeUI();
   calculate();
