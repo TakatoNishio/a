@@ -3521,6 +3521,76 @@ function equationDefinition(type,dim){
   return d;
 }
 
+
+function equationTermExplanation(type,dim){
+  var rows=[];
+  function add(term,meaning){rows.push("<b>"+term+"</b>："+meaning);}
+  if(type==="diffusion"){
+    add("∂φ/∂t","ある場所の φ が時間とともにどのように変化するかを表す時間変化項です。");
+    add("D∇φ","φ の勾配によって生じる拡散フラックスの大きさに対応します。実際の拡散フラックスは −D∇φ で、高い場所から低い場所へ流れます。");
+    add("∇·(D∇φ)","周囲から流れ込む拡散フラックスと流れ出す拡散フラックスの差です。温度なら熱伝導、濃度なら分子拡散に相当します。");
+  }else if(type==="advection"){
+    add("∂φ/∂t","固定した場所で見た φ の時間変化です。");
+    add("uφ","速度場 u によって運ばれる φ の移流フラックスです。");
+    add("∇·(uφ)","移流フラックスの流入・流出の差です。物質や温度分布が流れに乗って運ばれる作用を表します。力そのものではなく、輸送を表す項です。");
+  }else if(type==="advection-diffusion"){
+    add("uφ","流れによる移流フラックスです。");
+    add("−D∇φ","勾配に逆らって高い値から低い値へ向かう拡散フラックスです。");
+    add("∇·(uφ−D∇φ)","移流と拡散を合わせた全フラックスの流入・流出差です。");
+  }else if(type==="wave"){
+    add("∂p/∂t","波動変数 p の時間変化です。");
+    add(dim==="1d"?"c∂q/∂x":"c∇·Q","波動フラックス q または Q の空間的な収束・発散が p を変化させる項です。");
+    add(dim==="1d"?"c∂p/∂x":"c∇p","p の空間勾配がフラックス q または Q を変化させます。ばねや圧力差による復元作用に対応する役割を持ちます。");
+    add("c","波が情報を伝える速度です。");
+  }else if(type==="burgers"){
+    add("∂u/∂t","速度様の変数 u の時間変化です。");
+    add("∂(u²/2)/∂x","u 自身が u を運ぶ非線形移流項です。u が大きい場所ほど速く進むため、波形を急峻化させます。");
+    add("−ν∂u/∂x","粘性による拡散フラックスです。急な勾配をならし、衝撃波的な急峻化を抑えます。");
+    add("ν","粘性の強さです。大きいほど平滑化が強くなります。");
+  }else if(type==="burgers-2d"){
+    add("u∂u/∂x + v∂u/∂y","速度ベクトル (u,v) によって u 成分自身が運ばれる自己移流です。");
+    add("u∂v/∂x + v∂v/∂y","同じ速度場によって v 成分自身が運ばれる自己移流です。");
+    add("ν∇²u, ν∇²v","粘性による運動量拡散に相当し、細かい速度構造を減衰させます。");
+    add("注意","Burgers方程式にはNavier–Stokes方程式の圧力項はありません。したがって、ここでの変形は圧力の力ではなく自己移流と粘性の競合です。");
+  }else if(type==="reaction-diffusion"){
+    add("Dᵤ∇²U, Dᵥ∇²V","U,V が空間的に広がる拡散作用です。");
+    add("−UV²","U が反応によって消費される項です。");
+    add("+UV²","同じ反応により V が自己触媒的に生成される項です。");
+    add("F(1−U)","外部から U を供給し、U=1 に戻そうとする供給項です。");
+    add("−(F+k)V","V を系外へ除去する項です。");
+    add("パターン形成","局所反応が模様を作ろうとする作用と、拡散が模様をならそうとする作用の競合でスポットや迷路状構造が生じます。");
+  }else if(type==="cahn-hilliard"){
+    add("∂φ/∂t","局所組成 φ の時間変化です。φ は通常、二つの相のどちらが優勢かを表す保存量です。");
+    add("μ = φ³−φ−κ∇²φ","化学ポテンシャルです。φ³−φ は混合状態より二相分離を好む局所自由エネルギーの寄与、−κ∇²φ は急な界面を作ることへのエネルギー罰則を表します。");
+    add("M∇μ","化学ポテンシャル差によって物質が移動する駆動に対応します。実際の保存フラックスは −M∇μ です。");
+    add("∇·(M∇μ)","化学ポテンシャル勾配により組成が再配置される項です。外力で押すというより、自由エネルギーを下げる方向へ物質が拡散する作用です。");
+    add("κ","界面を滑らかにし、細かすぎる相境界を抑える係数です。");
+  }else if(type==="convection"){
+    add("∂T/∂t","温度 T の局所的な時間変化です。");
+    add("∇·(uT)","流体運動によって温度が運ばれる移流項です。");
+    add("κ∇²T","熱伝導・熱拡散によって温度差をならす項です。");
+    add("∂ω/∂t","渦度 ω の時間変化です。渦度は流体の局所的な回転の強さを表します。");
+    add("∇·(uω)","既に存在する渦度を流れが運ぶ項です。");
+    add("ν∇²ω","粘性によって渦度の細かな構造を拡散・減衰させる項です。");
+    add("gβ ∂T/∂x","温度差による密度差が重力を受けて生じる浮力の効果を、渦度生成として表した項です。自然対流を駆動する中心的な項です。");
+    add("∇²ψ=−ω","渦度から流れ関数 ψ を求めるPoisson方程式です。");
+    add("u=∂ψ/∂y, v=−∂ψ/∂x","流れ関数から速度場を復元します。この定義により非圧縮条件 ∇·u=0 が自動的に満たされます。");
+  }else if(type==="shallow-water-1d"){
+    add("∂h/∂t + ∂(hu)/∂x=0","水量保存です。hu は単位幅あたりの流量で、水が出入りすることで水深 h が変化します。");
+    add("hu²","流体自身の運動によって水平運動量が運ばれる非線形移流フラックスです。");
+    add("gh²/2","水面勾配による静水圧の水平作用を保存形で表した圧力フラックスです。津波の復元力を生む重力効果に対応します。");
+    add("−gh ∂b/∂x","海底の傾斜によって生じる重力の水平成分に相当する地形ソース項です。");
+    add("c=√(gh)","線形近似した浅水重力波の代表的な波速です。水深が浅いほど遅くなります。");
+  }else if(type==="shallow-water"){
+    add("∇·(hu)","水深と流速の積 hu が運ぶ水量の流入・流出です。");
+    add("hu⊗u","流れ自身によって水平運動量が運ばれる非線形移流フラックスです。");
+    add("gh²I/2","静水圧による水平圧力フラックスで、水面を平らに戻そうとする重力の復元作用を表します。");
+    add("−gh∇b","海底地形の勾配による重力の水平成分に相当するソース項です。");
+    add("c=√(gh)","浅水重力波の局所的な代表波速です。海底が浅くなると波速が下がり、波面の屈折や浅水化が起こり得ます。");
+  }
+  return rows.length?'<div class="definition-text" style="margin-top:10px">'+rows.join("<br><br>")+"</div>":"";
+}
+
 function initialDefinition(type,dim){
   var map={
     "gaussian":["Gaussian","φ = A exp(−r²/(2σ²))","中心付近に滑らかな山を置く初期条件です。1Dでは r=|x−x₀|、2Dでは中心からの距離を使います。"],
@@ -3558,18 +3628,35 @@ function boundaryDefinition(type){
 
 function analyticalDefinition(){
   var info=(typeof analyticalSupportInfo==="function")?analyticalSupportInfo():{ok:false,reason:"未計算"};
+
+  var origin=
+    "<b>u_num と u_exact は何か</b><br>"+
+    "u_num,i(t) は、現在選択している数値解法で計算した時刻 t・格子点 i の値です。"+
+    "u_exact,i(t) は、同じ初期条件・同じ領域・同じ時刻 t に対して解析的に時間発展させた解を、同じ格子点 i で評価した値です。"+
+    "したがって、両者は同じ場所・同じ時刻の値を一対一で比較しています。<br><br>"+
+    "記号 i は格子点番号、Σ_i は全格子点について足し合わせることを意味します。"+
+    "2Dでは i は (i,j) の全格子点をまとめて表す添字として扱っています。<br><br>";
+
+  if(info.ok){
+    origin+=
+      "<b>現在の u_exact の作り方</b><br>"+escDef(info.description)+"<br>"+
+      "つまり u_exact は数値解から作った近似値ではなく、現在の設定で利用できる解析解・固有関数展開・Fourier展開を使って独立に計算した基準解です。<br><br>";
+  }else{
+    origin+=
+      "<b>現在の設定</b><br>"+escDef(info.reason||"解析解比較対象外です。")+"<br><br>";
+  }
+
   var body=
+    origin+
     "<b>比較指標</b><br>"+
-    "相対 L1 = Σ|u_num−u_exact| / Σ|u_exact|<br>"+
-    "相対 L2 = √Σ(u_num−u_exact)² / √Σu_exact²<br>"+
-    "相対 L∞ = max|u_num−u_exact| / max|u_exact|<br><br>"+
+    "相対 L1 = Σ_i |u_num,i−u_exact,i| / Σ_i |u_exact,i|<br>"+
+    "相対 L2 = √[Σ_i (u_num,i−u_exact,i)²] / √[Σ_i u_exact,i²]<br>"+
+    "相対 L∞ = max_i |u_num,i−u_exact,i| / max_i |u_exact,i|<br><br>"+
     "L1 は全体的なずれ、L2 は大きなずれをより強く反映し、L∞ は局所的な最大ずれを表します。"+
-    "いずれも0に近いほど解析解に近く、0.01 はおおよそ1%です。解析解の対応ノルムがほぼ0の場合、その指標のみ絶対誤差へ切り替えます。";
-  if(info.ok) body="<b>現在の比較法：</b>"+escDef(info.description)+"<br><br>"+body;
-  else body="<b>現在の設定：</b>"+escDef(info.reason||"解析解比較対象外です。")+"<br><br>"+body;
+    "いずれも0に近いほど解析解に近く、0.01 はおおよそ1%です。"+
+    "解析解の対応ノルムがほぼ0の場合、その相対誤差は定義しにくいため、その指標だけ絶対誤差へ切り替えます。";
   return body;
 }
-
 function renderDefinitions(){
   var dim=document.getElementById("dimension").value;
   var type=document.getElementById("equation-type").value;
@@ -3577,7 +3664,7 @@ function renderDefinitions(){
   var eq=equationDefinition(type,dim);
   var ic=initialDefinition(init,dim);
 
-  var html=defSection("現在の方程式："+eq.title,eq.f,eq.t);
+  var html=defSection("現在の方程式："+eq.title,eq.f,eq.t+equationTermExplanation(type,dim));
   html+=defSection("現在の初期条件："+ic.title,ic.f,ic.t);
 
   if(dim==="1d"){
