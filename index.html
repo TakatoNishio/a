@@ -314,10 +314,71 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
 @media(max-width:560px){
   #view-3d-controls .playback-display-item{width:100%}
 }
+
+/* ===== Basic diffusion home ===== */
+#basic-screen{
+  min-height:100vh;display:flex;justify-content:center;align-items:flex-start;
+  padding:24px 16px 48px;background:var(--bg)
+}
+.basic-inner{width:min(820px,100%)}
+.basic-top{display:flex;justify-content:flex-end;margin-bottom:44px}
+#go-transport{font-weight:800;padding:11px 16px}
+.basic-card{
+  max-width:720px;margin:0 auto;padding:24px;border:1px solid var(--border);
+  border-radius:18px;background:var(--card);box-shadow:var(--shadow)
+}
+.basic-title{font-size:clamp(26px,6vw,38px);margin:0 0 7px;letter-spacing:-.025em}
+.basic-lead{margin:0 0 20px;color:var(--muted);line-height:1.65}
+.basic-control{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:end;margin-bottom:18px}
+.basic-control label{display:block;font-size:13px;font-weight:800;margin-bottom:6px}
+.basic-control input{width:100%}
+#basic-calculate{min-width:110px;font-weight:800}
+.basic-chart-wrap{border:1px solid var(--border);border-radius:14px;padding:10px;background:var(--chart)}
+#basic-chart{display:block;width:100%;height:auto;aspect-ratio:16/8}
+.basic-meta{display:flex;justify-content:space-between;gap:10px;margin-top:8px;font-size:12px;color:var(--muted)}
+.basic-playback{display:flex;align-items:center;gap:8px;margin-top:12px}
+.basic-playback button{padding:7px 11px}
+#basic-slider{flex:1}
+#basic-status{min-height:20px;margin-top:10px;font-size:12px;color:var(--muted)}
+@media(max-width:560px){
+  .basic-top{margin-bottom:26px}
+  .basic-card{padding:17px}
+  .basic-control{grid-template-columns:1fr}
+  #basic-calculate{width:100%}
+}
 </style>
 </head>
 <body>
-<div id="landing-screen">
+
+<div id="basic-screen">
+  <div class="basic-inner">
+    <div class="basic-top">
+      <button id="go-transport" class="primary" type="button">輸送シミュレータはこちら →</button>
+    </div>
+    <section class="basic-card">
+      <h1 class="basic-title">1次元 拡散方程式</h1>
+      <p class="basic-lead">Gaussian分布が拡散によって広がる時間発展を計算します。</p>
+      <div class="basic-control">
+        <div>
+          <label for="basic-D">拡散係数 D</label>
+          <input id="basic-D" type="number" value="0.20" min="0.0001" max="10" step="0.01">
+        </div>
+        <button id="basic-calculate" class="primary" type="button">計算</button>
+      </div>
+      <div class="basic-chart-wrap">
+        <canvas id="basic-chart" width="760" height="380"></canvas>
+        <div class="basic-meta"><span>初期条件：Gaussian</span><output id="basic-time">t = 0.000</output></div>
+      </div>
+      <div class="basic-playback">
+        <button id="basic-play" type="button">▶ 再生</button>
+        <input id="basic-slider" type="range" min="0" max="119" value="0" step="1">
+      </div>
+      <div id="basic-status">拡散係数を設定して「計算」を押してください。</div>
+    </section>
+  </div>
+</div>
+
+<div id="landing-screen" style="display:none">
   <div class="landing-inner">
     <h1 class="landing-title">輸送シミュレータ</h1>
     <p class="landing-lead">次元と方程式を選んで、シミュレーションを始めましょう。選択後はシンプルモードで時間発展を確認できます。より細かな条件設定や比較・解析を行う場合は、「詳細カスタムモード」を選択してください。</p>
@@ -790,6 +851,18 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
         <input id="ns-lid-speed" type="number" value="1.0" min="-10" max="10" step="0.1">
         <div class="hint">キャビティでは Re = |U_lid| L / ν を代表Reynolds数として表示します。</div>
       </div>
+      <div class="group" id="ns-view-group">
+        <label for="ns-view">表示</label>
+        <select id="ns-view">
+          <option value="vorticity" selected>渦度 ω（おすすめ）</option>
+          <option value="speed">流速の大きさ |u|</option>
+          <option value="velocity-vector">流速の大きさ＋速度ベクトル</option>
+          <option value="streamfunction">流れ関数 ψ</option>
+          <option value="u-component">x方向速度 u</option>
+          <option value="v-component">y方向速度 v</option>
+        </select>
+        <div class="hint" id="ns-view-description">渦度 ω はこのソルバーが直接時間発展させている主変数です。</div>
+      </div>
       <div class="note">
         <b>自然対流との関係</b><br>
         このNavier–Stokesモードは、密度一定・非圧縮性の運動量保存を渦度–流れ関数形式で解きます。
@@ -1229,19 +1302,28 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
       </select>
     </div>
     <div class="playback-display-item" id="surface-preset-3d-group" style="display:none">
-      <label for="surface-preset-3d">立体表示で見たい部分</label>
+      <label for="surface-preset-3d">立体表示する値の範囲</label>
       <select id="surface-preset-3d">
-        <option value="outer">弱い部分まで広く見る</option>
-        <option value="standard" selected>標準</option>
-        <option value="core">強い部分を中心に見る</option>
+        <option value="all" selected>全体像（複数の値を同時表示）</option>
+        <option value="weak">低い値の構造</option>
+        <option value="middle">中間の値の構造</option>
+        <option value="strong">高い値の構造</option>
+        <option value="custom">範囲を自分で指定</option>
       </select>
-      <div class="hint">値そのものを指定する「等値面レベル」の代わりに、見たい強度範囲を選びます。</div>
+      <div class="hint">計算場の最小値〜最大値を0〜100%として、立体化する値の範囲を選びます。「全体像」では複数の値の面を重ね、内部から外側まで同時に示します。</div>
+      <div id="surface-custom-range-3d" style="display:none;margin-top:8px">
+        <div class="two">
+          <div><label for="surface-range-min-3d">下限 [%]</label><input id="surface-range-min-3d" type="number" min="0" max="100" step="1" value="35"></div>
+          <div><label for="surface-range-max-3d">上限 [%]</label><input id="surface-range-max-3d" type="number" min="0" max="100" step="1" value="75"></div>
+        </div>
+      </div>
       <input id="iso-level-3d" type="range" min="0" max="1" value="0.55" step="0.01" style="display:none" aria-hidden="true">
       <output id="iso-level-3d-output" style="display:none">55%</output>
     </div>
     <div class="playback-display-item" id="iso-count-3d-group" style="display:none">
-      <label for="iso-count-3d">立体面の重ね方</label>
-      <select id="iso-count-3d"><option value="1">1面（見やすい）</option><option value="2">2面</option><option value="3">3面（内部構造も見る）</option></select>
+      <label for="iso-count-3d">立体表示の細かさ</label>
+      <select id="iso-count-3d"><option value="3">軽量</option><option value="5" selected>標準</option><option value="7">詳細</option></select>
+      <div class="hint">同時に描く値の面の数です。増やすほど値の範囲を連続的に把握しやすくなりますが、描画は重くなります。</div>
     </div>
     <div class="playback-display-item"><label>視点</label><button id="reset-camera-3d" type="button">視点をリセット</button></div>
     <div class="playback-display-item" id="slice-axis-3d-group" style="display:none">
@@ -1365,6 +1447,15 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
 "use strict";
 
 var E={
+  basicScreen:document.getElementById("basic-screen"),
+  goTransport:document.getElementById("go-transport"),
+  basicD:document.getElementById("basic-D"),
+  basicCalculate:document.getElementById("basic-calculate"),
+  basicChart:document.getElementById("basic-chart"),
+  basicPlay:document.getElementById("basic-play"),
+  basicSlider:document.getElementById("basic-slider"),
+  basicTime:document.getElementById("basic-time"),
+  basicStatus:document.getElementById("basic-status"),
   landingScreen:document.getElementById("landing-screen"),
   simulatorScreen:document.getElementById("simulator-screen"),
   landingEquations:document.getElementById("landing-equations"),
@@ -1431,7 +1522,7 @@ var E={
   u2dGroup:document.getElementById("u2d-group"),
   transportViewGroup:document.getElementById("transport-view-group"),
   view3dControls:document.getElementById("view-3d-controls"),
-  viewMode3d:document.getElementById("view-mode-3d"),surfacePreset3d:document.getElementById("surface-preset-3d"),surfacePreset3dGroup:document.getElementById("surface-preset-3d-group"),
+  viewMode3d:document.getElementById("view-mode-3d"),surfacePreset3d:document.getElementById("surface-preset-3d"),surfacePreset3dGroup:document.getElementById("surface-preset-3d-group"),surfaceCustomRange3d:document.getElementById("surface-custom-range-3d"),surfaceRangeMin3d:document.getElementById("surface-range-min-3d"),surfaceRangeMax3d:document.getElementById("surface-range-max-3d"),
   isoLevel3d:document.getElementById("iso-level-3d"),isoLevel3dOutput:document.getElementById("iso-level-3d-output"),isoLevel3dGroup:document.getElementById("surface-preset-3d-group"),
   isoCount3d:document.getElementById("iso-count-3d"),isoCount3dGroup:document.getElementById("iso-count-3d-group"),resetCamera3d:document.getElementById("reset-camera-3d"),
   sliceAxis3d:document.getElementById("slice-axis-3d"),sliceAxis3dGroup:document.getElementById("slice-axis-3d-group"),
@@ -1481,7 +1572,7 @@ var E={
   shallowTsunamiAmplitude:document.getElementById("shallow-tsunami-amplitude"),
   shallowValidityWarning:document.getElementById("shallow-validity-warning"),
   shallowView:document.getElementById("shallow-view"),
-  navierStokesControls:document.getElementById("navier-stokes-controls"),nsPreset:document.getElementById("ns-preset"),nsPresetDescription:document.getElementById("ns-preset-description"),
+  navierStokesControls:document.getElementById("navier-stokes-controls"),nsView:document.getElementById("ns-view"),nsViewGroup:document.getElementById("ns-view-group"),nsViewDescription:document.getElementById("ns-view-description"),nsPreset:document.getElementById("ns-preset"),nsPresetDescription:document.getElementById("ns-preset-description"),
   nsNu:document.getElementById("ns-nu"),
   nsInitial:document.getElementById("ns-initial"),
   nsLidSpeed:document.getElementById("ns-lid-speed"),
@@ -1934,8 +2025,8 @@ function updateInitialOptions(){
 function setInterestingPreset(select,desc,kind,doCalc){
   var name=select.value, custom=(name==="custom"), d="";
   if(kind==="burgers"){
-    if(name==="shock"){E.burgersNu.value=".006";E.initial.value="sine";E.duration.value="5";d="小さい粘性と正弦波から、非線形急峻化と粘性で有限幅になった衝撃波を見やすくします。";}
-    else if(name==="viscous"){E.burgersNu.value=".08";E.initial.value="sine";E.duration.value="5";d="粘性を強め、急峻化と平滑化の競合を比較しやすくします。";}
+    if(name==="shock"){E.burgersNu.value=".006";E.initial.value="sine";E.duration.value="50";d="小さい粘性と正弦波から、非線形急峻化と粘性で有限幅になった衝撃波を見やすくします。";}
+    else if(name==="viscous"){E.burgersNu.value=".08";E.initial.value="sine";E.duration.value="50";d="粘性を強め、急峻化と平滑化の競合を比較しやすくします。";}
     else if(name==="inviscid"){E.burgersNu.value="0";E.initial.value="sine";E.duration.value="3";d="ν=0 の保存則として急峻化・衝撃波形成を観察します。";}
   }else if(kind==="kdv"){
     E.kdvAlpha.value="6";
@@ -2366,6 +2457,51 @@ var equationCatalog=[
 ];
 
 
+
+var basicFrames=[],basicTimes=[],basicCurrent=0,basicPlaying=false,basicRaf=null,basicLastTs=0;
+function basicGaussian(x,L){
+  var sigma=L*.10,xc=L*.5,z=(x-xc)/sigma;
+  return Math.exp(-.5*z*z);
+}
+function calculateBasicDiffusion(){
+  var D=Math.max(.0001,Math.min(10,Number(E.basicD.value)||.2));
+  E.basicD.value=String(D);
+  var L=10,N=181,dx=L/(N-1),T=10,fc=120,displayDt=T/(fc-1);
+  var u=new Float64Array(N),next=new Float64Array(N);
+  for(var i=0;i<N;i++)u[i]=basicGaussian(i*dx,L);
+  basicFrames=[new Float64Array(u)];basicTimes=[0];
+  for(var f=1;f<fc;f++){
+    var elapsed=0;
+    while(elapsed<displayDt-1e-14){
+      var dt=Math.min(displayDt-elapsed,.45*dx*dx/(2*D));
+      next[0]=u[0];next[N-1]=u[N-1];
+      for(i=1;i<N-1;i++)next[i]=u[i]+D*dt*(u[i+1]-2*u[i]+u[i-1])/(dx*dx);
+      var tmp=u;u=next;next=tmp;elapsed+=dt;
+    }
+    basicFrames.push(new Float64Array(u));basicTimes.push(f*displayDt);
+  }
+  basicCurrent=0;E.basicSlider.max=String(fc-1);E.basicSlider.value="0";
+  E.basicStatus.textContent="計算完了：Gaussianの拡散を "+T+" s まで計算しました。";
+  stopBasicPlayback();drawBasic();
+}
+function drawBasic(){
+  if(!basicFrames.length)return;
+  var c=E.basicChart,ctxb=c.getContext("2d"),w=c.width,h=c.height,p={l:52,r:18,t:18,b:38};
+  var pw=w-p.l-p.r,ph=h-p.t-p.b,data=basicFrames[basicCurrent],ymax=1.05;
+  ctxb.clearRect(0,0,w,h);ctxb.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue("--grid");ctxb.fillStyle=getComputedStyle(document.documentElement).getPropertyValue("--muted");ctxb.lineWidth=1;ctxb.font="12px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif";
+  for(var j=0;j<=4;j++){var gy=p.t+ph*j/4;ctxb.beginPath();ctxb.moveTo(p.l,gy);ctxb.lineTo(w-p.r,gy);ctxb.stroke();ctxb.fillText((ymax*(1-j/4)).toFixed(2),8,gy+4);}
+  for(j=0;j<=5;j++){var gx=p.l+pw*j/5;ctxb.beginPath();ctxb.moveTo(gx,p.t);ctxb.lineTo(gx,p.t+ph);ctxb.stroke();ctxb.fillText((10*j/5).toFixed(0),gx-4,h-12);}
+  ctxb.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue("--accent");ctxb.lineWidth=2.5;ctxb.beginPath();
+  for(var i=0;i<data.length;i++){var x=p.l+pw*i/(data.length-1),y=p.t+ph*(ymax-data[i])/ymax;if(i===0)ctxb.moveTo(x,y);else ctxb.lineTo(x,y);}ctxb.stroke();
+  ctxb.fillStyle=getComputedStyle(document.documentElement).getPropertyValue("--muted");ctxb.fillText("x",w-p.r+4,h-12);ctxb.fillText("u",p.l-4,p.t-5);
+  E.basicTime.textContent="t = "+basicTimes[basicCurrent].toFixed(3);E.basicSlider.value=String(basicCurrent);
+}
+function stopBasicPlayback(){basicPlaying=false;if(basicRaf!==null)cancelAnimationFrame(basicRaf);basicRaf=null;basicLastTs=0;E.basicPlay.textContent="▶ 再生";}
+function basicPlaybackStep(ts){
+  if(!basicPlaying)return;if(!basicLastTs)basicLastTs=ts;
+  if(ts-basicLastTs>=45){basicCurrent++;if(basicCurrent>=basicFrames.length){basicCurrent=basicFrames.length-1;stopBasicPlayback();drawBasic();return;}drawBasic();basicLastTs=ts;}
+  basicRaf=requestAnimationFrame(basicPlaybackStep);
+}
 var simulatorEntryMode="landing";
 var landingDimension="1d";
 var landingEquationDescriptions={
@@ -2424,9 +2560,28 @@ function updateEntryModeLabels(){
     E.switchToCustom.style.display="none";
   }
 }
+
+function showBasic(){
+  stop();
+  stopComparisonPlayback();
+  E.simulatorScreen.classList.remove("active");
+  E.landingScreen.style.display="none";
+  E.basicScreen.style.display="flex";
+  window.scrollTo(0,0);
+}
+function showTransportLanding(){
+  stop();
+  stopComparisonPlayback();
+  E.basicScreen.style.display="none";
+  E.simulatorScreen.classList.remove("active");
+  E.landingScreen.style.display="flex";
+  renderLandingEquations();
+  window.scrollTo(0,0);
+}
 function showSimulator(mode){
   simulatorEntryMode=mode;
   document.body.classList.toggle("simple-mode",mode==="simple");
+  E.basicScreen.style.display="none";
   E.landingScreen.style.display="none";
   E.simulatorScreen.classList.add("active");
   updateEntryModeLabels();
@@ -5301,7 +5456,7 @@ async function calcNavierStokes2D(p,serial){
   }
   var initFlow=await nsVelocityFromOmega(omega,psi,tmp,N,dx,periodic,serial,p.nsLidSpeed);
   psi=initFlow.psi;tmp=initFlow.tmp;vel=initFlow.vel;
-  frames=[new Float64Array(omega)];times=[0];var velocityFrames=[new Float64Array(vel)],vorticityFrames=[new Float64Array(omega)],lastDt=0,maxDiv=initFlow.maxDiv,maxPoissonResidual=initFlow.residual;
+  frames=[new Float64Array(omega)];times=[0];var velocityFrames=[new Float64Array(vel)],vorticityFrames=[new Float64Array(omega)],psiFrames=[new Float64Array(psi)],lastDt=0,maxDiv=initFlow.maxDiv,maxPoissonResidual=initFlow.residual;
   for(var f=1;f<fc;f++){
     var elapsed=0;
     while(elapsed<displayDt-1e-12){
@@ -5342,11 +5497,11 @@ async function calcNavierStokes2D(p,serial){
     var savedFlow=await nsVelocityFromOmega(omega,psi,tmp,N,dx,periodic,serial,p.nsLidSpeed);
     psi=savedFlow.psi;tmp=savedFlow.tmp;vel=savedFlow.vel;
     maxDiv=Math.max(maxDiv,savedFlow.maxDiv);maxPoissonResidual=Math.max(maxPoissonResidual,savedFlow.residual);
-    frames.push(new Float64Array(omega));vorticityFrames.push(new Float64Array(omega));velocityFrames.push(new Float64Array(vel));times.push(f*displayDt);updateCalculationProgress(100*f/(fc-1));
+    frames.push(new Float64Array(omega));vorticityFrames.push(new Float64Array(omega));velocityFrames.push(new Float64Array(vel));psiFrames.push(new Float64Array(psi));times.push(f*displayDt);updateCalculationProgress(100*f/(fc-1));
   }
   var Re=(p.nsInitial==="lid-cavity")?Math.abs(p.nsLidSpeed)*L/nu:null;
   var en=0,ens=0;for(k=0;k<N*N;k++){en+=.5*(vel[2*k]**2+vel[2*k+1]**2)*dx*dx;ens+=.5*omega[k]**2*dx*dx;}
-  state={mode:"convection",equationKind:"navier-stokes",equationType:"navier-stokes",L:L,N:N,dx:dx,dy:dx,px:periodic,py:periodic,periodic:periodic,velocityFrames:velocityFrames,vorticityFrames:vorticityFrames,nsRe:Re,nsKineticEnergy:en,nsEnstrophy:ens,nsPoissonResidual:maxPoissonResidual,nsMaxDivergence:maxDiv,nsInitial:p.nsInitial,nsNu:nu};
+  state={mode:"convection",equationKind:"navier-stokes",equationType:"navier-stokes",L:L,N:N,dx:dx,dy:dx,px:periodic,py:periodic,periodic:periodic,velocityFrames:velocityFrames,vorticityFrames:vorticityFrames,psiFrames:psiFrames,nsRe:Re,nsKineticEnergy:en,nsEnstrophy:ens,nsPoissonResidual:maxPoissonResidual,nsMaxDivergence:maxDiv,nsInitial:p.nsInitial,nsNu:nu};
   E.dx.textContent="N = "+N+"×"+N+"　Δx = Δy = "+dx.toPrecision(4);E.dt.textContent="内部 Δt ≈ "+lastDt.toPrecision(4);
   E.mass.textContent="運動エネルギー K = "+en.toPrecision(5)+(Re!==null?"　Re = "+Re.toPrecision(4):"");
 }
@@ -6513,6 +6668,8 @@ function displayedScaleRange(frameIndex,data,signed){
 
 function activeDisplaySelect(){
   var t=E.equationType.value,is2=E.dimension.value==="2d";
+  if(t==="euler")return E.eulerView;
+  if(t==="navier-stokes")return E.nsView;
   if(t==="convection")return E.viewMode;
   if(t==="reaction-diffusion")return E.reactionViewMode;
   if(t==="burgers-2d")return E.burgers2dView;
@@ -6521,6 +6678,20 @@ function activeDisplaySelect(){
   if(t==="wave"&&E.waveModel.value==="generic"&&is2)return E.waveViewMode;
   if(is2&&(t==="diffusion"||t==="advection"||t==="advection-diffusion"))return E.transportViewMode;
   return null;
+}
+
+function updateNSViewDescription(){
+  if(!E.nsViewDescription)return;
+  var m=E.nsView.value;
+  var txt={
+    "vorticity":"渦度 ω はこのソルバーが直接時間発展させている主変数です。渦の回転方向と強さが最も直接的に見えます。",
+    "speed":"速度場は各時刻の渦度 ω から ∇²ψ=−ω を解き、u=ψ_y, v=−ψ_x として復元します。色は |u| を表します。",
+    "velocity-vector":"色で流速 |u|、矢印で速度の向きと相対的な大きさを表示します。流れそのものを直感的に見るのに適しています。",
+    "streamfunction":"流れ関数 ψ を表示します。∇²ψ=−ω で渦度から各時刻に求められ、ψ の等値線は2D非圧縮流れの流線に対応します。",
+    "u-component":"x方向速度成分 u=∂ψ/∂y を表示します。正負で左右方向の流れを区別できます。",
+    "v-component":"y方向速度成分 v=−∂ψ/∂x を表示します。正負で上下方向の流れを区別できます。"
+  };
+  E.nsViewDescription.textContent=txt[m]||"";
 }
 function syncPlaybackDisplayUI(){
   if(!E.playbackDisplayQuantity)return;
@@ -6535,10 +6706,16 @@ function syncPlaybackDisplayUI(){
     });
     E.playbackDisplayQuantity.value=src.value;
   }
+  var ph=document.querySelector(".playback-display-hint");
+  if(ph){
+    ph.textContent=(E.equationType.value==="navier-stokes")
+      ?"2D Navier–Stokesでは渦度 ω を直接時間発展させ、各時刻の ω から流れ関数 ψ と速度場 u を復元しています。表示量を切り替えると、同じ計算結果を別の物理量として確認できます。"
+      :"動画の表示量と縦軸・カラースケールはここから変更できます。カラースケールを変えても計算結果そのものは変わりません。";
+  }
   // Hide the original equation-setting display selector. The actual select
   // remains in the DOM as the solver/rendering source of truth.
   [E.transportViewGroup,E.waveViewGroup,E.reactionViewGroup].forEach(function(g){if(g)g.style.display="none";});
-  [E.viewMode,E.burgers2dView,E.cahnView,E.shallowView].forEach(function(sel){
+  [E.eulerView,E.nsView,E.viewMode,E.burgers2dView,E.cahnView,E.shallowView].forEach(function(sel){
     if(sel&&sel.parentElement)sel.parentElement.style.display="none";
   });
 }
@@ -6919,9 +7096,9 @@ function drawConvection(){
   var aw=w-pad.l-pad.r,ah=h-pad.t-pad.b;
   var size=Math.max(120,Math.min(aw,ah));
   var ox=pad.l+(aw-size)/2,oy=pad.t+(ah-size)/2;
-  var mode=E.viewMode.value;
-  var data=frames[current];
   var isNS=(state.equationKind==="navier-stokes");
+  var mode=isNS?E.nsView.value:E.viewMode.value;
+  var data=frames[current];
   var initialTemp=frames[0];
   var vel=state.velocityFrames[current];
   var vort=state.vorticityFrames[current];
@@ -6930,29 +7107,33 @@ function drawConvection(){
   off.width=N;off.height=N;
   var octx=off.getContext("2d"),img=octx.createImageData(N,N);
   var i,j,k,pix,rgb,val,displayData,signed=false;
-  if(mode==="velocity"){
+  if(isNS){
+    if(mode==="speed"||mode==="velocity-vector"){
+      displayData=new Float64Array(N*N);
+      for(k=0;k<N*N;k++)displayData[k]=Math.hypot(vel[2*k],vel[2*k+1]);
+    }else if(mode==="streamfunction"){
+      displayData=state.psiFrames[current];signed=true;
+    }else if(mode==="u-component"){
+      displayData=new Float64Array(N*N);signed=true;for(k=0;k<N*N;k++)displayData[k]=vel[2*k];
+    }else if(mode==="v-component"){
+      displayData=new Float64Array(N*N);signed=true;for(k=0;k<N*N;k++)displayData[k]=vel[2*k+1];
+    }else{
+      displayData=vort;signed=true;
+    }
+  }else if(mode==="velocity"){
     displayData=new Float64Array(N*N);
     for(k=0;k<N*N;k++)displayData[k]=Math.hypot(vel[2*k],vel[2*k+1]);
   }else if(mode==="vorticity"){
     displayData=vort;signed=true;
-  }else{
-    displayData=data;
-    if(isNS)signed=true;
-  }
+  }else displayData=data;
   var cr=displayedScaleRange(current,displayData,signed),scaleMin=cr[0],scaleMax=cr[1];
   var maxVal=Math.max(Math.abs(scaleMin),Math.abs(scaleMax),1e-12);
 
   for(j=0;j<N;j++){
     for(i=0;i<N;i++){
       k=j*N+i;
-      if(mode==="velocity"){
-        val=(displayData[k]-scaleMin)/(scaleMax-scaleMin);
-        rgb=colorMap(val);
-      }else if(mode==="vorticity"){
-        rgb=divergingColorRange(displayData[k],scaleMin,scaleMax);
-      }else{
-        rgb=isNS?divergingColorRange(displayData[k],scaleMin,scaleMax):colorMap((displayData[k]-scaleMin)/(scaleMax-scaleMin));
-      }
+      if(signed)rgb=divergingColorRange(displayData[k],scaleMin,scaleMax);
+      else{val=(displayData[k]-scaleMin)/(scaleMax-scaleMin);rgb=colorMap(val);}
       pix=4*((N-1-j)*N+i);
       img.data[pix]=rgb[0];img.data[pix+1]=rgb[1];img.data[pix+2]=rgb[2];img.data[pix+3]=255;
     }
@@ -6962,7 +7143,7 @@ function drawConvection(){
   ctx.drawImage(off,ox,oy,size,size);
   ctx.strokeStyle=css("--muted");ctx.strokeRect(ox,oy,size,size);
 
-  if(mode==="temperature-velocity"){
+  if(mode==="temperature-velocity"||(isNS&&mode==="velocity-vector")){
     var step=5,maxSpeed=0;
     for(k=0;k<N*N;k++){
       val=Math.sqrt(vel[2*k]*vel[2*k]+vel[2*k+1]*vel[2*k+1]);
@@ -6992,16 +7173,9 @@ function drawConvection(){
   }
 
   ctx.fillStyle=css("--muted");ctx.font="12px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif";
-  if(mode==="temperature"||mode==="temperature-velocity"){
-    ctx.fillText((isNS?"ω":"T")+" scale min="+scaleMin.toPrecision(4),ox+5,oy+14);
-    ctx.fillText((isNS?"ω":"T")+" scale max="+scaleMax.toPrecision(4),ox+5,oy+30);
-  }else if(mode==="velocity"){
-    ctx.fillText("|u| scale min="+scaleMin.toPrecision(4),ox+5,oy+14);
-    ctx.fillText("|u| scale max="+scaleMax.toPrecision(4),ox+5,oy+30);
-  }else if(mode==="vorticity"){
-    ctx.fillText("ω scale min="+scaleMin.toPrecision(4),ox+5,oy+14);
-    ctx.fillText("ω scale max="+scaleMax.toPrecision(4),ox+5,oy+30);
-  }
+  var qlabel=isNS?(mode==="vorticity"?"ω":(mode==="speed"||mode==="velocity-vector"?"|u|":mode==="streamfunction"?"ψ":mode==="u-component"?"u":"v")):(mode==="velocity"?"|u|":mode==="vorticity"?"ω":"T");
+  ctx.fillText(qlabel+" scale min="+scaleMin.toPrecision(4),ox+5,oy+14);
+  ctx.fillText(qlabel+" scale max="+scaleMax.toPrecision(4),ox+5,oy+30);
   for(i=0;i<=4;i++){
     var xv=ox+size*i/4;
     ctx.fillText((state.L*i/4).toFixed(1),xv-9,oy+size+20);
@@ -7838,9 +8012,10 @@ function update3DViewControls(){
   E.isoCount3dGroup.style.display=volume?"grid":"none";
   E.sliceAxis3dGroup.style.display=single?"grid":"none";
   E.slicePosition3dGroup.style.display=single?"grid":"none";
+  E.surfaceCustomRange3d.style.display=(volume&&E.surfacePreset3d.value==="custom")?"block":"none";
   E.view3dHint.textContent=volume
-    ?"回転できる立体表示です。「弱い部分まで／標準／強い部分」を選ぶだけで表示面を切り替えられます。座標は右手系 x×y=z です。"
-    :(single?"1枚の断面を大きく表示します。断面方向と位置を変更できます。":"中央の x–y・x–z・y–z 断面を同時表示します。3D分布の位置と広がりを最も直感的に確認できる表示です。");
+    ?"回転できる立体表示です。表示する値の範囲と描画の細かさを選べます。複数の値の面を半透明で重ねることで、外側と内部の構造を同時に確認できます。座標は右手系 x×y=z です。"
+    :(single?"1枚の断面を大きく表示します。断面方向と位置を変更できます。":"中央の x–y・x–z・y–z 断面を同時表示します。3D分布の位置と広がりを3方向から確認できます。");
 }
 function rotate3DPoint(x,y,z){
   var cy=Math.cos(view3dCamera.yaw),sy=Math.sin(view3dCamera.yaw);
@@ -7908,12 +8083,14 @@ function draw3DVolume(){
   var sz=canvasSize(),w=sz.w,h=sz.h;ctx.clearRect(0,0,w,h);
   var field=frames[current],N=state.N,signed=(state.equationKind==="wave3d");
   var range=scaleRange3D(field,signed),vmin=range[0],vmax=range[1],span=Math.max(vmax-vmin,1e-12);
-  var frac=Number(E.isoLevel3d.value),amp=Math.max(Math.abs(vmin),Math.abs(vmax));
-  var target=signed?((2*frac-1)*amp):(vmin+frac*span);
-  E.isoLevel3dOutput.value=Math.round(frac*100)+"%";
-  var layerCount=Number(E.isoCount3d.value)||1,fracs=[frac];
-  if(layerCount===2)fracs=[clamp(frac-.12,0,1),clamp(frac+.12,0,1)];
-  if(layerCount>=3)fracs=[clamp(frac-.18,0,1),frac,clamp(frac+.18,0,1)];
+  var mode=E.surfacePreset3d.value,layerCount=Number(E.isoCount3d.value)||5,lo=.15,hi=.90;
+  if(mode==="weak"){lo=.08;hi=.38;}else if(mode==="middle"){lo=.35;hi=.68;}else if(mode==="strong"){lo=.65;hi=.94;}
+  else if(mode==="custom"){
+    lo=clamp(Number(E.surfaceRangeMin3d.value)/100,0,1);hi=clamp(Number(E.surfaceRangeMax3d.value)/100,0,1);
+    if(hi<lo){var sw=lo;lo=hi;hi=sw;}
+  }
+  var fracs=[];for(var fi=0;fi<layerCount;fi++)fracs.push(layerCount===1?.5*(lo+hi):lo+(hi-lo)*fi/(layerCount-1));
+  var amp=Math.max(Math.abs(vmin),Math.abs(vmax));
   var cx=w*.5,cy=h*.50;
   // Orthographic projection deliberately avoids perspective stretching of scientific geometry.
   var scale=Math.min(w*.72,h*.72)*view3dCamera.zoom;
@@ -7930,7 +8107,7 @@ function draw3DVolume(){
   ctx.save();ctx.lineJoin="round";
   for(var n=0;n<all.length;n++){
     var o=all[n],rgb=signed?divergingColorRange(o.val,vmin,vmax):colorMap((o.val-vmin)/span);
-    var alpha=fracs.length>1?.28:.48;
+    var alpha=fracs.length>=7?.14:(fracs.length>=5?.19:(fracs.length>1?.26:.48));
     ctx.fillStyle="rgba("+rgb[0]+","+rgb[1]+","+rgb[2]+","+alpha+")";
     ctx.strokeStyle="rgba("+rgb[0]+","+rgb[1]+","+rgb[2]+","+(Math.min(.7,alpha+.16))+")";
     ctx.lineWidth=.55;
@@ -7943,7 +8120,7 @@ function draw3DVolume(){
   ctx.restore();
   draw3DAxes(cx,cy,scale);
   ctx.fillStyle=css("--muted");ctx.font="12px sans-serif";
-  ctx.fillText("等値面: "+target.toPrecision(4)+"　三角形: "+all.length,w>360?18:8,20);
+  ctx.fillText("表示範囲: "+Math.round(lo*100)+"–"+Math.round(hi*100)+"%　面数: "+fracs.length+"　三角形: "+all.length,w>360?18:8,20);
   ctx.fillText("右手系 x×y=z　drag: 回転　wheel/pinch: zoom",w>360?18:8,h-12);
 }
 function draw3DOrthoslices(){
@@ -9487,12 +9664,8 @@ E.playbackDisplayQuantity.addEventListener("change",function(){
   updateScaleControlsUI();draw();
 });
 E.viewMode3d.addEventListener("change",function(){update3DViewControls();if(state&&state.mode==="3d")draw();});
-E.surfacePreset3d.addEventListener("change",function(){
-  var m=this.value;
-  E.isoLevel3d.value=(m==="outer"?"0.32":m==="core"?"0.74":"0.55");
-  E.isoCount3d.value=(m==="core"?"2":"1");
-  if(state&&state.mode==="3d")draw();
-});
+E.surfacePreset3d.addEventListener("change",function(){update3DViewControls();if(state&&state.mode==="3d")draw();});
+[E.surfaceRangeMin3d,E.surfaceRangeMax3d,E.isoCount3d].forEach(function(el){el.addEventListener("input",function(){if(state&&state.mode==="3d")draw();});});
 E.isoLevel3d.addEventListener("input",function(){E.isoLevel3dOutput.value=Math.round(Number(this.value)*100)+"%";if(state&&state.mode==="3d")draw();});
 E.isoCount3d.addEventListener("change",function(){if(state&&state.mode==="3d")draw();});
 E.resetCamera3d.addEventListener("click",function(){view3dCamera.yaw=-.72;view3dCamera.pitch=.48;view3dCamera.zoom=1;if(state&&state.mode==="3d")draw();});
@@ -9569,6 +9742,10 @@ E.comparisonPlay.addEventListener("click",function(){
 E.landingDim1d.addEventListener("click",function(){setLandingDimension("1d");});
 E.landingDim2d.addEventListener("click",function(){setLandingDimension("2d");});
 E.landingDim3d.addEventListener("click",function(){setLandingDimension("3d");});
+E.goTransport.addEventListener("click",function(){showTransportLanding();});
+E.basicCalculate.addEventListener("click",calculateBasicDiffusion);
+E.basicSlider.addEventListener("input",function(){stopBasicPlayback();basicCurrent=Number(E.basicSlider.value)||0;drawBasic();});
+E.basicPlay.addEventListener("click",function(){if(!basicFrames.length)calculateBasicDiffusion();if(basicPlaying){stopBasicPlayback();return;}if(basicCurrent>=basicFrames.length-1)basicCurrent=0;basicPlaying=true;E.basicPlay.textContent="■ 停止";basicLastTs=0;basicRaf=requestAnimationFrame(basicPlaybackStep);});
 E.landingCustomMode.addEventListener("click",function(){openCustomSolver();});
 E.backToTitle.addEventListener("click",function(){showLanding();});
 E.switchToCustom.addEventListener("click",function(){
@@ -9920,12 +10097,15 @@ window.addEventListener("resize",draw);
  [E.nu,E.convectionPreset],[E.buoyancy,E.convectionPreset],[E.convInitial,E.convectionPreset],
  [E.shallowG,E.shallowPreset],[E.shallowH0,E.shallowPreset],[E.shallowTerrain,E.shallowPreset],[E.shallowTsunamiAmplitude,E.shallowPreset]
 ].forEach(function(x){x[0].addEventListener("input",function(){markInterestingCustom(x[1]);});});
+E.nsView.addEventListener("change",function(){updateNSViewDescription();syncPlaybackDisplayUI();if(frames.length&&state.equationKind==="navier-stokes")draw();});
 E.ksInitial.addEventListener("change",function(){updateKSInitialDescription();});
 updateEquationOptionsForDimension(E.equationType.value);
 updateModeUI();
 renderLandingEquations();
-E.landingScreen.style.display="flex";
+E.basicScreen.style.display="flex";
+E.landingScreen.style.display="none";
 E.simulatorScreen.classList.remove("active");
+calculateBasicDiffusion();
 
 })();
 
