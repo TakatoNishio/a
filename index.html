@@ -1129,7 +1129,7 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
       <input id="slice-position-3d" type="range" min="0" max="1" value="0.5" step="0.01">
       <output id="slice-position-3d-output">0.50 L</output>
     </div>
-    <div class="hint playback-display-hint" id="view-3d-hint">ドラッグで回転、ホイール/ピンチで拡大縮小できます。半透明の点群で等値面近傍を表示し、x・y・z軸を常時表示します。</div>
+    <div class="hint playback-display-hint" id="view-3d-hint">ドラッグで回転、ホイール/ピンチで拡大縮小できます。格子セル内を線形補間して等値面を三角形メッシュとして表示します。x・y・z軸は右手系（x×y=z）です。</div>
   </div>
 
   <div class="time-row">
@@ -7543,7 +7543,7 @@ function update3DViewControls(){
   E.sliceAxis3dGroup.style.display=volume?"none":"grid";
   E.slicePosition3dGroup.style.display=volume?"none":"grid";
   E.view3dHint.textContent=volume
-    ?"ドラッグで回転、ホイール/ピンチで拡大縮小できます。半透明の点群で等値面近傍を表示し、x・y・z軸を常時表示します。"
+    ?"ドラッグで回転、ホイール/ピンチで拡大縮小できます。格子セル内を線形補間して等値面を三角形メッシュとして表示します。x・y・z軸は右手系（x×y=z）です。"
     :"3D場を2D断面として表示します。断面方向と位置を変更できます。";
 }
 function rotate3DPoint(x,y,z){
@@ -7554,21 +7554,23 @@ function rotate3DPoint(x,y,z){
   return [x1,y1,z2];
 }
 function project3DPoint(x,y,z,cx,cy,scale){
-  var r=rotate3DPoint(x,y,z),pers=1/(1+0.18*r[2]);
-  return [cx+scale*r[0]*pers,cy-scale*r[1]*pers,r[2],pers];
+  var r=rotate3DPoint(x,y,z);
+  return [cx+scale*r[0],cy-scale*r[1],r[2],1];
 }
 function draw3DAxes(cx,cy,scale){
-  var O=project3DPoint(-.5,-.5,-.5,cx,cy,scale);
+  // The model basis is explicitly right-handed: e_x × e_y = e_z.
+  // Camera rotation is a proper rotation (det=+1), so handedness is preserved at every view angle.
+  var O=project3DPoint(-.5,-.5,-.5,cx,cy,scale),len=.92;
   var axes=[
-    {p:project3DPoint(.62,-.5,-.5,cx,cy,scale),label:"x"},
-    {p:project3DPoint(-.5,.62,-.5,cx,cy,scale),label:"y"},
-    {p:project3DPoint(-.5,-.5,.62,cx,cy,scale),label:"z"}
+    {p:project3DPoint(-.5+len,-.5,-.5,cx,cy,scale),label:"+x",color:"#d94b4b"},
+    {p:project3DPoint(-.5,-.5+len,-.5,cx,cy,scale),label:"+y",color:"#2f9e64"},
+    {p:project3DPoint(-.5,-.5,-.5+len,cx,cy,scale),label:"+z",color:"#3975d4"}
   ];
-  ctx.save();ctx.lineWidth=2;ctx.font="bold 14px sans-serif";
+  ctx.save();ctx.lineWidth=2.2;ctx.font="bold 13px sans-serif";
+  ctx.fillStyle=css("--muted");ctx.fillText("O",O[0]-13,O[1]+14);
   for(var a=0;a<axes.length;a++){
-    ctx.strokeStyle=a===0?"#d94b4b":(a===1?"#2f9e64":"#3975d4");
-    ctx.fillStyle=ctx.strokeStyle;ctx.beginPath();ctx.moveTo(O[0],O[1]);ctx.lineTo(axes[a].p[0],axes[a].p[1]);ctx.stroke();
-    ctx.fillText(axes[a].label,axes[a].p[0]+5,axes[a].p[1]-4);
+    ctx.strokeStyle=axes[a].color;ctx.fillStyle=axes[a].color;ctx.beginPath();ctx.moveTo(O[0],O[1]);ctx.lineTo(axes[a].p[0],axes[a].p[1]);ctx.stroke();
+    ctx.fillText(axes[a].label,axes[a].p[0]+4,axes[a].p[1]-4);
   }
   ctx.restore();
 }
@@ -7580,52 +7582,73 @@ function draw3DBox(cx,cy,scale){
   for(var e=0;e<edges.length;e++){var a=V[edges[e][0]],b=V[edges[e][1]];ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();}
   ctx.restore();
 }
+function interpIso3D(p1,p2,v1,v2,iso){
+  var d=v2-v1,t=Math.abs(d)<1e-14?.5:(iso-v1)/d;t=clamp(t,0,1);
+  return [p1[0]+t*(p2[0]-p1[0]),p1[1]+t*(p2[1]-p1[1]),p1[2]+t*(p2[2]-p1[2])];
+}
+function isoTriangles3D(field,N,iso){
+  // Marching tetrahedra: each Cartesian grid cell is decomposed into six tetrahedra.
+  // This gives a continuous, linearly interpolated triangular isosurface without treating grid nodes as particles.
+  var tris=[],maxTris=26000;
+  var C=[[0,0,0],[1,0,0],[1,1,0],[0,1,0],[0,0,1],[1,0,1],[1,1,1],[0,1,1]];
+  var T=[[0,5,1,6],[0,1,2,6],[0,2,3,6],[0,3,7,6],[0,7,4,6],[0,4,5,6]];
+  var TE=[[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]];
+  function val(i,j,k){return field[idx3(i,j,k,N)];}
+  for(var k=0;k<N-1;k++)for(var j=0;j<N-1;j++)for(var i=0;i<N-1;i++){
+    var P=new Array(8),V=new Array(8);
+    for(var c=0;c<8;c++){var cc=C[c];P[c]=[(i+cc[0])/(N-1)-.5,(j+cc[1])/(N-1)-.5,(k+cc[2])/(N-1)-.5];V[c]=val(i+cc[0],j+cc[1],k+cc[2]);}
+    for(var ti=0;ti<6;ti++){
+      var tet=T[ti],cuts=[];
+      for(var e=0;e<6;e++){var a=tet[TE[e][0]],b=tet[TE[e][1]],va=V[a],vb=V[b];
+        if((va<iso&&vb>=iso)||(vb<iso&&va>=iso))cuts.push(interpIso3D(P[a],P[b],va,vb,iso));
+      }
+      if(cuts.length===3)tris.push([cuts[0],cuts[1],cuts[2]]);
+      else if(cuts.length===4){tris.push([cuts[0],cuts[1],cuts[2]]);tris.push([cuts[0],cuts[2],cuts[3]]);}
+      if(tris.length>=maxTris)return tris;
+    }
+  }return tris;
+}
 function draw3DVolume(){
   var sz=canvasSize(),w=sz.w,h=sz.h;ctx.clearRect(0,0,w,h);
   var field=frames[current],N=state.N,signed=(state.equationKind==="wave3d");
   var range=scaleRange3D(field,signed),vmin=range[0],vmax=range[1],span=Math.max(vmax-vmin,1e-12);
-  var frac=Number(E.isoLevel3d.value),target=signed?((2*frac-1)*Math.max(Math.abs(vmin),Math.abs(vmax))):(vmin+frac*span);
+  var frac=Number(E.isoLevel3d.value),amp=Math.max(Math.abs(vmin),Math.abs(vmax));
+  var target=signed?((2*frac-1)*amp):(vmin+frac*span);
   E.isoLevel3dOutput.value=Math.round(frac*100)+"%";
   var layerCount=Number(E.isoCount3d.value)||1,fracs=[frac];
-  if(layerCount>=2)fracs=[clamp(frac-.14,0,1),clamp(frac+.14,0,1)];
+  if(layerCount===2)fracs=[clamp(frac-.12,0,1),clamp(frac+.12,0,1)];
   if(layerCount>=3)fracs=[clamp(frac-.18,0,1),frac,clamp(frac+.18,0,1)];
-  var tol=Math.max(span*.035,1e-12),pts=[],stride=N>31?2:1;
-  for(var li=0;li<fracs.length;li++){
-    var tar=signed?((2*fracs[li]-1)*Math.max(Math.abs(vmin),Math.abs(vmax))):(vmin+fracs[li]*span);
-    for(var k=0;k<N;k+=stride)for(var j=0;j<N;j+=stride)for(var i=0;i<N;i+=stride){
-      var id=idx3(i,j,k,N),val=field[id];
-      if(Math.abs(val-tar)<=tol){
-        var r=rotate3DPoint(i/(N-1)-.5,j/(N-1)-.5,k/(N-1)-.5);
-        pts.push([r[2],r[0],r[1],val,li]);
-      }
-    }
-  }
-  if(pts.length<24){
-    var candidates=[];
-    for(k=0;k<N;k+=stride)for(j=0;j<N;j+=stride)for(i=0;i<N;i+=stride){
-      id=idx3(i,j,k,N);val=field[id];candidates.push([Math.abs(val-target),i,j,k,val]);
-    }
-    candidates.sort(function(a,b){return a[0]-b[0]});
-    var take=Math.min(500,candidates.length);pts=[];
-    for(var q=0;q<take;q++){var c=candidates[q],rr=rotate3DPoint(c[1]/(N-1)-.5,c[2]/(N-1)-.5,c[3]/(N-1)-.5);pts.push([rr[2],rr[0],rr[1],c[4],0]);}
-  }
-  pts.sort(function(a,b){return a[0]-b[0]});
-  var cx=w*.5,cy=h*.49,scale=Math.min(w,h)*.64*view3dCamera.zoom;
+  var cx=w*.5,cy=h*.50;
+  // Orthographic projection deliberately avoids perspective stretching of scientific geometry.
+  var scale=Math.min(w*.72,h*.72)*view3dCamera.zoom;
   draw3DBox(cx,cy,scale);
-  ctx.save();
-  for(q=0;q<pts.length;q++){
-    var pt=pts[q],pers=1/(1+.18*pt[0]),px=cx+scale*pt[1]*pers,py=cy-scale*pt[2]*pers;
-    var rgb=signed?divergingColorRange(pt[3],vmin,vmax):colorMap((pt[3]-vmin)/span);
-    var radius=Math.max(1.7,3.1*view3dCamera.zoom*pers);
-    var alpha=fracs.length>1?(0.20+0.08*(pt[4]/Math.max(1,fracs.length-1))):0.32;
+  var all=[];
+  for(var li=0;li<fracs.length;li++){
+    var iso=signed?((2*fracs[li]-1)*amp):(vmin+fracs[li]*span),ts=isoTriangles3D(field,N,iso);
+    for(var q=0;q<ts.length;q++){
+      var tri=ts[q],rp=[rotate3DPoint(...tri[0]),rotate3DPoint(...tri[1]),rotate3DPoint(...tri[2])];
+      all.push({z:(rp[0][2]+rp[1][2]+rp[2][2])/3,r:rp,val:iso,layer:li});
+    }
+  }
+  all.sort(function(a,b){return a.z-b.z;});
+  ctx.save();ctx.lineJoin="round";
+  for(var n=0;n<all.length;n++){
+    var o=all[n],rgb=signed?divergingColorRange(o.val,vmin,vmax):colorMap((o.val-vmin)/span);
+    var alpha=fracs.length>1?.28:.48;
     ctx.fillStyle="rgba("+rgb[0]+","+rgb[1]+","+rgb[2]+","+alpha+")";
-    ctx.beginPath();ctx.arc(px,py,radius,0,2*Math.PI);ctx.fill();
+    ctx.strokeStyle="rgba("+rgb[0]+","+rgb[1]+","+rgb[2]+","+(Math.min(.7,alpha+.16))+")";
+    ctx.lineWidth=.55;
+    ctx.beginPath();
+    ctx.moveTo(cx+scale*o.r[0][0],cy-scale*o.r[0][1]);
+    ctx.lineTo(cx+scale*o.r[1][0],cy-scale*o.r[1][1]);
+    ctx.lineTo(cx+scale*o.r[2][0],cy-scale*o.r[2][1]);
+    ctx.closePath();ctx.fill();ctx.stroke();
   }
   ctx.restore();
   draw3DAxes(cx,cy,scale);
   ctx.fillStyle=css("--muted");ctx.font="12px sans-serif";
-  ctx.fillText("等値面近傍: "+target.toPrecision(4)+"　表示点: "+pts.length,w>360?18:8,20);
-  ctx.fillText("drag: 回転　wheel/pinch: zoom",w>360?18:8,h-12);
+  ctx.fillText("等値面: "+target.toPrecision(4)+"　三角形: "+all.length,w>360?18:8,20);
+  ctx.fillText("右手系 x×y=z　drag: 回転　wheel/pinch: zoom",w>360?18:8,h-12);
 }
 function draw3D(){
   update3DViewControls();
@@ -9009,8 +9032,12 @@ function play(){
     calculate();
     return;
   }
-  if(current>=frames.length-1)current=0;
   if(playing)return;
+  if(current>=frames.length-1){
+    current=0;
+    E.slider.value="0";
+    draw();
+  }
   playing=true;lastTs=0;E.play.disabled=true;
   raf=requestAnimationFrame(step);
 }
