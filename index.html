@@ -340,6 +340,8 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
 .basic-playback button{padding:7px 11px}
 #basic-slider{flex:1}
 #basic-status{min-height:20px;margin-top:10px;font-size:12px;color:var(--muted)}
+.basic-method{margin:0 0 18px;padding:11px 13px;border:1px solid var(--border);border-radius:11px;background:var(--soft);font-size:12px;line-height:1.65;color:var(--muted)}
+.basic-method b{color:var(--text);display:block;margin-bottom:3px}
 .basic-validation-toggle{display:flex;align-items:center;gap:7px;margin-top:13px;font-size:13px;font-weight:750}
 .basic-validation-toggle input{width:auto}
 #basic-validation{margin-top:8px;padding:10px 12px;border-radius:10px;background:var(--soft);font-size:12px;line-height:1.55}
@@ -360,8 +362,18 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
       <button id="go-transport" class="primary" type="button">輸送シミュレータはこちら →</button>
     </div>
     <section class="basic-card">
-      <h1 class="basic-title">1次元 拡散方程式</h1>
+      <h1 class="basic-title">一次元拡散方程式シミュレータ</h1>
       <p class="basic-lead">Gaussian分布が拡散によって広がる時間発展を計算します。</p>
+      <div class="basic-method">
+        <b>計算条件</b>
+        <div>方程式：∂u/∂t = D ∂²u/∂x²</div>
+        <div>初期条件：Gaussian（中心 x₀ = 5、初期幅 σ₀ = 1）</div>
+        <div>計算領域：0 ≤ x ≤ 10　／　格子点数 N = 181　／　Δx = 10/(N−1) ≈ 0.05556</div>
+        <div>時間積分：陽的Euler法　／　空間差分：2次中心差分</div>
+        <div>内部時間刻み：Δt ≤ 0.45 Δx²/(2D)（拡散数 DΔt/Δx² ≤ 0.225）</div>
+        <div>表示する最大時間：10 s</div>
+        <div>境界：各時刻のGaussian解析解の値を左右端に与える時間依存Dirichlet境界</div>
+      </div>
       <div class="basic-control">
         <div>
           <label for="basic-D">拡散係数 D</label>
