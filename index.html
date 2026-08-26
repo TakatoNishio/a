@@ -296,6 +296,7 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
   .simulator-modebar{align-items:flex-start;flex-direction:column}
   .modebar-actions{width:100%}.modebar-actions button{flex:1}
 }
+#chart{touch-action:none;}
 </style>
 </head>
 <body>
@@ -306,6 +307,7 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
     <div class="landing-dim-tabs" role="tablist" aria-label="次元を選択">
       <button id="landing-dim-1d" class="landing-dim-tab active" type="button" data-landing-dim="1d">1次元</button>
       <button id="landing-dim-2d" class="landing-dim-tab" type="button" data-landing-dim="2d">2次元</button>
+      <button id="landing-dim-3d" class="landing-dim-tab" type="button" data-landing-dim="3d">3次元</button>
     </div>
     <div id="landing-equations" class="landing-equations"></div>
     <div class="landing-custom-divider">または</div>
@@ -344,6 +346,7 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
       <select id="dimension">
         <option value="1d">1次元</option>
         <option value="2d">2次元</option>
+        <option value="3d">3次元</option>
       </select>
     </div>
 
@@ -392,6 +395,10 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
         <div class="group">
           <label for="uy">移流速度 uᵧ</label>
           <input id="uy" type="number" value="0.25" min="-10" max="10" step="0.05">
+        </div>
+        <div class="group" id="uz-group" style="display:none">
+          <label for="uz">移流速度 u_z</label>
+          <input id="uz" type="number" value="0.15" min="-10" max="10" step="0.05">
         </div>
       </div>
 
@@ -491,7 +498,11 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
       </div>
     </div>
 
-    <div id="reaction-controls" style="display:none">
+    <div id="kdv-controls" style="display:none"><div class="group"><label for="kdv-alpha">非線形係数 α</label><input id="kdv-alpha" type="number" value="6" min="-20" max="20" step="0.5"></div><div class="group"><label for="kdv-beta">分散係数 β</label><input id="kdv-beta" type="number" value="0.02" min="0.0001" max="2" step="0.005"><div class="hint">uₜ+αuuₓ+βuₓₓₓ=0。非線形急峻化と分散が釣り合うと孤立波が現れます。周期境界で計算します。</div></div><div class="group"><label for="kdv-initial">KdV 初期条件</label><select id="kdv-initial"><option value="soliton">1ソリトン</option><option value="two-solitons">速度の異なる2ソリトン</option><option value="gaussian">Gaussian</option></select></div></div>
+<div id="euler-controls" style="display:none"><div class="group"><label for="euler-gamma">比熱比 γ</label><input id="euler-gamma" type="number" value="1.4" min="1.01" max="2" step="0.01"><div class="hint">理想気体の状態方程式 p=(γ−1)[E−ρu²/2] を用います。</div></div><div class="group"><label for="euler-initial">Euler 初期条件</label><select id="euler-initial"><option value="sod">Sod shock tube</option><option value="lax">Lax shock tube</option><option value="blast">強い圧力差</option></select><div class="hint">左右で密度・速度・圧力を不連続にしたRiemann問題です。</div></div><div class="group"><label for="euler-view">表示</label><select id="euler-view"><option value="density">密度 ρ</option><option value="velocity">速度 u</option><option value="pressure">圧力 p</option></select></div></div>
+<div id="allen-controls" style="display:none"><div class="group"><label for="allen-mobility">移動度 M</label><input id="allen-mobility" type="number" value="1" min="0.0001" max="20" step="0.1"></div><div class="group"><label for="allen-epsilon">界面幅係数 ε</label><input id="allen-epsilon" type="number" value="0.20" min="0.005" max="5" step="0.01"><div class="hint">φₜ=M[ε²∇²φ+φ−φ³]。Cahn–Hilliardと異なり、φの空間積分は一般には保存されません。</div></div></div>
+<div id="ks-controls" style="display:none"><div class="group"><label for="ks-nu2">不安定化係数 a</label><input id="ks-nu2" type="number" value="0.20" min="0" max="5" step="0.02"></div><div class="group"><label for="ks-nu4">高階散逸係数 b</label><input id="ks-nu4" type="number" value="0.001" min="0.0001" max="2" step="0.002"><div class="hint">uₜ+uuₓ+a uₓₓ+b uₓₓₓₓ=0。長波長不安定性と短波長散逸の競合を表します。</div></div></div>
+<div id="reaction-controls" style="display:none">
       <div class="group">
         <label for="reaction-preset">Gray–Scott パターンプリセット</label>
         <select id="reaction-preset">
@@ -660,6 +671,34 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
       </div>
     </div>
 
+
+    <div id="navier-stokes-controls" style="display:none">
+      <div class="group">
+        <label for="ns-nu">動粘性係数 ν</label>
+        <input id="ns-nu" type="number" value="0.01" min="0.00001" max="2" step="0.001">
+        <div class="hint">非圧縮性Navier–Stokes方程式の粘性。小さいほどReynolds数が大きくなり、渦構造が細かくなります。</div>
+      </div>
+      <div class="group">
+        <label for="ns-initial">流れの設定</label>
+        <select id="ns-initial">
+          <option value="lid-cavity">上壁駆動キャビティ</option>
+          <option value="shear-layer">周期せん断層</option>
+          <option value="taylor-green">Taylor–Green渦</option>
+        </select>
+      </div>
+      <div class="group" id="ns-lid-speed-group">
+        <label for="ns-lid-speed">上壁速度 U_lid</label>
+        <input id="ns-lid-speed" type="number" value="1.0" min="-10" max="10" step="0.1">
+        <div class="hint">キャビティでは Re = |U_lid| L / ν を代表Reynolds数として表示します。</div>
+      </div>
+      <div class="note">
+        <b>自然対流との関係</b><br>
+        このNavier–Stokesモードは、密度一定・非圧縮性の運動量保存を渦度–流れ関数形式で解きます。
+        「自然対流」はこの流体運動に温度輸送方程式とBoussinesq浮力項を結合したものです。
+        したがって自然対流は別種の流体ではなく、Navier–Stokes系に熱輸送・浮力を追加したモデルとして比較できます。
+      </div>
+    </div>
+
     <div id="convection-controls" style="display:none">
       <div class="group">
         <label for="nu">動粘性係数 ν</label>
@@ -768,6 +807,12 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
       <label for="grid-2d">格子点数 N×N（2D）</label>
       <input id="grid-2d" type="number" value="51" min="11" max="1001" step="2">
       <div class="hint">default: 51×51 点。格子点数を増やすと空間分解能は細かくなりますが、計算量とメモリ使用量も増えます。</div>
+    </div>
+
+    <div class="group" id="grid-3d-group" style="display:none">
+      <label for="grid-3d">格子点数 N×N×N</label>
+      <input id="grid-3d" type="number" value="21" min="9" max="41" step="2">
+      <div class="hint">default: 21³点。3Dでは計算量と保存データ量が急増するため、まず21³程度で試してください。</div>
     </div>
 
     <div class="group" id="grid-convection-group" style="display:none">
@@ -1053,6 +1098,40 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
     <div class="hint playback-display-hint">動画の表示量と縦軸・カラースケールはここから変更できます。カラースケールを変えても計算結果そのものは変わりません。</div>
   </div>
 
+  <div id="view-3d-controls" class="playback-display-controls" style="display:none">
+    <div class="playback-display-item">
+      <label for="view-mode-3d">3D表示</label>
+      <select id="view-mode-3d">
+        <option value="volume">立体表示</option>
+        <option value="slice">断面表示</option>
+      </select>
+    </div>
+    <div class="playback-display-item" id="iso-level-3d-group">
+      <label for="iso-level-3d">等値面レベル</label>
+      <input id="iso-level-3d" type="range" min="0" max="1" value="0.55" step="0.01">
+      <output id="iso-level-3d-output">55%</output>
+    </div>
+    <div class="playback-display-item" id="iso-count-3d-group">
+      <label for="iso-count-3d">等値面の層</label>
+      <select id="iso-count-3d"><option value="1">1層</option><option value="2">2層</option><option value="3">3層</option></select>
+    </div>
+    <div class="playback-display-item"><label>視点</label><button id="reset-camera-3d" type="button">視点をリセット</button></div>
+    <div class="playback-display-item" id="slice-axis-3d-group" style="display:none">
+      <label for="slice-axis-3d">断面</label>
+      <select id="slice-axis-3d">
+        <option value="xy">x–y断面（zを固定）</option>
+        <option value="xz">x–z断面（yを固定）</option>
+        <option value="yz">y–z断面（xを固定）</option>
+      </select>
+    </div>
+    <div class="playback-display-item" id="slice-position-3d-group" style="display:none">
+      <label for="slice-position-3d">断面位置</label>
+      <input id="slice-position-3d" type="range" min="0" max="1" value="0.5" step="0.01">
+      <output id="slice-position-3d-output">0.50 L</output>
+    </div>
+    <div class="hint playback-display-hint" id="view-3d-hint">ドラッグで回転、ホイール/ピンチで拡大縮小できます。半透明の点群で等値面近傍を表示し、x・y・z軸を常時表示します。</div>
+  </div>
+
   <div class="time-row">
     <div class="playback-buttons">
       <button id="pause" type="button">一時停止</button>
@@ -1172,6 +1251,7 @@ var E={
   landingEquations:document.getElementById("landing-equations"),
   landingDim1d:document.getElementById("landing-dim-1d"),
   landingDim2d:document.getElementById("landing-dim-2d"),
+  landingDim3d:document.getElementById("landing-dim-3d"),
   landingCustomMode:document.getElementById("landing-custom-mode"),
   backToTitle:document.getElementById("back-to-title"),
   switchToCustom:document.getElementById("switch-to-custom"),
@@ -1206,6 +1286,10 @@ var E={
   waveSpeed:document.getElementById("wave-speed"),
   burgersControls:document.getElementById("burgers-controls"),
   burgersNu:document.getElementById("burgers-nu"),
+  kdvControls:document.getElementById("kdv-controls"),kdvAlpha:document.getElementById("kdv-alpha"),kdvBeta:document.getElementById("kdv-beta"),kdvInitial:document.getElementById("kdv-initial"),
+  eulerControls:document.getElementById("euler-controls"),eulerGamma:document.getElementById("euler-gamma"),eulerInitial:document.getElementById("euler-initial"),eulerView:document.getElementById("euler-view"),
+  allenControls:document.getElementById("allen-controls"),allenMobility:document.getElementById("allen-mobility"),allenEpsilon:document.getElementById("allen-epsilon"),
+  ksControls:document.getElementById("ks-controls"),ksNu2:document.getElementById("ks-nu2"),ksNu4:document.getElementById("ks-nu4"),
   reactionControls:document.getElementById("reaction-controls"),
   reactionPreset:document.getElementById("reaction-preset"),
   reactionPresetDescription:document.getElementById("reaction-preset-description"),
@@ -1216,7 +1300,7 @@ var E={
   reactionKill:document.getElementById("reaction-kill"),
   u:document.getElementById("u"),
   ux:document.getElementById("ux"),
-  uy:document.getElementById("uy"),
+  uy:document.getElementById("uy"),uz:document.getElementById("uz"),uzGroup:document.getElementById("uz-group"),
   velocityField:document.getElementById("velocity-field"),
   velocityFieldDescription:document.getElementById("velocity-field-description"),
   uniformVelocityControls:document.getElementById("uniform-velocity-controls"),
@@ -1227,6 +1311,13 @@ var E={
   u1dGroup:document.getElementById("u1d-group"),
   u2dGroup:document.getElementById("u2d-group"),
   transportViewGroup:document.getElementById("transport-view-group"),
+  view3dControls:document.getElementById("view-3d-controls"),
+  viewMode3d:document.getElementById("view-mode-3d"),
+  isoLevel3d:document.getElementById("iso-level-3d"),isoLevel3dOutput:document.getElementById("iso-level-3d-output"),isoLevel3dGroup:document.getElementById("iso-level-3d-group"),
+  isoCount3d:document.getElementById("iso-count-3d"),isoCount3dGroup:document.getElementById("iso-count-3d-group"),resetCamera3d:document.getElementById("reset-camera-3d"),
+  sliceAxis3d:document.getElementById("slice-axis-3d"),sliceAxis3dGroup:document.getElementById("slice-axis-3d-group"),
+  slicePosition3d:document.getElementById("slice-position-3d"),slicePosition3dOutput:document.getElementById("slice-position-3d-output"),slicePosition3dGroup:document.getElementById("slice-position-3d-group"),
+  view3dHint:document.getElementById("view-3d-hint"),
   playbackDisplayControls:document.getElementById("playback-display-controls"),
   playbackQuantityGroup:document.getElementById("playback-quantity-group"),
   playbackDisplayQuantity:document.getElementById("playback-display-quantity"),
@@ -1271,6 +1362,11 @@ var E={
   shallowTsunamiAmplitude:document.getElementById("shallow-tsunami-amplitude"),
   shallowValidityWarning:document.getElementById("shallow-validity-warning"),
   shallowView:document.getElementById("shallow-view"),
+  navierStokesControls:document.getElementById("navier-stokes-controls"),
+  nsNu:document.getElementById("ns-nu"),
+  nsInitial:document.getElementById("ns-initial"),
+  nsLidSpeed:document.getElementById("ns-lid-speed"),
+  nsLidSpeedGroup:document.getElementById("ns-lid-speed-group"),
   convectionControls:document.getElementById("convection-controls"),
   nu:document.getElementById("nu"),
   buoyancy:document.getElementById("buoyancy"),
@@ -1297,6 +1393,7 @@ var E={
   gridConvection:document.getElementById("grid-convection"),
   grid1dGroup:document.getElementById("grid-1d-group"),
   grid2dGroup:document.getElementById("grid-2d-group"),
+  grid3d:document.getElementById("grid-3d"),grid3dGroup:document.getElementById("grid-3d-group"),
   gridConvectionGroup:document.getElementById("grid-convection-group"),
   gridWarning:document.getElementById("grid-warning"),
   length:document.getElementById("length"),
@@ -1521,17 +1618,30 @@ function updateBoundaryUI(){
   var eqType=E.equationType.value;
   var isConv=(eqType==="convection");
   var isReaction=(eqType==="reaction-diffusion");
-  var fixedPeriodic=(eqType==="burgers-2d"||eqType==="cahn-hilliard"||
+  var isEulerBC=(eqType==="euler");
+  var isNSBC=(eqType==="navier-stokes");
+  var fixedPeriodic=(eqType==="burgers-2d"||eqType==="cahn-hilliard"||eqType==="kdv"||
+                     eqType==="kuramoto-sivashinsky"||eqType==="allen-cahn"||
                      eqType==="shallow-water"||eqType==="shallow-water-1d"||
                      (eqType==="wave"&&E.waveModel.value!=="generic"));
   var is2=E.dimension.value==="2d";
+  var is3=E.dimension.value==="3d";
 
-  E.boundaryControls.style.display=(isConv||isReaction||fixedPeriodic)?"none":"block";
-  E.fixedBoundaryNote.style.display=(isReaction||fixedPeriodic)?"block":"none";
-  if(isReaction){
+  E.boundaryControls.style.display=(isConv||isReaction||fixedPeriodic||isEulerBC||isNSBC)?"none":"block";
+  E.fixedBoundaryNote.style.display=(is3||isReaction||fixedPeriodic||isEulerBC||isNSBC)?"block":"none";
+  if(is3){
+    E.fixedBoundaryNote.textContent="境界条件：x・y・zの全方向で周期境界（第三段階の3Dソルバ共通）";
+  }else if(isEulerBC){
+    E.fixedBoundaryNote.textContent="境界条件：流出境界（左右端の保存変数をゼロ勾配で外挿してRusanov流束を計算）";
+  }else if(isNSBC){
+    E.fixedBoundaryNote.textContent=(E.nsInitial.value==="lid-cavity")?"境界条件：no-slip壁（上壁のみ速度U_lidで駆動）":"境界条件：x・yとも周期境界";
+  }else if(isReaction){
     E.fixedBoundaryNote.textContent="境界条件：周期境界（Gray–Scott反応拡散では現在の離散化で周期境界を採用）";
   }else if(fixedPeriodic){
     if(eqType==="cahn-hilliard")E.fixedBoundaryNote.textContent="境界条件：周期境界（Cahn–Hilliardでは保存性と相分離の観察に適した周期境界を採用）";
+    else if(eqType==="kdv")E.fixedBoundaryNote.textContent="境界条件：周期境界（KdVの分散波・ソリトン伝播を周期領域で計算）";
+    else if(eqType==="kuramoto-sivashinsky")E.fixedBoundaryNote.textContent="境界条件：周期境界（Kuramoto–Sivashinskyの標準的な周期領域を採用）";
+    else if(eqType==="allen-cahn")E.fixedBoundaryNote.textContent="境界条件：周期境界（Allen–Cahnの界面運動を周期領域で計算）";
     else if(eqType==="burgers-2d")E.fixedBoundaryNote.textContent="境界条件：周期境界（現在の2D Burgersソルバは周期境界）";
     else if(eqType==="wave"&&E.waveModel.value==="deep")E.fixedBoundaryNote.textContent="境界条件：周期境界（深水波はFourier/スペクトル表現のため周期境界）";
     else if(eqType==="wave"&&E.waveModel.value==="shallow")E.fixedBoundaryNote.textContent="境界条件：周期境界（現在の浅水極限ソルバ）";
@@ -1539,7 +1649,7 @@ function updateBoundaryUI(){
   }else{
     E.fixedBoundaryNote.style.display="none";
   }
-  if(isConv||isReaction||fixedPeriodic)return;
+  if(is3||isConv||isReaction||fixedPeriodic||isEulerBC||isNSBC)return;
 
   E.boundary1dGroup.style.display=is2?"none":"grid";
   E.boundary2dGroup.style.display=is2?"block":"none";
@@ -1618,15 +1728,23 @@ function integerGrid(node,fallback,minVal,maxVal){
 
 function updateGridWarning(){
   var type=E.equationType.value;
+  if(E.dimension.value==="3d"){
+    var n3=Number(E.grid3d.value)||21,cells=n3*n3*n3;
+    E.gridWarning.style.display=(n3>=29)?"block":"none";
+    E.gridWarning.textContent="3D格子："+n3+"³ = "+cells.toLocaleString()+"セル。Nを増やすと計算量・メモリ量はおおむねN³以上で増加します。";
+    return;
+  }
   var isConv=(type==="convection");
+  var isNS=(type==="navier-stokes");
   var isReaction=(type==="reaction-diffusion");
   var isBurgers2D=(type==="burgers-2d");
   var isCahn=(type==="cahn-hilliard");
+  var isKdv=(type==="kdv"),isEuler=(type==="euler"),isAllen=(type==="allen-cahn"),isKS=(type==="kuramoto-sivashinsky");
   var isShallow=(type==="shallow-water");
   var isShallow1D=(type==="shallow-water-1d");
-  var force2D=isConv||isReaction||isBurgers2D||isCahn||isShallow;
+  var force2D=isConv||isNS||isReaction||isBurgers2D||isCahn||isShallow;
   var isBurgers=(type==="burgers");
-  var force1D=isBurgers||isShallow1D;
+  var force1D=isBurgers||isShallow1D||isKdv||isEuler||isKS;
   var is2=(force2D?true:(force1D?false:E.dimension.value==="2d"));
   var N=isConv
     ?Math.round(num(E.gridConvection,41))
@@ -1664,45 +1782,25 @@ function updateVelocityFieldUI(){
 }
 
 function updateInitialOptions(){
-  var is2=E.dimension.value==="2d";
+  var is2=E.dimension.value==="2d",is3=E.dimension.value==="3d";
   var eq=E.equationType.value;
   var isShallow=(eq==="shallow-water"||eq==="shallow-water-1d"||
                  (eq==="wave"&&(E.waveModel.value==="shallow"||E.waveModel.value==="deep")));
-  var only2D={ring:true,checkerboard:true,circle:true,"multi-spots":true};
+  var spatialOnly={ring:true,checkerboard:true,circle:true,"multi-spots":true};
   var shallowOnly={"tsunami-uplift":true,"tsunami-dipole":true};
-
   for(var i=0;i<E.initial.options.length;i++){
     var opt=E.initial.options[i];
-    var hide=(!!only2D[opt.value]&&!is2) || (!!shallowOnly[opt.value]&&!isShallow);
+    var hide=(!!spatialOnly[opt.value]&&!(is2||is3)) || (!!shallowOnly[opt.value]&&!isShallow);
     opt.hidden=hide;opt.disabled=hide;
     if(hide&&E.initial.value===opt.value)E.initial.value="gaussian";
   }
-
-  var labels1={
-    gaussian:"Gaussian",pulse:"中央パルス",step:"ステップ分布",
-    "double-gaussian":"2つの Gaussian","triple-gaussian":"3つの Gaussian",
-    triangle:"三角形分布",sine:"正弦波",
-    random:"不規則分布（再現可能）","positive-negative":"正負の Gaussian 対",
-    "left-right":"左右2領域",
-    "tsunami-uplift":"津波：局所水面隆起",
-    "tsunami-dipole":"津波：隆起＋沈降"
-  };
-  var labels2={
-    gaussian:"中央 Gaussian",pulse:"中央正方形パルス",step:"左右ステップ分布",
-    "double-gaussian":"2つの Gaussian","triple-gaussian":"3つの Gaussian",
-    triangle:"円錐状分布",sine:"2D 正弦波",ring:"リング",
-    random:"不規則分布（再現可能）","positive-negative":"正負の Gaussian 対",
-    checkerboard:"チェッカーボード",circle:"円形トップハット",
-    "multi-spots":"複数 Gaussian スポット","left-right":"左右2領域",
-    "tsunami-uplift":"津波：局所水面隆起",
-    "tsunami-dipole":"津波：隆起＋沈降"
-  };
-  var map=is2?labels2:labels1;
-  for(var j=0;j<E.initial.options.length;j++){
-    var o=E.initial.options[j];
-    if(map[o.value])o.textContent=map[o.value];
-  }
+  var labels1={gaussian:"Gaussian",pulse:"中央パルス",step:"ステップ分布","double-gaussian":"2つの Gaussian","triple-gaussian":"3つの Gaussian",triangle:"三角形分布",sine:"正弦波",random:"不規則分布（再現可能）","positive-negative":"正負の Gaussian 対","left-right":"左右2領域","tsunami-uplift":"津波：局所水面隆起","tsunami-dipole":"津波：隆起＋沈降"};
+  var labels2={gaussian:"中央 Gaussian",pulse:"中央正方形パルス",step:"左右ステップ分布","double-gaussian":"2つの Gaussian","triple-gaussian":"3つの Gaussian",triangle:"円錐状分布",sine:"2D 正弦波",ring:"リング",random:"不規則分布（再現可能）","positive-negative":"正負の Gaussian 対",checkerboard:"チェッカーボード",circle:"円形トップハット","multi-spots":"複数 Gaussian スポット","left-right":"左右2領域","tsunami-uplift":"津波：局所水面隆起","tsunami-dipole":"津波：隆起＋沈降"};
+  var labels3={gaussian:"中央3D Gaussian",pulse:"中央球形パルス",step:"x方向ステップ分布","double-gaussian":"2つの3D Gaussian","triple-gaussian":"3つの3D Gaussian",triangle:"球対称の円錐状分布",sine:"3D 正弦波",ring:"球殻 Gaussian",random:"3D不規則分布（再現可能）","positive-negative":"正負の3D Gaussian 対",checkerboard:"3Dチェッカーボード",circle:"球形トップハット","multi-spots":"複数3D Gaussianスポット","left-right":"x方向2領域"};
+  var map=is3?labels3:(is2?labels2:labels1);
+  for(var j=0;j<E.initial.options.length;j++){var o=E.initial.options[j];if(map[o.value])o.textContent=map[o.value];}
 }
+
 function reactionPresetValues(name){
   // Values below were checked numerically with this app's default scaling
   // (L=10, N=51, Du:Dv=2:1) and remain spatially non-uniform at t≈400.
@@ -1808,10 +1906,10 @@ function applyGenericPerturbation2D(a,N,L,dx,dy,amplitude){
 }
 
 function updateGenericPerturbationUI(){
-  var isConv=(E.equationType.value==="convection");
-  E.genericPerturbationControls.style.display=isConv?"none":"block";
+  var isConv=(E.equationType.value==="convection"),is3=(E.dimension.value==="3d");
+  E.genericPerturbationControls.style.display=(isConv||is3)?"none":"block";
   E.genericPerturbationAmplitudeGroup.style.display=
-    (!isConv&&E.genericPerturbationMode.value==="on")?"grid":"none";
+    (!isConv&&!is3&&E.genericPerturbationMode.value==="on")?"grid":"none";
 }
 
 function setSelectOptions(select,options,preferred){
@@ -2067,13 +2165,18 @@ function updateShallowViewUI(is1D){
 }
 
 var equationCatalog=[
-  {value:"diffusion",label:"拡散のみ",dims:["1d","2d"]},
-  {value:"advection",label:"移流のみ",dims:["1d","2d"]},
+  {value:"diffusion",label:"拡散のみ",dims:["1d","2d","3d"]},
+  {value:"advection",label:"移流のみ",dims:["1d","2d","3d"]},
   {value:"advection-diffusion",label:"移流＋拡散",dims:["1d","2d"]},
-  {value:"wave",label:"波動方程式",dims:["1d","2d"]},
+  {value:"wave",label:"波動方程式",dims:["1d","2d","3d"]},
 
   {value:"burgers",label:"Burgers方程式",dims:["1d"]},
+  {value:"kdv",label:"KdV方程式",dims:["1d"]},
+  {value:"euler",label:"圧縮性Euler方程式",dims:["1d"]},
+  {value:"kuramoto-sivashinsky",label:"Kuramoto–Sivashinsky方程式",dims:["1d"]},
+  {value:"allen-cahn",label:"Allen–Cahn方程式",dims:["1d","2d"]},
 
+  {value:"navier-stokes",label:"Navier–Stokes方程式",dims:["2d"]},
   {value:"convection",label:"自然対流",dims:["2d"]},
   {value:"reaction-diffusion",label:"反応拡散（Gray–Scott）",dims:["2d"]},
   {value:"burgers-2d",label:"Burgers方程式",dims:["2d"]},
@@ -2089,7 +2192,10 @@ var landingEquationDescriptions={
   "advection-diffusion":"移流と拡散の競合",
   "wave":"波の伝播・反射・分散",
   "burgers":"非線形急峻化と粘性",
+  "kdv":"非線形波とソリトン","euler":"衝撃波・接触不連続・希薄波",
+  "kuramoto-sivashinsky":"不安定性・散逸・時空間カオス","allen-cahn":"非保存型の相分離と界面運動",
   "burgers-2d":"2成分の非線形自己移流",
+  "navier-stokes":"非圧縮性流体・渦・粘性",
   "convection":"温度差による自然対流",
   "reaction-diffusion":"Gray–Scottパターン形成",
   "cahn-hilliard":"保存型相分離・粗大化"
@@ -2111,6 +2217,7 @@ function renderLandingEquations(){
   });
   E.landingDim1d.classList.toggle("active",landingDimension==="1d");
   E.landingDim2d.classList.toggle("active",landingDimension==="2d");
+  E.landingDim3d.classList.toggle("active",landingDimension==="3d");
 }
 function setLandingDimension(dim){
   landingDimension=dim;
@@ -2121,7 +2228,7 @@ function currentEquationLabel(){
   return item?item.label:E.equationType.value;
 }
 function updateEntryModeLabels(){
-  var dim=E.dimension.value==="1d"?"1次元":"2次元";
+  var dim=E.dimension.value==="1d"?"1次元":(E.dimension.value==="2d"?"2次元":"3次元");
   var eq=currentEquationLabel();
   if(simulatorEntryMode==="simple"){
     E.simulatorModeTitle.textContent=dim+" / "+eq;
@@ -2163,7 +2270,7 @@ function openSimpleSolver(dim,eq){
   // Apply the same sensible defaults as a normal equation change.
   if(eq==="diffusion"){
     E.boundary1d.value="neumann";E.boundaryX.value="neumann";E.boundaryY.value="neumann";
-  }else if(eq==="advection"||eq==="advection-diffusion"||eq==="burgers"||eq==="wave"||eq==="burgers-2d"||eq==="cahn-hilliard"){
+  }else if(eq==="advection"||eq==="advection-diffusion"||eq==="burgers"||eq==="wave"||eq==="burgers-2d"||eq==="cahn-hilliard"||eq==="kdv"||eq==="kuramoto-sivashinsky"||eq==="allen-cahn"){
     E.boundary1d.value="periodic";E.boundaryX.value="periodic";E.boundaryY.value="periodic";
   }else if(eq==="reaction-diffusion"){
     applyReactionPreset(false);
@@ -2398,6 +2505,9 @@ function applyWaveModelPreset(model){
 }
 
 function updateWaveModelUI(){
+  var is3=(E.dimension.value==="3d");
+  Array.from(E.waveModel.options).forEach(function(o){if(o.value==="shallow"||o.value==="deep")o.hidden=is3;});
+  if(is3&&E.waveModel.value!=="generic")E.waveModel.value="generic";
   var deepOpt=E.waveModel.querySelector('option[value="deep"]');
   if(deepOpt){
     deepOpt.disabled=(E.dimension.value==="2d");
@@ -2410,7 +2520,7 @@ function updateWaveModelUI(){
   E.genericWaveSpeedGroup.style.display=model==="generic"?"grid":"none";
   E.waterWaveControls.style.display=model==="generic"?"none":"block";
   if(model==="generic"){
-    E.waveModelDescription.textContent="一定波速 c の非分散波動方程式です。水深や重力は使いません。";
+    E.waveModelDescription.textContent=is3?"3D一定波速 c の非分散波動方程式です。現在の3D版は周期境界・断面表示を用います。":"一定波速 c の非分散波動方程式です。水深や重力は使いません。";
   }else if(model==="shallow"){
     E.waveModelDescription.textContent="浅水方程式を使用します。水量・水平運動量を保存形で発展させ、c≈√(gH) の長波を表します。";
   }else{
@@ -2424,18 +2534,21 @@ function updateModeUI(){
 
   var type=E.equationType.value;
   var isConv=(type==="convection");
+  var isNS=(type==="navier-stokes");
   var isWave=(type==="wave");
   var isBurgers=(type==="burgers");
   var isReaction=(type==="reaction-diffusion");
   var isBurgers2D=(type==="burgers-2d");
   var isCahn=(type==="cahn-hilliard");
+  var isKdv=(type==="kdv"),isEuler=(type==="euler"),isAllen=(type==="allen-cahn"),isKS=(type==="kuramoto-sivashinsky");
   var isShallow=(type==="shallow-water");
   var isShallow1D=(type==="shallow-water-1d");
 
   var is2=E.dimension.value==="2d";
+  var is3=E.dimension.value==="3d";
   var useDiff=(type==="diffusion"||type==="advection-diffusion");
   var useAdv=(type==="advection"||type==="advection-diffusion");
-  var special=(isConv||isWave||isBurgers||isReaction||isBurgers2D||isCahn||isShallow||isShallow1D);
+  var special=(isConv||isNS||isWave||isBurgers||isReaction||isBurgers2D||isCahn||isKdv||isEuler||isAllen||isKS||isShallow||isShallow1D);
 
   E.dimension.disabled=false;
 
@@ -2444,11 +2557,13 @@ function updateModeUI(){
   E.DLabel.textContent=isConv?"熱拡散率 κ":"拡散係数 D";
 
   E.waveControls.style.display=isWave?"block":"none";
+  if(isWave&&is3){E.waveModel.value="generic";E.waveSourceMode.value="off";E.waveObstacleMode.value="off";}
   if(isWave)updateWaveModelUI();
   E.burgersControls.style.display=isBurgers?"block":"none";
   E.reactionControls.style.display=isReaction?"block":"none";
   E.burgers2dControls.style.display=isBurgers2D?"block":"none";
   E.cahnControls.style.display=isCahn?"block":"none";
+  E.kdvControls.style.display=isKdv?"block":"none";E.eulerControls.style.display=isEuler?"block":"none";E.allenControls.style.display=isAllen?"block":"none";E.ksControls.style.display=isKS?"block":"none";
   var isWaveShallow=(isWave&&E.waveModel.value==="shallow");
   E.shallowControls.style.display=(isShallow||isShallow1D||isWaveShallow)?"block":"none";
   E.legacyShallowGGroup.style.display=isWaveShallow?"none":"grid";
@@ -2465,26 +2580,42 @@ function updateModeUI(){
   }
   if(isReaction)applyReactionPreset(false);
 
-  E.grid1dGroup.style.display=(!isConv&&!isReaction&&!is2)?"grid":"none";
-  E.grid2dGroup.style.display=(!isConv&&is2)?"grid":"none";
-  E.gridConvectionGroup.style.display=isConv?"grid":"none";
+  E.grid1dGroup.style.display=(!isConv&&!isNS&&!isReaction&&!is2&&!is3)?"grid":"none";
+  E.grid2dGroup.style.display=(!isConv&&!isNS&&is2)?"grid":"none";
+  E.grid3dGroup.style.display=is3?"grid":"none";
+  E.gridConvectionGroup.style.display=(isConv||isNS)?"grid":"none";
+  if(isNS)E.gridConvectionGroup.querySelector("label").textContent="格子点数 N×N（Navier–Stokes）";
+  else E.gridConvectionGroup.querySelector("label").textContent="格子点数 N×N（自然対流）";
   updateGridWarning();
 
-  E.u1dGroup.style.display=(!is2&&useAdv)?"grid":"none";
-  E.u2dGroup.style.display=(is2&&useAdv)?"block":"none";
-  if(is2&&useAdv)updateVelocityFieldUI();
+  E.u1dGroup.style.display=(!is2&&!is3&&useAdv)?"grid":"none";
+  E.u2dGroup.style.display=((is2||is3)&&useAdv)?"block":"none";
+  E.uzGroup.style.display=(is3&&useAdv)?"grid":"none";
+  if(is3&&useAdv){
+    E.velocityField.value="uniform";
+    E.velocityField.parentElement.style.display="none";
+    E.uniformVelocityControls.style.display="block";
+    E.rotationControls.style.display="none";
+    E.shearControls.style.display="none";
+  }else{
+    E.velocityField.parentElement.style.display="";
+    if(is2&&useAdv)updateVelocityFieldUI();
+  }
   updateInitialOptions();
   updateComparisonUI();
-  E.schemeGroup.style.display=(!special&&useAdv)?"grid":"none";
-  E.limiterGroup.style.display=(!special&&useAdv&&E.advectionScheme.value==="muscl-tvd")?"grid":"none";
+  E.schemeGroup.style.display=(!special&&useAdv&&!is3)?"grid":"none";
+  E.limiterGroup.style.display=(!special&&useAdv&&!is3&&E.advectionScheme.value==="muscl-tvd")?"grid":"none";
 
+  E.navierStokesControls.style.display=isNS?"block":"none";
+  E.nsLidSpeedGroup.style.display=(isNS&&E.nsInitial.value==="lid-cavity")?"grid":"none";
   E.convectionControls.style.display=isConv?"block":"none";
   updateScalarViewUI();
+  E.view3dControls.style.display=is3?"grid":"none";
   updateScaleControlsUI();
   updateGenericPerturbationUI();
   E.perturbationAmplitudeGroup.style.display=(isConv&&E.perturbationMode.value==="on")?"grid":"none";
 
-  var useGenericInitial=(!isConv&&!isReaction);
+  var useGenericInitial=(!isConv&&!isNS&&!isReaction&&!isKdv&&!isEuler);
   E.initial.parentElement.style.display=useGenericInitial?"grid":"none";
   E.widthGroup.style.display=useGenericInitial
     ?(E.initial.value==="step"?"none":"grid")
@@ -2492,7 +2623,19 @@ function updateModeUI(){
 
   updateBoundaryUI();
 
+  if(isNS){
+    E.equation.innerHTML="∂ω/∂t + <b>u</b>·∇ω = ν∇²ω<br>∇²ψ = −ω,　u = ∂ψ/∂y,　v = −∂ψ/∂x<br>∇·<b>u</b> = 0";
+    E.subtitle.textContent="2D非圧縮性Navier–Stokes：慣性・粘性・渦輸送を渦度–流れ関数形式で計算";
+    E.note.textContent=(E.nsInitial.value==="lid-cavity")
+      ?"上壁駆動キャビティ：4壁は非透過、上壁だけ接線速度U_lidを持つno-slip壁です。Poisson方程式から流れ関数を求め、壁渦度でno-slip条件を課します。壁近傍の安定性を優先して移流項には風上差分を用います。"
+      :"周期境界：渦度輸送を周期領域で計算し、滑らかな周期流れでは移流項を中心差分で評価します。Taylor–Green渦では既知の粘性減衰解との比較に適した設定です。";
+    E.legend.style.display="flex";
+    setSelectOptions(E.viewMode,[["vorticity","渦度"],["velocity","流速の大きさ"],["temperature-velocity","渦度＋流速ベクトル"]],E.viewMode.value==="temperature"?"vorticity":E.viewMode.value);
+    return;
+  }
+
   if(isConv){
+    setSelectOptions(E.viewMode,[["temperature","温度分布"],["velocity","流速の大きさ"],["vorticity","渦度"],["temperature-velocity","温度＋流速ベクトル"]],E.viewMode.value);
     updateConvectionSpecialUI();
     E.equation.innerHTML=
       "∂T/∂t + ∇·(<b>u</b>T) = κ∇²T" +
@@ -2503,6 +2646,11 @@ function updateModeUI(){
     E.legend.style.display="flex";
     return;
   }
+
+  if(isKdv){E.equation.innerHTML="∂u/∂t + αu∂u/∂x + β∂³u/∂x³ = 0";E.subtitle.textContent="非線形急峻化と分散の釣り合いから孤立波・ソリトンが生じる1D非線形分散波方程式です。";E.note.textContent="周期境界、中心差分と4次Runge–Kutta法で計算します。解析解比較により格子依存誤差を直接確認できます。";E.legend.style.display="none";return;}
+  if(isEuler){E.equation.innerHTML="∂ρ/∂t+∂(ρu)/∂x=0<br>∂(ρu)/∂t+∂(ρu²+p)/∂x=0<br>∂E/∂t+∂[u(E+p)]/∂x=0";E.subtitle.textContent="1D圧縮性・非粘性流体：衝撃波、接触不連続、希薄波を計算します。";E.note.textContent="理想気体とRusanov有限体積流束を用い、左右端はゼロ勾配の流出境界です。";E.legend.style.display="none";return;}
+  if(isAllen){E.equation.innerHTML="∂φ/∂t = M[ε²∇²φ + φ − φ³]";E.subtitle.textContent="非保存型の相場モデル：二つの安定相 φ≈±1 と界面運動を表します。";E.note.textContent="周期境界で中心差分と陽的時間積分を用います。平均φは一般には保存されません。";E.legend.style.display=is2?"flex":"none";return;}
+  if(isKS){E.equation.innerHTML="∂u/∂t + u∂u/∂x + a∂²u/∂x² + b∂⁴u/∂x⁴ = 0";E.subtitle.textContent="長波長不安定性、非線形移流、高階散逸が競合する1D方程式です。";E.note.textContent="周期境界、中心差分、4次Runge–Kutta法で計算します。";E.legend.style.display="none";return;}
 
   if(isWave){
     var wm=E.waveModel.value;
@@ -2528,7 +2676,9 @@ function updateModeUI(){
       E.note.textContent="1D周期領域で初期自由水面をFourier分解し、各モードを解析的に時間発展させます。これは深水線形重力波の分散を直接表すため、数値的な移流拡散とは区別できます。";
       E.legend.style.display="none";
     }else{
-      if(!is2){
+      if(is3){
+        E.equation.innerHTML="∂²p/∂t² = c²(∂²p/∂x²+∂²p/∂y²+∂²p/∂z²)";
+      }else if(!is2){
         E.equation.innerHTML=
           "∂p/∂t + c ∂q/∂x = 0" +
           "<br>∂q/∂t + c ∂p/∂x = 0" +
@@ -2544,8 +2694,10 @@ function updateModeUI(){
           ?"<br><b>波源：</b> ∂p/∂t + c∂q/∂x = S(x,t),　S=A sin(ωt) G(x)"
           :"<br><b>波源：</b> ∂p/∂t + c∇·Q = S(x,y,t),　S=A sin(ωt) G(x,y)";
       }
-      E.subtitle.textContent="通常の非分散波動方程式を一階の保存形双曲型システムとして解きます。";
-      E.note.textContent="保存形の2次精度Lax–Wendroff数値流束を用います。波速 c は一定で、波長による物理的分散はありません。"+
+      E.subtitle.textContent=is3?"3D通常波動方程式：一定波速の非分散波を周期立方体内で伝播させます。":"通常の非分散波動方程式を一階の保存形双曲型システムとして解きます。";
+      E.note.textContent=is3
+        ?"3Dでは二階時間差分（leapfrog型）と7点Laplacianを用い、x・y・z全方向を周期境界とします。初期の∂p/∂t=0とし、断面表示で球面状の波の伝播を観察します。"
+        :"保存形の2次精度Lax–Wendroff数値流束を用います。波速 c は一定で、波長による物理的分散はありません。"+
         (E.waveSourceMode.value!=="off"?" A は p の振幅そのものではなく、∂p/∂t に加える局所ソース S の強度です。波源は内部刻みの前後に半ステップずつ分けて適用し、時間調和因子は各半区間で解析的に積分します。":"")+
         (is2&&E.waveObstacleMode.value!=="off"?" 内部障害物はマスク界面の数値流束を反射壁流束に置き換え、法線方向フラックス q·n=0 を直接課します。":"");
       E.legend.style.display=is2?"flex":"none";
@@ -2601,7 +2753,11 @@ function updateModeUI(){
     E.legend.style.display="flex"; return;
   }
 
-  if(!is2){
+  if(is3){
+    if(type==="diffusion")E.equation.textContent="∂φ/∂t = D∇²φ";
+    else if(type==="advection")E.equation.textContent="∂φ/∂t + uₓ∂φ/∂x + uᵧ∂φ/∂y + u_z∂φ/∂z = 0";
+    E.subtitle.textContent="3Dスカラー場 φ(x,y,z,t) の時間発展";
+  }else if(!is2){
     if(type==="diffusion") E.equation.textContent="∂φ/∂t = ∂/∂x(D ∂φ/∂x)";
     else if(type==="advection") E.equation.textContent="∂φ/∂t + ∂(uφ)/∂x = 0";
     else E.equation.textContent="∂φ/∂t + ∂(uφ)/∂x = ∂/∂x(D ∂φ/∂x)";
@@ -2613,21 +2769,23 @@ function updateModeUI(){
     E.subtitle.textContent="スカラー量 φ(x,y,t) の時間発展";
   }
 
-  E.note.textContent=is2
-    ?"2D：移流はセル境界の速度を用いた保存形数値流束、拡散は中心差分による拡散フラックスで離散化します。一様流・剛体回転・せん断流を選択できます。"
-    :"1D：移流は保存形の数値流束、拡散は中心差分による拡散フラックスで離散化します。";
+  E.note.textContent=is3
+    ?(type==="diffusion"?"3D：周期境界の7点Laplacianによる陽的拡散です。時間刻みは3D FTCS安定条件を満たすよう制限します。":"3D：一定速度ベクトル(uₓ,uᵧ,u_z)による周期境界の一次風上移流です。CFL条件に基づいて時間刻みを制限します。")
+    :(is2
+      ?"2D：移流はセル境界の速度を用いた保存形数値流束、拡散は中心差分による拡散フラックスで離散化します。一様流・剛体回転・せん断流を選択できます。"
+      :"1D：移流は保存形の数値流束、拡散は中心差分による拡散フラックスで離散化します。");
   E.legend.style.display=is2?"flex":"none";
 
 
 
-  var ordinaryWave=(E.equationType.value==="wave"&&E.waveModel.value==="generic");
+  var ordinaryWave=(E.equationType.value==="wave"&&E.waveModel.value==="generic"&&E.dimension.value!=="3d");
   E.waveExtraControls.style.display=ordinaryWave?"block":"none";
   E.waveSourceParams.style.display=(ordinaryWave&&E.waveSourceMode.value!=="off")?"block":"none";
   E.waveSourceYGroup.style.display=E.dimension.value==="2d"?"block":"none";
   E.waveObstacleGroup.style.display=(ordinaryWave&&E.dimension.value==="2d")?"block":"none";
   E.measurementControls.style.display=E.dimension.value==="2d"?"block":"none";
   physicsDiagnosticsHTML();
-  var ow=(E.equationType.value==="wave"&&E.waveModel.value==="generic");E.waveExtraControls.style.display=ow?"block":"none";E.waveSourceParams.style.display=ow&&E.waveSourceMode.value!=="off"?"block":"none";E.waveSourceYGroup.style.display=E.dimension.value==="2d"?"block":"none";
+  var ow=(E.equationType.value==="wave"&&E.waveModel.value==="generic"&&E.dimension.value!=="3d");E.waveExtraControls.style.display=ow?"block":"none";E.waveSourceParams.style.display=ow&&E.waveSourceMode.value!=="off"?"block":"none";E.waveSourceYGroup.style.display=E.dimension.value==="2d"?"block":"none";
 E.waveSource2Params.style.display=ow&&E.waveSourceMode.value==="double"?"block":"none";
 E.waveSource2YGroup.style.display=E.dimension.value==="2d"?"block":"none";E.waveObstacleGroup.style.display=ow&&E.dimension.value==="2d"?"block":"none";E.measurementControls.style.display=E.dimension.value==="2d"?"block":"none";physicsDiagnosticsHTML();
 }
@@ -2645,6 +2803,7 @@ function characteristicWaveNumber(){
 }
 function characteristicAdvectionSpeed(){
   if(E.dimension.value==="1d")return Math.abs(num(E.u,.5));
+  if(E.dimension.value==="3d")return Math.hypot(num(E.ux,.5),num(E.uy,.25),num(E.uz,.15));
   var vf=E.velocityField.value,L=Math.max(1e-12,num(E.length,10));
   if(vf==="rotation")return Math.abs(num(E.rotationOmega,.5))*L/2;
   if(vf==="shear")return Math.abs(num(E.shearRate,.5))*L/2;
@@ -2695,7 +2854,7 @@ function physicsDiagnosticsHTML(skipSupport){
   a.push(tag("記号")+"L="+L.toPrecision(4)+"：計算領域の一辺（1Dでは領域長）。以下の時間尺度・無次元数では、このLを代表長さとして使います。");
 
   if(t==="advection"||t==="advection-diffusion"){
-    var U=characteristicAdvectionSpeed(),tadv=U>0?L/U:Infinity;
+    var U=(E.dimension.value==="3d")?Math.hypot(num(E.ux,.5),num(E.uy,.25),num(E.uz,.15)):characteristicAdvectionSpeed(),tadv=U>0?L/U:Infinity;
     var udef=E.dimension.value==="1d"
       ?"Uchar=|u|：設定した1D移流速度の絶対値"
       :(E.velocityField.value==="uniform"
@@ -2717,6 +2876,23 @@ function physicsDiagnosticsHTML(skipSupport){
     var Dd=Math.max(1e-9,num(E.D,.2)),tdf=L*L/Dd;
     a.push(tag("記号")+"D：拡散方程式 ∂φ/∂t=D∇²φ の拡散係数。");
     a.push(tag("時間尺度")+"t_D=L²/D = <b>"+tdf.toPrecision(4)+"</b>：領域長L程度の構造が拡散する代表時間。"+(frames.length?" "+currentPhysicalTimeText(tdf,"t_D"):""));
+  }else if(t==="kdv"){
+    var ak=Math.abs(num(E.kdvAlpha,6)),bk=Math.max(1e-12,num(E.kdvBeta,.02));
+    a.push(tag("記号")+"α：非線形係数，β：分散係数。KdVでは非線形時間尺度と分散時間尺度の競合が波形を決めます。");
+    a.push(tag("時間尺度")+"代表振幅U≈1、長さLを用いた目安：t_nl≈L/(|α|U)="+(L/Math.max(ak,1e-12)).toPrecision(4)+"，t_disp≈L³/β="+(L**3/bk).toPrecision(4)+"。初期波の実際の幅を使うと局所的な評価は変わります。");
+  }else if(t==="euler"){
+    var ge=num(E.eulerGamma,1.4);
+    a.push(tag("記号")+"ρ：密度，u：流速，p：圧力，E：全エネルギー密度，γ="+ge.toPrecision(4)+"：比熱比。局所音速は c=√(γp/ρ) です。");
+    if(state&&state.equationKind==="euler"&&Number.isFinite(state.eulerMachMax))a.push(tag("計算結果")+"保存フレーム最終時刻までの最終場で max Ma≈"+state.eulerMachMax.toPrecision(4)+"。総質量相対変化="+((state.eulerMassFinal-state.eulerMass0)/Math.max(Math.abs(state.eulerMass0),1e-14)).toExponential(2)+"，全エネルギー相対変化="+((state.eulerEnergyFinal-state.eulerEnergy0)/Math.max(Math.abs(state.eulerEnergy0),1e-14)).toExponential(2)+"。開放境界から流出があれば領域内総量は保存されません。");
+    a.push(tag("特性速度")+"圧縮性Euler系の情報は u−c, u, u+c の特性速度で伝わります。衝撃波を含むため、単一の全領域Reynolds数ではなく局所Mach数 Ma=|u|/c などで流れを評価します。");
+  }else if(t==="allen-cahn"){
+    var Ma=num(E.allenMobility,1),ea=num(E.allenEpsilon,.2);
+    a.push(tag("記号")+"M：移動度，ε：界面幅係数。現在の無次元形では界面厚さの代表スケールはO(ε)です。");
+    a.push(tag("時間尺度")+"局所反応の代表時間は t_AC≈1/M="+(1/Ma).toPrecision(4)+"。界面運動は曲率や初期形状にも依存します。");
+  }else if(t==="kuramoto-sivashinsky"){
+    var aa=num(E.ksNu2,.2),bb=num(E.ksNu4,.001);
+    a.push(tag("記号")+"a：二階の不安定化係数，b：四階の高波数散逸係数。線形化すると成長率 σ(k)=a k²−b k⁴ です。");
+    if(aa>0)a.push(tag("代表波数")+"最も成長しやすい線形波数 k_max=√(a/(2b))="+Math.sqrt(aa/(2*bb)).toPrecision(4)+"，対応波長 λ_max=2π/k_max="+(2*Math.PI/Math.sqrt(aa/(2*bb))).toPrecision(4)+"。");
   }else if(t==="burgers"||t==="burgers-2d"){
     var nub=t==="burgers"?Math.max(1e-9,num(E.burgersNu,.02)):Math.max(1e-9,num(E.burgers2dNu,.02));
     var bs=burgersInitialSpeedStats(),Uref=burgersReferenceSpeed(),Re=Uref*L/nub,tbadv=L/Uref,tvis=L*L/nub;
@@ -2773,6 +2949,9 @@ function physicsDiagnosticsHTML(skipSupport){
   }else{
     a.push("この方程式については、現在の診断パネルでは単一の代表無次元数を定義していません。");
   }
+  if(state&&state.mode==="3d"&&state.equationKind==="scalar3d"&&Number.isFinite(state.mass0)){
+    a.push(tag("計算結果")+"3D総量の相対変化 = "+((state.massFinal-state.mass0)/Math.max(Math.abs(state.mass0),1e-14)).toExponential(2)+"。周期境界での離散保存性を確認する指標です。");
+  }
   E.physicsDiagnostics.innerHTML=a.filter(Boolean).join("<br>");
   if(!skipSupport)updatePhysicsRegimeSupport();
 }
@@ -2786,6 +2965,28 @@ function physicsRegimeSummary(){
     return Pe>10?"<b>移流優勢</b>：Péclet数 Pe=Uchar L/D="+Pe.toPrecision(4)+" ≫ 1。運ばれる効果が拡散より強い条件です。":
            Pe<.1?"<b>拡散優勢</b>：Péclet数 Pe=Uchar L/D="+Pe.toPrecision(4)+" ≪ 1。拡散による平滑化が移流より強い条件です。":
            "<b>遷移レジーム</b>：Péclet数 Pe=Uchar L/D="+Pe.toPrecision(4)+"。移流と拡散の両方が重要です。";
+  }
+  if(t==="navier-stokes"){
+    var nu=Math.max(1e-12,num(E.nsNu,.01)),U=Math.abs(num(E.nsLidSpeed,1)),Re=U*num(E.length,10)/nu;
+    return "<b>非圧縮性粘性流体</b>："+(E.nsInitial.value==="lid-cavity"?"上壁駆動キャビティの代表 Reynolds 数 Re=UL/ν≈"+Re.toPrecision(5)+"。":"周期渦流れ。")+" 自然対流はこのNavier–Stokes運動に温度輸送とBoussinesq浮力を結合した拡張です。";
+  }
+  if(t==="navier-stokes"){
+    var nu=Math.max(1e-12,num(E.nsNu,.01)),U=Math.abs(num(E.nsLidSpeed,1)),L=num(E.length,10);
+    a.push(tag("支配方程式")+"非圧縮性Navier–Stokesを渦度–流れ関数形式で解きます。圧力は明示的には時間発展させず、∇·u=0を流れ関数で満たします。");
+    a.push(tag("自然対流との接続")+"自然対流モードは同じ渦度輸送に gβ∂T/∂x の浮力による渦度生成を加え、さらに温度の移流拡散方程式を同時に解きます。");
+    if(E.nsInitial.value==="lid-cavity")a.push(tag("Reynolds数")+"Re=UL/ν≈"+(U*L/nu).toPrecision(5)+"。Reが大きいほど慣性が粘性に対して優勢です。");
+    if(state&&state.equationKind==="navier-stokes")a.push(tag("計算結果")+"K≈"+state.nsKineticEnergy.toPrecision(5)+"，enstrophy≈"+state.nsEnstrophy.toPrecision(5)+"，最大Poisson残差≈"+state.nsPoissonResidual.toExponential(2)+"，最大|∇·u|≈"+state.nsMaxDivergence.toExponential(2)+"。");
+    return a.join("");
+  }
+  if(t==="kdv"){
+    var ak=Math.abs(num(E.kdvAlpha,6)),bk=Math.max(1e-12,num(E.kdvBeta,.02));
+    return "<b>非線形分散波レジーム</b>：α="+ak.toPrecision(4)+"，β="+bk.toPrecision(4)+"。αuuₓによる急峻化とβuₓₓₓによる分散の釣り合いがソリトンを支えます。";
+  }
+  if(t==="euler")return "<b>圧縮性双曲型保存則</b>：局所特性速度 u−c, u, u+c（c=√(γp/ρ)）に沿って情報が伝わり、Riemann問題では希薄波・接触不連続・衝撃波が生じます。";
+  if(t==="allen-cahn")return "<b>非保存型相場レジーム</b>：φ≈±1が安定相で、界面は自由エネルギーを減らす方向へ運動します。平均φはCahn–Hilliardと異なり保存量ではありません。";
+  if(t==="kuramoto-sivashinsky"){
+    var aa=num(E.ksNu2,.2),bb=Math.max(1e-12,num(E.ksNu4,.001));
+    return "<b>不安定性と高階散逸の競合</b>：線形成長率σ(k)=ak²−bk⁴。k_max=√(a/2b)≈"+(aa>0?Math.sqrt(aa/(2*bb)).toPrecision(4):"0")+"付近のモードが最も成長しやすく、非線形項が飽和に関与します。";
   }
   if(t==="burgers"||t==="burgers-2d"){
     var nu=t==="burgers"?Math.max(1e-9,num(E.burgersNu,.02)):Math.max(1e-9,num(E.burgers2dNu,.02));
@@ -2830,6 +3031,9 @@ function physicsSupportButtons(){
   if(t==="diffusion"){add("Dを1/2","D-half");add("Dを2倍","D-double");}
   else if(t==="advection"){add("代表速度を1/2","speed-half");add("代表速度を2倍","speed-double");}
   else if(t==="advection-diffusion"){add("Pe≈0.1","Pe-0.1");add("Pe≈1","Pe-1");add("Pe≈10","Pe-10");add("Pe≈100","Pe-100");}
+  else if(t==="kdv"){add("βを1/2","kdv-beta-half");add("βを2倍","kdv-beta-double");}
+  else if(t==="kuramoto-sivashinsky"){add("aを1/2","ks-a-half");add("aを2倍","ks-a-double");}
+  else if(t==="allen-cahn"){add("εを1/2","allen-eps-half");add("εを2倍","allen-eps-double");}
   else if(t==="burgers"||t==="burgers-2d"){add("Re_B≈10","Re-10");add("Re_B≈100","Re-100");add("Re_B≈1000","Re-1000");}
   else if(t==="wave"&&E.waveModel.value==="generic"){add("cを1/2","c-half");add("cを2倍","c-double");}
   else if(t==="wave"){add("kH≈0.1","kH-0.1");add("kH≈1","kH-1");add("kH≈10","kH-10");}
@@ -2861,6 +3065,10 @@ function readParams(){
     waveSource2X:clamp(num(E.waveSource2X,.3),0,1),waveSource2Y:clamp(num(E.waveSource2Y,.6),0,1),
     waveObstacleMode:E.waveObstacleMode.value,
     burgersNu:clamp(num(E.burgersNu,.02),0,10),
+    kdvAlpha:clamp(num(E.kdvAlpha,6),-20,20),kdvBeta:clamp(num(E.kdvBeta,.02),.0001,2),kdvInitial:E.kdvInitial.value,
+    eulerGamma:clamp(num(E.eulerGamma,1.4),1.01,2),eulerInitial:E.eulerInitial.value,eulerView:E.eulerView.value,
+    allenMobility:clamp(num(E.allenMobility,1),.0001,20),allenEpsilon:clamp(num(E.allenEpsilon,.2),.005,5),
+    ksNu2:clamp(num(E.ksNu2,.2),0,5),ksNu4:clamp(num(E.ksNu4,.001),.0001,2),
     reactionDu:clamp(num(E.reactionDu,.0064),.000001,10),
     reactionDv:clamp(num(E.reactionDv,.0032),.000001,10),
     reactionFeed:clamp(num(E.reactionFeed,.0220),0,1),
@@ -2883,9 +3091,13 @@ function readParams(){
     u:useAdv?clamp(num(E.u,.5),-10,10):0,
     ux:useAdv?clamp(num(E.ux,.5),-10,10):0,
     uy:useAdv?clamp(num(E.uy,.25),-10,10):0,
+    uz:useAdv?clamp(num(E.uz,.15),-10,10):0,
     velocityField:E.velocityField.value,
     rotationOmega:clamp(num(E.rotationOmega,.5),-10,10),
     shearRate:clamp(num(E.shearRate,.5),-10,10),
+    nsNu:clamp(num(E.nsNu,.01),.00001,2),
+    nsInitial:E.nsInitial.value,
+    nsLidSpeed:clamp(num(E.nsLidSpeed,1),-10,10),
     nu:clamp(num(E.nu,.03),.0001,2),
     buoyancy:clamp(num(E.buoyancy,1),0,20),
     convInitial:E.convInitial.value,
@@ -2900,6 +3112,7 @@ function readParams(){
     perturbationAmplitude:clamp(num(E.perturbationAmplitude,.01),0,.2),
     grid1d:integerGrid(E.grid1d,181,21,5001),
     grid2d:integerGrid(E.grid2d,51,11,1001),
+    grid3d:integerGrid(E.grid3d,21,9,41),
     gridConvection:integerGrid(E.gridConvection,41,11,501),
     L:clamp(num(E.length,10),1,10000),
     T:clamp(num(E.duration,10),.1,100000),
@@ -2928,10 +3141,123 @@ function readParams(){
 
   if(p.sigma>p.L)p.sigma=p.L;
   if(useDiff)E.D.value=p.D;
-  if(useAdv){E.u.value=p.u;E.ux.value=p.ux;E.uy.value=p.uy;}
+  if(useAdv){E.u.value=p.u;E.ux.value=p.ux;E.uy.value=p.uy;E.uz.value=p.uz;}
   E.nu.value=p.nu;E.buoyancy.value=p.buoyancy;
   E.length.value=p.L;E.duration.value=p.T;E.width.value=p.sigma;
   return p;
+}
+
+
+function idx3(i,j,k,N){return (k*N+j)*N+i;}
+function init3D(type,N,L,sigma,dx){
+  var a=new Float32Array(N*N*N),mid=L/2,i,j,k,x,y,z,r,q;
+  for(k=0;k<N;k++){z=k*dx;
+    for(j=0;j<N;j++){y=j*dx;
+      for(i=0;i<N;i++){x=i*dx;var id=idx3(i,j,k,N),rx=x-mid,ry=y-mid,rz=z-mid;
+        r=Math.sqrt(rx*rx+ry*ry+rz*rz);
+        if(type==="sine")a[id]=.5+.5*Math.sin(2*Math.PI*x/L)*Math.sin(2*Math.PI*y/L)*Math.sin(2*Math.PI*z/L);
+        else if(type==="double-gaussian"){
+          var q1=((x-.32*L)**2+(y-.42*L)**2+(z-.46*L)**2)/(sigma*sigma),q2=((x-.68*L)**2+(y-.58*L)**2+(z-.54*L)**2)/(sigma*sigma);
+          a[id]=Math.min(1,Math.exp(-.5*q1)+Math.exp(-.5*q2));
+        }else if(type==="triple-gaussian"){
+          var qa=((x-.25*L)**2+(y-.35*L)**2+(z-.45*L)**2)/(sigma*sigma),qb=((x-.5*L)**2+(y-.6*L)**2+(z-.55*L)**2)/(sigma*sigma),qc=((x-.75*L)**2+(y-.4*L)**2+(z-.65*L)**2)/(sigma*sigma);
+          a[id]=Math.min(1,Math.exp(-.5*qa)+.8*Math.exp(-.5*qb)+.6*Math.exp(-.5*qc));
+        }else if(type==="ring"){
+          q=(r-.25*L)/Math.max(sigma,.04*L);a[id]=Math.exp(-.5*q*q);
+        }else if(type==="pulse"||type==="circle"){
+          a[id]=r<Math.max(.12*L,sigma)?1:0;
+        }else if(type==="positive-negative"){
+          var qp=((x-.38*L)**2+(y-.5*L)**2+(z-.5*L)**2)/(sigma*sigma),qn=((x-.62*L)**2+(y-.5*L)**2+(z-.5*L)**2)/(sigma*sigma);
+          a[id]=Math.exp(-.5*qp)-Math.exp(-.5*qn);
+        }else if(type==="step"||type==="left-right")a[id]=x<mid?1:0;
+        else if(type==="triangle")a[id]=Math.max(0,1-r/Math.max(.2*L,2*sigma));
+        else if(type==="random")a[id]=clamp(.5+.18*Math.sin(2*Math.PI*x/L+.7)+.15*Math.sin(4*Math.PI*y/L+1.3)+.12*Math.sin(6*Math.PI*z/L+.2),0,1);
+        else if(type==="checkerboard")a[id]=((Math.floor(4*x/L)+Math.floor(4*y/L)+Math.floor(4*z/L))%2)?1:0;
+        else if(type==="multi-spots"){
+          var centers=[[.25,.3,.35],[.7,.35,.55],[.45,.7,.7],[.72,.72,.25]],sum=0;
+          for(var cc=0;cc<centers.length;cc++){var cx=centers[cc][0]*L,cy=centers[cc][1]*L,cz=centers[cc][2]*L;sum+=Math.exp(-.5*((x-cx)**2+(y-cy)**2+(z-cz)**2)/(sigma*sigma));}
+          a[id]=Math.min(1,sum);
+        }else{
+          q=r/sigma;a[id]=Math.exp(-.5*q*q);
+        }
+      }
+    }
+  }
+  return a;
+}
+function lap3Periodic(a,N,dx){
+  var out=new Float32Array(a.length),d2=dx*dx;
+  for(var k=0;k<N;k++){var km=(k-1+N)%N,kp=(k+1)%N;
+    for(var j=0;j<N;j++){var jm=(j-1+N)%N,jp=(j+1)%N;
+      for(var i=0;i<N;i++){var im=(i-1+N)%N,ip=(i+1)%N,id=idx3(i,j,k,N);
+        out[id]=(a[idx3(ip,j,k,N)]+a[idx3(im,j,k,N)]+a[idx3(i,jp,k,N)]+a[idx3(i,jm,k,N)]+a[idx3(i,j,kp,N)]+a[idx3(i,j,km,N)]-6*a[id])/d2;
+      }
+    }
+  }
+  return out;
+}
+function mass3D(a,dx){var sum=0;for(var i=0;i<a.length;i++)sum+=a[i];return sum*dx*dx*dx;}
+async function calc3D(p,serial){
+  var N=p.grid3d,dx=p.L/N,fc=100,disp=p.T/(fc-1),field=init3D(p.type,N,p.L,p.sigma,dx),eq=p.equationType,lastDt=0;
+  if(N*N*N*fc>8000000)throw new Error("3D保存データ量が大きすぎます。格子点数を小さくしてください。");
+  frames=[new Float32Array(field)];times=[0];var mass0=mass3D(field,dx);
+  for(var f=1;f<fc;f++){
+    var elapsed=0;
+    while(elapsed<disp-1e-14){
+      var dt,next=new Float32Array(field.length);
+      if(eq==="diffusion"){
+        dt=Math.min(disp-elapsed,.14*dx*dx/Math.max(p.D,1e-12));
+        var lap=lap3Periodic(field,N,dx);
+        for(var q=0;q<field.length;q++)next[q]=field[q]+dt*p.D*lap[q];
+      }else if(eq==="advection"){
+        var rate=(Math.abs(p.ux)+Math.abs(p.uy)+Math.abs(p.uz))/dx;
+        dt=Math.min(disp-elapsed,rate>0?.75/rate:disp-elapsed);
+        for(var k=0;k<N;k++){var km=(k-1+N)%N,kp=(k+1)%N;
+          for(var j=0;j<N;j++){var jm=(j-1+N)%N,jp=(j+1)%N;
+            for(var i=0;i<N;i++){var im=(i-1+N)%N,ip=(i+1)%N,id=idx3(i,j,k,N),v=field[id];
+              var dfx=(p.ux>=0?(v-field[idx3(im,j,k,N)]):(field[idx3(ip,j,k,N)]-v))/dx;
+              var dfy=(p.uy>=0?(v-field[idx3(i,jm,k,N)]):(field[idx3(i,jp,k,N)]-v))/dx;
+              var dfz=(p.uz>=0?(v-field[idx3(i,j,km,N)]):(field[idx3(i,j,kp,N)]-v))/dx;
+              next[id]=v-dt*(p.ux*dfx+p.uy*dfy+p.uz*dfz);
+            }
+          }
+        }
+      }else throw new Error("第三段階の3Dソルバでは拡散・移流・通常波動のみ対応しています。");
+      field=next;elapsed+=dt;lastDt=dt;
+      for(q=0;q<field.length;q++)if(!Number.isFinite(field[q]))throw new Error("3D計算で非有限値が発生しました。");
+      await maybeYieldToBrowser(serial,false);
+    }
+    frames.push(new Float32Array(field));times.push(f*disp);updateCalculationProgress(100*f/(fc-1));
+  }
+  var massf=mass3D(field,dx);
+  state={mode:"3d",equationKind:"scalar3d",equationType:eq,L:p.L,N:N,dx:dx,dy:dx,dz:dx,periodic:true,mass0:mass0,massFinal:massf,initialType:p.type,transportParams:{equationType:eq,D:p.D,ux:p.ux,uy:p.uy,uz:p.uz}};
+  E.dx.textContent="N = "+N+"³　Δx = Δy = Δz = "+dx.toPrecision(4);
+  E.dt.textContent="内部 Δt ≈ "+lastDt.toPrecision(4);
+  E.mass.textContent="総量 = "+massf.toPrecision(6)+"（相対変化 "+((massf-mass0)/Math.max(Math.abs(mass0),1e-14)).toExponential(2)+"）";
+}
+async function calcWave3D(p,serial){
+  var N=p.grid3d,dx=p.L/N,c=p.waveSpeed,fc=100,disp=p.T/(fc-1),initial=init3D(p.type,N,p.L,p.sigma,dx);
+  if(N*N*N*fc>8000000)throw new Error("3D波動の保存データ量が大きすぎます。格子点数を小さくしてください。");
+  var stable=.48*dx/(c*Math.sqrt(3)),micro=Math.max(1,Math.ceil(disp/stable)),dt=disp/micro;
+  var prev=new Float32Array(initial),lap=lap3Periodic(initial,N,dx),cur=new Float32Array(initial.length);
+  for(var q=0;q<cur.length;q++)cur[q]=initial[q]+.5*c*c*dt*dt*lap[q];
+  frames=[new Float32Array(initial)];times=[0];
+  for(var f=1;f<fc;f++){
+    for(var m=0;m<micro;m++){
+      if(!(f===1&&m===0)){
+        lap=lap3Periodic(cur,N,dx);var next=new Float32Array(cur.length);
+        for(q=0;q<cur.length;q++)next[q]=2*cur[q]-prev[q]+c*c*dt*dt*lap[q];
+        prev=cur;cur=next;
+      }
+      if(m%12===11)await maybeYieldToBrowser(serial,false);
+    }
+    for(q=0;q<cur.length;q++)if(!Number.isFinite(cur[q]))throw new Error("3D波動計算で非有限値が発生しました。");
+    frames.push(new Float32Array(cur));times.push(f*disp);updateCalculationProgress(100*f/(fc-1));
+  }
+  state={mode:"3d",equationKind:"wave3d",equationType:"wave",L:p.L,N:N,dx:dx,dy:dx,dz:dx,periodic:true,waveSpeed:c,initialType:p.type};
+  E.dx.textContent="N = "+N+"³　Δx = Δy = Δz = "+dx.toPrecision(4);
+  E.dt.textContent="内部 Δt = "+dt.toPrecision(4);
+  E.mass.textContent="3D波動：断面上の p を表示";
 }
 
 function mass1D(a,dx,periodic){
@@ -4277,6 +4603,123 @@ async function calcBurgers1D(p,serial){
   E.mass.textContent="総量 = "+mass1D(frames[0],dx,periodic).toPrecision(5);
 }
 
+
+function periodicDerivatives1D(u,dx,need4){
+  var N=u.length,ux=new Float64Array(N),uxx=new Float64Array(N),uxxx=new Float64Array(N),uxxxx=need4?new Float64Array(N):null;
+  for(var i=0;i<N;i++){
+    var im1=(i-1+N)%N,ip1=(i+1)%N,im2=(i-2+N)%N,ip2=(i+2)%N;
+    ux[i]=(u[ip1]-u[im1])/(2*dx);
+    uxx[i]=(u[ip1]-2*u[i]+u[im1])/(dx*dx);
+    uxxx[i]=(u[ip2]-2*u[ip1]+2*u[im1]-u[im2])/(2*dx*dx*dx);
+    if(need4)uxxxx[i]=(u[im2]-4*u[im1]+6*u[i]-4*u[ip1]+u[ip2])/(dx*dx*dx*dx);
+  }
+  return {ux:ux,uxx:uxx,uxxx:uxxx,uxxxx:uxxxx};
+}
+function rk4ScalarPeriodic(u,dt,rhs){
+  var N=u.length,k1=rhs(u),tmp=new Float64Array(N),i;
+  for(i=0;i<N;i++)tmp[i]=u[i]+.5*dt*k1[i];
+  var k2=rhs(tmp);for(i=0;i<N;i++)tmp[i]=u[i]+.5*dt*k2[i];
+  var k3=rhs(tmp);for(i=0;i<N;i++)tmp[i]=u[i]+dt*k3[i];
+  var k4=rhs(tmp),out=new Float64Array(N);
+  for(i=0;i<N;i++)out[i]=u[i]+dt*(k1[i]+2*k2[i]+2*k3[i]+k4[i])/6;
+  return out;
+}
+async function calcKdV1D(p,serial){
+  var N=p.grid1d,dx=p.L/N,fc=240,displayDt=p.T/(fc-1),a=p.kdvAlpha,b=p.kdvBeta,u=new Float64Array(N);
+  if((p.kdvInitial==="soliton"||p.kdvInitial==="two-solitons")&&Math.abs(a)<1e-8)throw new Error("ソリトン初期条件では α≠0 が必要です。αを0以外に設定してください。");
+  for(var i=0;i<N;i++){
+    var x=i*dx;
+    if(p.kdvInitial==="soliton"){var c=1,x0=.3*p.L,A=3*c/a,k=Math.sqrt(c/(4*b));u[i]=A/Math.cosh(k*(x-x0))**2;}
+    else if(p.kdvInitial==="two-solitons"){var c1=1,c2=.45,A1=3*c1/a,A2=3*c2/a,k1=Math.sqrt(c1/(4*b)),k2=Math.sqrt(c2/(4*b));u[i]=A1/Math.cosh(k1*(x-.25*p.L))**2+A2/Math.cosh(k2*(x-.62*p.L))**2;}
+    else{var q=(x-.35*p.L)/Math.max(.08*p.L,p.sigma);u[i]=Math.exp(-.5*q*q);}
+  }
+  frames=[new Float64Array(u)];times=[0];var lastdt=0;
+  function rhs(v){var d=periodicDerivatives1D(v,dx,false),r=new Float64Array(N);for(var j=0;j<N;j++)r[j]=-a*v[j]*d.ux[j]-b*d.uxxx[j];return r;}
+  for(var f=1;f<fc;f++){
+    var umax=0;for(i=0;i<N;i++)umax=Math.max(umax,Math.abs(u[i]));
+    var stable=Math.min(umax>0?.18*dx/(Math.abs(a)*umax+1e-12):1e9,.12*dx**3/b);
+    var micro=Math.max(1,Math.ceil(displayDt/stable));if(micro>150000)throw new Error("KdVの内部時間刻みが多すぎます。β・格子数・計算時間を見直してください。");
+    lastdt=displayDt/micro;
+    for(var m=0;m<micro;m++){u=rk4ScalarPeriodic(u,lastdt,rhs);if(m%80===79)await maybeYieldToBrowser(serial,false);}
+    frames.push(new Float64Array(u));times.push(f*displayDt);updateCalculationProgress(100*f/(fc-1));if(f%6===0)await maybeYieldToBrowser(serial,false);
+  }
+  var mn=Math.min(...frames[0]),mx=Math.max(...frames[0]),I10=0,I1f=0,I20=0,I2f=0;for(i=0;i<N;i++){I10+=frames[0][i]*dx;I1f+=u[i]*dx;I20+=frames[0][i]*frames[0][i]*dx;I2f+=u[i]*u[i]*dx;}
+  state={mode:"1d",equationKind:"kdv",equationType:"kdv",kdvInitial:p.kdvInitial,fieldLabel:"u",fieldAxisLabel:"u(x,t)",L:p.L,N:N,dx:dx,periodic:true,kdvAlpha:a,kdvBeta:b,plotMin:mn-.1*(mx-mn||1),plotMax:mx+.1*(mx-mn||1),kdvI10:I10,kdvI1f:I1f,kdvI20:I20,kdvI2f:I2f};
+  E.dx.textContent="N = "+N+"　Δx = "+dx.toPrecision(4);E.dt.textContent="内部 Δt ≈ "+lastdt.toPrecision(4);E.mass.textContent="∫u dx = "+I1f.toPrecision(5)+"（相対変化 "+((I1f-I10)/Math.max(Math.abs(I10),1e-14)).toExponential(2)+"）";
+}
+function eulerPrimitive(U,g){
+  var rho=Math.max(U[0],1e-10),u=U[1]/rho,p=Math.max((g-1)*(U[2]-.5*rho*u*u),1e-10);
+  return [rho,u,p,Math.sqrt(g*p/rho)];
+}
+function eulerFlux(U,g){var w=eulerPrimitive(U,g),rho=w[0],u=w[1],p=w[2];return [rho*u,rho*u*u+p,u*(U[2]+p)];}
+async function calcEuler1D(p,serial){
+  var N=p.grid1d,dx=p.L/N,g=p.eulerGamma,fc=240,displayDt=p.T/(fc-1);
+  var rho=new Float64Array(N),mom=new Float64Array(N),ene=new Float64Array(N),i;
+  function set(i,r,u,pr){rho[i]=r;mom[i]=r*u;ene[i]=pr/(g-1)+.5*r*u*u;}
+  for(i=0;i<N;i++){var left=i<N/2;
+    if(p.eulerInitial==="lax")set(i,...(left?[.445,.698,3.528]:[.5,0,0.571]));
+    else if(p.eulerInitial==="blast")set(i,1,0,left?10:.1);
+    else set(i,...(left?[1,0,1]:[.125,0,.1]));
+  }
+  frames=[new Float64Array(rho)];times=[0];var velFrames=[new Float64Array(N)],pressureFrames=[new Float64Array(N)],lastdt=0;
+  function saveAux(){var vv=new Float64Array(N),pp=new Float64Array(N);for(var q=0;q<N;q++){var w=eulerPrimitive([rho[q],mom[q],ene[q]],g);vv[q]=w[1];pp[q]=w[2];}return [vv,pp];}
+  var z=saveAux();velFrames[0]=z[0];pressureFrames[0]=z[1];
+  for(var f=1;f<fc;f++){
+    var remain=displayDt;
+    while(remain>1e-14){
+      var maxs=0;for(i=0;i<N;i++){var wi=eulerPrimitive([rho[i],mom[i],ene[i]],g);maxs=Math.max(maxs,Math.abs(wi[1])+wi[3]);}
+      var dt=Math.min(remain,.42*dx/Math.max(maxs,1e-12));lastdt=dt;
+      var F0=new Float64Array(N+1),F1=new Float64Array(N+1),F2=new Float64Array(N+1);
+      for(i=0;i<=N;i++){
+        var il=Math.max(0,i-1),ir=Math.min(N-1,i),UL=[rho[il],mom[il],ene[il]],UR=[rho[ir],mom[ir],ene[ir]];
+        var fl=eulerFlux(UL,g),fr=eulerFlux(UR,g),wl=eulerPrimitive(UL,g),wr=eulerPrimitive(UR,g),aa=Math.max(Math.abs(wl[1])+wl[3],Math.abs(wr[1])+wr[3]);
+        F0[i]=.5*(fl[0]+fr[0])-.5*aa*(UR[0]-UL[0]);F1[i]=.5*(fl[1]+fr[1])-.5*aa*(UR[1]-UL[1]);F2[i]=.5*(fl[2]+fr[2])-.5*aa*(UR[2]-UL[2]);
+      }
+      var nr=new Float64Array(N),nm=new Float64Array(N),ne=new Float64Array(N);
+      for(i=0;i<N;i++){nr[i]=rho[i]-dt/dx*(F0[i+1]-F0[i]);nm[i]=mom[i]-dt/dx*(F1[i+1]-F1[i]);ne[i]=ene[i]-dt/dx*(F2[i+1]-F2[i]);if(nr[i]<=0)throw new Error("Euler計算で非正密度が発生しました。格子・条件を見直してください。");}
+      rho=nr;mom=nm;ene=ne;remain-=dt;
+    }
+    frames.push(new Float64Array(rho));z=saveAux();velFrames.push(z[0]);pressureFrames.push(z[1]);times.push(f*displayDt);updateCalculationProgress(100*f/(fc-1));if(f%4===0)await maybeYieldToBrowser(serial,false);
+  }
+  var m0=0,m1=0,e0=0,e1=0,machMax=0;
+  for(i=0;i<N;i++){m0+=frames[0][i]*dx;m1+=rho[i]*dx;e0+=(pressureFrames[0][i]/(g-1)+.5*frames[0][i]*velFrames[0][i]*velFrames[0][i])*dx;e1+=ene[i]*dx;var wf=eulerPrimitive([rho[i],mom[i],ene[i]],g);machMax=Math.max(machMax,Math.abs(wf[1])/wf[3]);}
+  state={mode:"1d",equationKind:"euler",equationType:"euler",fieldLabel:"ρ",fieldAxisLabel:"ρ(x,t)",L:p.L,N:N,dx:dx,periodic:false,eulerGamma:g,velocityFrames:velFrames,pressureFrames:pressureFrames,eulerMass0:m0,eulerMassFinal:m1,eulerEnergy0:e0,eulerEnergyFinal:e1,eulerMachMax:machMax};
+  E.dx.textContent="N = "+N+"　Δx = "+dx.toPrecision(4);E.dt.textContent="内部 Δt ≈ "+lastdt.toPrecision(4);E.mass.textContent="総質量 = "+m1.toPrecision(5)+"（初期比 "+((m1-m0)/Math.max(Math.abs(m0),1e-14)).toExponential(2)+"）";
+}
+function allenEnergy(field,N,dx,eps,is2){
+  var sum=0;
+  if(is2){for(var j=0;j<N;j++)for(var i=0;i<N;i++){var k=j*N+i,ip=(i+1)%N,jp=(j+1)%N,gx=(field[j*N+ip]-field[k])/dx,gy=(field[jp*N+i]-field[k])/dx;sum+=(.5*eps*eps*(gx*gx+gy*gy)+.25*(field[k]*field[k]-1)**2)*dx*dx;}}
+  else{for(var i=0;i<N;i++){var ip=(i+1)%N,gx=(field[ip]-field[i])/dx;sum+=(.5*eps*eps*gx*gx+.25*(field[i]*field[i]-1)**2)*dx;}}
+  return sum;
+}
+async function calcAllenCahn(p,serial){
+  var is2=p.mode==="2d",N=is2?p.grid2d:p.grid1d,dx=is2?p.L/N:p.L/N,M=p.allenMobility,eps=p.allenEpsilon,fc=is2?160:240,displayDt=p.T/(fc-1),u;
+  if(is2){u=init2D(p.type,N,p.L,p.sigma,dx,dx);for(var k=0;k<u.length;k++)u[k]=2*u[k]-1;}
+  else{u=init1D(p.type,N,p.L,p.sigma,dx);for(var i=0;i<N;i++)u[i]=2*u[i]-1;}
+  frames=[new Float64Array(u)];times=[0];var stable=.18/(M*(is2?4:2)*eps*eps/(dx*dx)+2*M),micro=Math.max(1,Math.ceil(displayDt/stable)),dt=displayDt/micro;
+  if(micro>100000)throw new Error("Allen–Cahnの内部時間刻みが多すぎます。");
+  for(var f=1;f<fc;f++){for(var m=0;m<micro;m++){var un=new Float64Array(u.length);
+    if(is2){for(var j=0;j<N;j++)for(i=0;i<N;i++){var im=(i-1+N)%N,ip=(i+1)%N,jm=(j-1+N)%N,jp=(j+1)%N,kk=j*N+i,lap=(u[j*N+ip]+u[j*N+im]+u[jp*N+i]+u[jm*N+i]-4*u[kk])/(dx*dx);un[kk]=u[kk]+dt*M*(eps*eps*lap+u[kk]-u[kk]**3);}}
+    else{for(i=0;i<N;i++){var im1=(i-1+N)%N,ip1=(i+1)%N,lap1=(u[ip1]-2*u[i]+u[im1])/(dx*dx);un[i]=u[i]+dt*M*(eps*eps*lap1+u[i]-u[i]**3);}}
+    u=un;if(m%80===79)await maybeYieldToBrowser(serial,false);}
+    frames.push(new Float64Array(u));times.push(f*displayDt);updateCalculationProgress(100*f/(fc-1));if(f%6===0)await maybeYieldToBrowser(serial,false);}
+  var en0=allenEnergy(frames[0],N,dx,eps,is2),enf=allenEnergy(u,N,dx,eps,is2);
+  state={mode:p.mode,equationKind:"allen-cahn",equationType:"allen-cahn",fieldLabel:"φ",fieldAxisLabel:"φ(x,t)",L:p.L,N:N,dx:dx,dy:is2?dx:undefined,periodic:true,px:true,py:true,plotMin:-1.1,plotMax:1.1,allenEnergy0:en0,allenEnergyFinal:enf};
+  E.dx.textContent="N = "+(is2?N+"×"+N:N)+"　Δx = "+dx.toPrecision(4);E.dt.textContent="内部 Δt = "+dt.toPrecision(4);var mean0=0;for(var qi=0;qi<frames[0].length;qi++)mean0+=frames[0][qi];mean0/=frames[0].length;E.mass.textContent="自由エネルギー F = "+enf.toPrecision(5)+"（初期 "+en0.toPrecision(5)+"）";
+}
+async function calcKS1D(p,serial){
+  var N=p.grid1d,dx=p.L/N,a=p.ksNu2,b=p.ksNu4,fc=240,displayDt=p.T/(fc-1),u=init1D(p.type,N,p.L,p.sigma,dx);
+  for(var i=0;i<N;i++)u[i]=2*(u[i]-.5);
+  function rhs(v){var d=periodicDerivatives1D(v,dx,true),r=new Float64Array(N);for(var j=0;j<N;j++)r[j]=-v[j]*d.ux[j]-a*d.uxx[j]-b*d.uxxxx[j];return r;}
+  frames=[new Float64Array(u)];times=[0];var lastdt=0;
+  for(var f=1;f<fc;f++){var umax=0;for(i=0;i<N;i++)umax=Math.max(umax,Math.abs(u[i]));var stable=Math.min(.18*dx/(umax+1e-9),.08*dx*dx/(a+1e-12),.04*dx**4/b);var micro=Math.max(1,Math.ceil(displayDt/stable));if(micro>150000)throw new Error("Kuramoto–Sivashinskyの内部時間刻みが多すぎます。格子数・b・計算時間を見直してください。");lastdt=displayDt/micro;
+    for(var m=0;m<micro;m++){u=rk4ScalarPeriodic(u,lastdt,rhs);if(m%80===79)await maybeYieldToBrowser(serial,false);}
+    frames.push(new Float64Array(u));times.push(f*displayDt);updateCalculationProgress(100*f/(fc-1));if(f%6===0)await maybeYieldToBrowser(serial,false);}
+  var mean0=mass1D(frames[0],dx,true)/p.L,meanf=mass1D(u,dx,true)/p.L;
+  state={mode:"1d",equationKind:"kuramoto-sivashinsky",equationType:"kuramoto-sivashinsky",fieldLabel:"u",fieldAxisLabel:"u(x,t)",L:p.L,N:N,dx:dx,periodic:true,plotMin:-2,plotMax:2,ksMean0:mean0,ksMeanFinal:meanf};
+  E.dx.textContent="N = "+N+"　Δx = "+dx.toPrecision(4);E.dt.textContent="内部 Δt ≈ "+lastdt.toPrecision(4);E.mass.textContent="平均u = "+meanf.toPrecision(5)+"（変化 "+(meanf-mean0).toExponential(2)+"）";
+}
+
 function grayScottSetSeed(U,V,N,cx,cy,r,uValue,vValue){
   var i,j,k,dx,dy;
   for(j=Math.max(0,cy-r);j<=Math.min(N-1,cy+r);j++){
@@ -4556,6 +4999,136 @@ function convectiveFaceFlux(faceVelocity,leftValue,rightValue){
   return (faceVelocity>=0)?faceVelocity*leftValue:faceVelocity*rightValue;
 }
 
+
+function nsPeriodicPoisson(omega,psi,tmp,N,dx){
+  // Periodic Jacobi/SOR-like relaxation for ∇²ψ=-ω; gauge fixed by zero mean.
+  var dx2=dx*dx, it, i,j,k,ip,im,jp,jm,maxRes=Infinity;
+  for(it=0;it<700;it++){
+    var mean=0;
+    for(j=0;j<N;j++){jp=(j+1)%N;jm=(j-1+N)%N;
+      for(i=0;i<N;i++){ip=(i+1)%N;im=(i-1+N)%N;k=j*N+i;
+        tmp[k]=.25*(psi[j*N+ip]+psi[j*N+im]+psi[jp*N+i]+psi[jm*N+i]+dx2*omega[k]);mean+=tmp[k];
+      }}
+    mean/=N*N;for(k=0;k<N*N;k++){tmp[k]-=mean;}
+    var sw=psi;psi=tmp;tmp=sw;
+    if(it%20===0){maxRes=0;for(j=0;j<N;j++){jp=(j+1)%N;jm=(j-1+N)%N;for(i=0;i<N;i++){ip=(i+1)%N;im=(i-1+N)%N;k=j*N+i;var r=(psi[j*N+ip]+psi[j*N+im]+psi[jp*N+i]+psi[jm*N+i]-4*psi[k])/dx2+omega[k];maxRes=Math.max(maxRes,Math.abs(r));}}if(maxRes<2e-5)break;}
+  }
+  return {psi:psi,tmp:tmp,residual:maxRes,iterations:it+1};
+}
+async function nsVelocityFromOmega(omega,psi,tmp,N,dx,periodic,serial,lidSpeed){
+  var res;
+  if(periodic){res=nsPeriodicPoisson(omega,psi,tmp,N,dx);psi=res.psi;tmp=res.tmp;}
+  else{res=await solvePsi(omega,psi,tmp,N,dx,serial);psi=res.psi;tmp=res.tmp;}
+  var vel=new Float64Array(2*N*N),i,j,k,maxSpeed=0,maxDiv=0;
+  if(periodic){
+    for(j=0;j<N;j++){
+      var jp=(j+1)%N,jm=(j-1+N)%N;
+      for(i=0;i<N;i++){
+        var ip=(i+1)%N,im=(i-1+N)%N;k=j*N+i;
+        vel[2*k]=(psi[jp*N+i]-psi[jm*N+i])/(2*dx);
+        vel[2*k+1]=-(psi[j*N+ip]-psi[j*N+im])/(2*dx);
+        maxSpeed=Math.max(maxSpeed,Math.hypot(vel[2*k],vel[2*k+1]));
+      }
+    }
+    // Discrete divergence diagnostic using the same centered stencil.
+    for(j=0;j<N;j++){
+      var jp2=(j+1)%N,jm2=(j-1+N)%N;
+      for(i=0;i<N;i++){
+        var ip2=(i+1)%N,im2=(i-1+N)%N,k0=j*N+i;
+        var div=(vel[2*(j*N+ip2)]-vel[2*(j*N+im2)])/(2*dx)
+               +(vel[2*(jp2*N+i)+1]-vel[2*(jm2*N+i)+1])/(2*dx);
+        maxDiv=Math.max(maxDiv,Math.abs(div));
+      }
+    }
+  }else{
+    for(j=1;j<N-1;j++)for(i=1;i<N-1;i++){
+      k=j*N+i;
+      vel[2*k]=(psi[k+N]-psi[k-N])/(2*dx);
+      vel[2*k+1]=-(psi[k+1]-psi[k-1])/(2*dx);
+      maxSpeed=Math.max(maxSpeed,Math.hypot(vel[2*k],vel[2*k+1]));
+    }
+    // no-slip/no-penetration walls; moving top lid
+    for(i=0;i<N;i++){
+      vel[2*i]=0;vel[2*i+1]=0;
+      k=(N-1)*N+i;vel[2*k]=lidSpeed;vel[2*k+1]=0;
+    }
+    for(j=0;j<N;j++){
+      k=j*N;vel[2*k]=0;vel[2*k+1]=0;
+      k=j*N+N-1;vel[2*k]=0;vel[2*k+1]=0;
+    }
+    // At the two top corners the side-wall no-slip convention wins.
+    vel[2*((N-1)*N)]=0;
+    vel[2*((N-1)*N+N-1)]=0;
+    for(j=1;j<N-1;j++)for(i=1;i<N-1;i++){
+      k=j*N+i;
+      var div=(vel[2*(k+1)]-vel[2*(k-1)])/(2*dx)
+             +(vel[2*(k+N)+1]-vel[2*(k-N)+1])/(2*dx);
+      maxDiv=Math.max(maxDiv,Math.abs(div));
+    }
+  }
+  return {psi:psi,tmp:tmp,vel:vel,maxSpeed:maxSpeed,maxDiv:maxDiv,residual:res.residual||0};
+}
+async function calcNavierStokes2D(p,serial){
+  var N=p.gridConvection,L=p.L,periodic=(p.nsInitial!=="lid-cavity"),dx=periodic?L/N:L/(N-1),fc=140,displayDt=p.T/(fc-1),nu=p.nsNu;
+  if(N*N*fc>6000000)throw new Error("Navier–Stokesの格子点数が大きすぎます。");
+  var omega=new Float64Array(N*N),omegaNext=new Float64Array(N*N),psi=new Float64Array(N*N),tmp=new Float64Array(N*N),vel=new Float64Array(2*N*N);
+  var i,j,k,x,y;
+  if(p.nsInitial==="shear-layer"){
+    for(j=0;j<N;j++){y=(j+.5)*dx/L;for(i=0;i<N;i++){x=(i+.5)*dx/L;k=j*N+i;omega[k]=-(1/.04)*(1/Math.cosh((y-.25)/.04)**2-1/Math.cosh((y-.75)/.04)**2)+.08*Math.sin(2*Math.PI*x);}}
+  }else if(p.nsInitial==="taylor-green"){
+    var kk=2*Math.PI/L;for(j=0;j<N;j++){y=j*dx;for(i=0;i<N;i++){x=i*dx;k=j*N+i;omega[k]=2*kk*Math.sin(kk*x)*Math.sin(kk*y);}}
+  }
+  var initFlow=await nsVelocityFromOmega(omega,psi,tmp,N,dx,periodic,serial,p.nsLidSpeed);
+  psi=initFlow.psi;tmp=initFlow.tmp;vel=initFlow.vel;
+  frames=[new Float64Array(omega)];times=[0];var velocityFrames=[new Float64Array(vel)],vorticityFrames=[new Float64Array(omega)],lastDt=0,maxDiv=initFlow.maxDiv,maxPoissonResidual=initFlow.residual;
+  for(var f=1;f<fc;f++){
+    var elapsed=0;
+    while(elapsed<displayDt-1e-12){
+      var res;
+      if(periodic){res=nsPeriodicPoisson(omega,psi,tmp,N,dx);psi=res.psi;tmp=res.tmp;}
+      else{res=await solvePsi(omega,psi,tmp,N,dx,serial);psi=res.psi;tmp=res.tmp;}
+      maxPoissonResidual=Math.max(maxPoissonResidual,res.residual||0);
+      var maxSpeed=0;
+      if(periodic){
+        for(j=0;j<N;j++){var jp=(j+1)%N,jm=(j-1+N)%N;for(i=0;i<N;i++){var ip=(i+1)%N,im=(i-1+N)%N;k=j*N+i;vel[2*k]=(psi[jp*N+i]-psi[jm*N+i])/(2*dx);vel[2*k+1]=-(psi[j*N+ip]-psi[j*N+im])/(2*dx);maxSpeed=Math.max(maxSpeed,Math.hypot(vel[2*k],vel[2*k+1]));}}
+      }else{
+        for(j=1;j<N-1;j++)for(i=1;i<N-1;i++){k=j*N+i;vel[2*k]=(psi[k+N]-psi[k-N])/(2*dx);vel[2*k+1]=-(psi[k+1]-psi[k-1])/(2*dx);maxSpeed=Math.max(maxSpeed,Math.hypot(vel[2*k],vel[2*k+1]));}
+        for(i=0;i<N;i++){vel[2*i]=0;vel[2*i+1]=0;k=(N-1)*N+i;vel[2*k]=p.nsLidSpeed;vel[2*k+1]=0;}
+      }
+      var rate=maxSpeed/dx+4*nu/(dx*dx),dt=Math.min(displayDt-elapsed,rate>0?.55/rate:displayDt-elapsed,.03);lastDt=dt;
+      omegaNext.set(omega);
+      if(periodic){
+        for(j=0;j<N;j++){var jp2=(j+1)%N,jm2=(j-1+N)%N;for(i=0;i<N;i++){var ip2=(i+1)%N,im2=(i-1+N)%N;k=j*N+i;var u=vel[2*k],v=vel[2*k+1];
+          var dwdx=(omega[j*N+ip2]-omega[j*N+im2])/(2*dx);
+          var dwdy=(omega[jp2*N+i]-omega[jm2*N+i])/(2*dx);
+          var lap=(omega[j*N+ip2]+omega[j*N+im2]+omega[jp2*N+i]+omega[jm2*N+i]-4*omega[k])/(dx*dx);
+          omegaNext[k]=omega[k]+dt*(-u*dwdx-v*dwdy+nu*lap);
+        }}
+      }else{
+        for(j=1;j<N-1;j++)for(i=1;i<N-1;i++){k=j*N+i;var u=vel[2*k],v=vel[2*k+1];
+          var dwdx=(u>=0?(omega[k]-omega[k-1]):(omega[k+1]-omega[k]))/dx,dwdy=(v>=0?(omega[k]-omega[k-N]):(omega[k+N]-omega[k]))/dx;
+          var lap=(omega[k+1]+omega[k-1]+omega[k+N]+omega[k-N]-4*omega[k])/(dx*dx);omegaNext[k]=omega[k]+dt*(-u*dwdx-v*dwdy+nu*lap);
+        }
+        // Thom wall-vorticity formula; moving top wall contributes +2U/dx with this sign convention.
+        for(i=1;i<N-1;i++){omegaNext[i]=-2*psi[N+i]/(dx*dx);omegaNext[(N-1)*N+i]=-2*psi[(N-2)*N+i]/(dx*dx)+2*p.nsLidSpeed/dx;}
+        for(j=1;j<N-1;j++){omegaNext[j*N]=-2*psi[j*N+1]/(dx*dx);omegaNext[j*N+N-1]=-2*psi[j*N+N-2]/(dx*dx);}
+      }
+      var sw=omega;omega=omegaNext;omegaNext=sw;elapsed+=dt;
+      if(!Array.from(omega).every(Number.isFinite))throw new Error("Navier–Stokes計算が不安定化しました。νを増やすか格子・計算時間を見直してください。");
+      await maybeYieldToBrowser(serial,false);
+    }
+    var savedFlow=await nsVelocityFromOmega(omega,psi,tmp,N,dx,periodic,serial,p.nsLidSpeed);
+    psi=savedFlow.psi;tmp=savedFlow.tmp;vel=savedFlow.vel;
+    maxDiv=Math.max(maxDiv,savedFlow.maxDiv);maxPoissonResidual=Math.max(maxPoissonResidual,savedFlow.residual);
+    frames.push(new Float64Array(omega));vorticityFrames.push(new Float64Array(omega));velocityFrames.push(new Float64Array(vel));times.push(f*displayDt);updateCalculationProgress(100*f/(fc-1));
+  }
+  var Re=(p.nsInitial==="lid-cavity")?Math.abs(p.nsLidSpeed)*L/nu:null;
+  var en=0,ens=0;for(k=0;k<N*N;k++){en+=.5*(vel[2*k]**2+vel[2*k+1]**2)*dx*dx;ens+=.5*omega[k]**2*dx*dx;}
+  state={mode:"convection",equationKind:"navier-stokes",equationType:"navier-stokes",L:L,N:N,dx:dx,dy:dx,px:periodic,py:periodic,periodic:periodic,velocityFrames:velocityFrames,vorticityFrames:vorticityFrames,nsRe:Re,nsKineticEnergy:en,nsEnstrophy:ens,nsPoissonResidual:maxPoissonResidual,nsMaxDivergence:maxDiv,nsInitial:p.nsInitial,nsNu:nu};
+  E.dx.textContent="N = "+N+"×"+N+"　Δx = Δy = "+dx.toPrecision(4);E.dt.textContent="内部 Δt ≈ "+lastDt.toPrecision(4);
+  E.mass.textContent="運動エネルギー K = "+en.toPrecision(5)+(Re!==null?"　Re = "+Re.toPrecision(4):"");
+}
+
 async function calcConvection(p,serial){
   var N=p.gridConvection,dx=p.L/(N-1),frameCount=140,displayDt=p.T/(frameCount-1);
   if(N*N*140>6000000)throw new Error("自然対流の格子点数が大きすぎます。保存フレームを含めた計算量とメモリ使用量が過大になるため、格子点数を小さくしてください。");
@@ -4761,14 +5334,20 @@ function equationDefinition(type,dim){
     };
     else d={
       title:"通常の波動方程式",
-      f:(dim==="1d"
-        ?(E.waveSourceMode.value!=="off"?"∂p/∂t+c∂q/∂x=S(x,t)<br>∂q/∂t+c∂p/∂x=0<br>S=A sin(ωt)G(x)":"∂p/∂t+c∂q/∂x=0<br>∂q/∂t+c∂p/∂x=0<br>⇒∂²p/∂t²=c²∂²p/∂x²")
-        :(E.waveSourceMode.value!=="off"?"∂p/∂t+c∇·Q=S(x,y,t)<br>∂Q/∂t+c∇p=0<br>S=A sin(ωt)G(x,y)":"∂p/∂t+c∇·Q=0<br>∂Q/∂t+c∇p=0<br>⇒∂²p/∂t²=c²∇²p")),
+      f:(dim==="3d"
+        ?"∂²p/∂t²=c²(∂²p/∂x²+∂²p/∂y²+∂²p/∂z²)"
+        :(dim==="1d"
+          ?(E.waveSourceMode.value!=="off"?"∂p/∂t+c∂q/∂x=S(x,t)<br>∂q/∂t+c∂p/∂x=0<br>S=A sin(ωt)G(x)":"∂p/∂t+c∂q/∂x=0<br>∂q/∂t+c∂p/∂x=0<br>⇒∂²p/∂t²=c²∂²p/∂x²")
+          :(E.waveSourceMode.value!=="off"?"∂p/∂t+c∇·Q=S(x,y,t)<br>∂Q/∂t+c∇p=0<br>S=A sin(ωt)G(x,y)":"∂p/∂t+c∇·Q=0<br>∂Q/∂t+c∇p=0<br>⇒∂²p/∂t²=c²∇²p"))),
       t:"一定波速 c の非分散波動方程式です。水面波に限定されない抽象的な波動モデルです。"+
         (E.waveSourceMode.value!=="off"?" 継続波源使用時は ∂p/∂t 側に局所ソース S=A sin(ωt)G を加えます。A はソース強度です。":"")+
         (E.dimension.value==="2d"&&E.waveObstacleMode.value!=="off"?" 内部障害物ではマスク界面の数値流束に q·n=0 の反射条件を直接課します。":"")
     };
   }
+  else if(type==="kdv") d={title:"Korteweg–de Vries (KdV) 方程式",f:"∂u/∂t+αu∂u/∂x+β∂³u/∂x³=0",t:"α は非線形性、β は分散の強さです。非線形項は波を急峻化し、三階微分の分散項は波数ごとに異なる位相速度を与えます。両者の釣り合いでソリトンが存在します。"};
+  else if(type==="euler") d={title:"1D圧縮性Euler方程式",f:"∂ρ/∂t+∂(ρu)/∂x=0<br>∂(ρu)/∂t+∂(ρu²+p)/∂x=0<br>∂E/∂t+∂[u(E+p)]/∂x=0",t:"ρ は密度、u は流速、p は圧力、E は単位体積あたりの全エネルギーです。理想気体 p=(γ−1)(E−ρu²/2) で閉じます。粘性を明示しない保存則ですが、弱解として衝撃波を扱えます。"};
+  else if(type==="allen-cahn") d={title:"Allen–Cahn方程式",f:"∂φ/∂t=M(ε²∇²φ+φ−φ³)",t:"φ は非保存秩序変数、M は移動度、ε は界面幅を決める係数です。φ≈±1 が安定相で、界面は自由エネルギーを下げる方向へ動きます。Cahn–Hilliardと違って平均φは一般に保存されません。"};
+  else if(type==="kuramoto-sivashinsky") d={title:"Kuramoto–Sivashinsky方程式",f:"∂u/∂t+u∂u/∂x+a∂²u/∂x²+b∂⁴u/∂x⁴=0",t:"a>0 の二階項は長波長を線形不安定化し、b>0 の四階項は短波長を強く減衰させます。非線形移流との競合により複雑な時空間発展が生じます。"};
   else if(type==="burgers") d={
     title:"Burgers方程式",
     f:"∂u/∂t + ∂/∂x (u²/2 − ν∂u/∂x) = 0",
@@ -4788,6 +5367,11 @@ function equationDefinition(type,dim){
     title:"Cahn–Hilliard方程式",
     f:"∂φ/∂t = ∇·(M∇μ)<br>μ = φ³−φ−κ∇²φ",
     t:"φ は組成を表す保存秩序変数、μ は化学ポテンシャル、M は移動度、κ は界面エネルギーに関係する係数です。相分離と界面の粗大化を表し、適切な境界条件では φ の空間積分が保存されます。"
+  };
+  else if(type==="navier-stokes") d={
+    title:"2D非圧縮性Navier–Stokes方程式（渦度–流れ関数形式）",
+    f:"∂ω/∂t+u·∇ω=ν∇²ω<br>∇²ψ=−ω<br>u=∂ψ/∂y,　v=−∂ψ/∂x,　∇·u=0",
+    t:"ω=∂v/∂x−∂u/∂y は渦度、ψ は流れ関数、ν は動粘性係数です。流れ関数から速度を作ることで非圧縮条件を満たします。自然対流モードは、この渦度方程式に温度輸送方程式とBoussinesq浮力による渦度生成を追加した拡張です。"
   };
   else if(type==="convection") d={
     title:"Boussinesq自然対流",
@@ -4825,6 +5409,12 @@ function equationTermExplanation(type,dim){
     add("−D∇φ","勾配に逆らって高い値から低い値へ向かう拡散フラックスです。");
     add("∇·(uφ−D∇φ)","移流と拡散を合わせた全フラックスの流入・流出差です。");
   }else if(type==="wave"){
+    if(dim==="3d"){
+      add("∂²p/∂t²","波動変数pの時間方向の加速度です。");
+      add("c²∇²p","x・y・z方向の空間曲率が復元作用となって波を伝播させます。cは一定波速です。");
+      add("3D周期境界","立方体の反対側の面どうしを接続します。現在の3D通常波動では継続波源・内部障害物は使用しません。");
+      return rows.join("<br>");
+    }
     add("∂p/∂t","波動変数 p の時間変化です。");
     add(dim==="1d"?"c∂q/∂x":"c∇·Q","波動フラックス q または Q の空間的な収束・発散が p を変化させる項です。");
     add(dim==="1d"?"c∂p/∂x":"c∇p","p の空間勾配がフラックス q または Q を変化させます。ばねや圧力差による復元作用に対応する役割を持ちます。");
@@ -4833,6 +5423,23 @@ function equationTermExplanation(type,dim){
     if(E.waveModel.value==="generic"&&dim==="2d"&&E.waveObstacleMode.value!=="off")
       add("q·n=0","内部障害物のmask界面で法線方向の波動フラックスを0にする反射条件です。壁面の数値流束に直接課しています。");
     add("c","波が情報を伝える速度です。");
+  }else if(type==="kdv"){
+    add("αu∂u/∂x","振幅に依存して伝播速度を変える非線形項で、波形を急峻化させます。");
+    add("β∂³u/∂x³","分散項です。Fourierモードごとに異なる位相速度を与え、波束を広げる作用を持ちます。");
+    add("ソリトン","非線形急峻化と分散が釣り合うと、形をほぼ保って進む孤立波が成立します。");
+  }else if(type==="euler"){
+    add("ρu","質量フラックスです。");
+    add("ρu²+p","運動量フラックスです。ρu²は移流、pは圧力による運動量輸送を表します。");
+    add("u(E+p)","全エネルギーフラックスです。内部エネルギー・運動エネルギーと圧力仕事を運びます。");
+    add("γ","比熱比です。理想気体の圧力と内部エネルギーの関係を決めます。");
+  }else if(type==="allen-cahn"){
+    add("ε²∇²φ","界面を滑らかにし、急峻すぎる空間変化を抑える項です。");
+    add("φ−φ³","φ=±1を安定相、φ=0を不安定状態とする局所的な相分離の駆動項です。");
+    add("M","時間発展の速さを決める移動度です。");
+  }else if(type==="kuramoto-sivashinsky"){
+    add("u∂u/∂x","自己移流による非線形項です。");
+    add("a∂²u/∂x²","式の左辺に+a uₓₓと置くため、時間発展形では−a uₓₓとなり、長波長成分を増幅する負拡散として働きます。");
+    add("b∂⁴u/∂x⁴","時間発展形では−b uₓₓₓₓとなり、高波数成分を強く減衰させる高階散逸です。");
   }else if(type==="burgers"){
     add("∂u/∂t","速度様の変数 u の時間変化です。");
     add("∂(u²/2)/∂x","u 自身が u を運ぶ非線形移流項です。u が大きい場所ほど速く進むため、波形を急峻化させます。");
@@ -4856,6 +5463,13 @@ function equationTermExplanation(type,dim){
     add("M∇μ","化学ポテンシャル差によって物質が移動する駆動に対応します。実際の保存フラックスは −M∇μ です。");
     add("∇·(M∇μ)","化学ポテンシャル勾配により組成が再配置される項です。外力で押すというより、自由エネルギーを下げる方向へ物質が拡散する作用です。");
     add("κ","界面を滑らかにし、細かすぎる相境界を抑える係数です。");
+  }else if(type==="navier-stokes"){
+    add("∂ω/∂t","渦度ωの局所的な時間変化です。");
+    add("u·∇ω","流れ自身が渦度を運ぶ非線形移流です。");
+    add("ν∇²ω","粘性による渦度拡散で、細かな渦構造を平滑化します。");
+    add("∇²ψ=−ω","渦度から流れ関数ψを求めるPoisson方程式です。");
+    add("u=ψ_y, v=−ψ_x","流れ関数から速度を復元します。この構成により∇·u=0が離散的にも非常に小さく保たれます。");
+    add("自然対流との関係","自然対流ではこの流体運動に温度Tの移流拡散と浮力による渦度生成 gβ∂T/∂x を追加します。");
   }else if(type==="convection"){
     add("∂T/∂t","温度 T の局所的な時間変化です。");
     add("∇·(uT)","流体運動によって温度が運ばれる移流項です。");
@@ -4962,7 +5576,11 @@ function renderDefinitions(){
   var html=defSection("現在の方程式："+eq.title,eq.f,eq.t+equationTermExplanation(type,dim));
   html+=defSection("現在の初期条件："+ic.title,ic.f,ic.t);
 
-  if(dim==="1d"){
+  var solverBoundary=(dim==="3d")?"periodic":(type==="kdv"||type==="kuramoto-sivashinsky"||type==="allen-cahn")?"periodic":(type==="euler"?"outflow":(type==="navier-stokes"?(E.nsInitial.value==="lid-cavity"?"no-slip":"periodic"):null));
+  if(solverBoundary){
+    var bd0=boundaryDefinition(solverBoundary);
+    html+=defSection("境界条件："+bd0.title,bd0.f,bd0.t);
+  }else if(dim==="1d"){
     var b=document.getElementById("boundary-1d").value;
     var bd=boundaryDefinition(b);
     html+=defSection("境界条件："+bd.title,bd.f,bd.t);
@@ -5026,6 +5644,10 @@ function analyticalSupportInfo(){
     return {ok:false,reason:"解析解との比較は、継続波源と内部障害物を使用していない通常波動方程式でのみ使用できます。波源または内部境界があると、自由伝播用の解析解とは別問題になります。"};
   }
 
+  if(state.mode==="1d"&&state.equationKind==="kdv"&&state.kdvInitial==="soliton"){
+    return {ok:true,type:"kdv-soliton",
+      description:"KdVの1ソリトン厳密解 u(x,t)=(3c/α) sech²[√(c/(4β))(x−x₀−ct)] を周期距離で評価します。初期条件生成と同じ c=1, x₀=0.3L を用います。有限周期領域では孤立波の裾が境界で厳密には無限領域解と一致しないため、境界から十分離れた条件で最も良い基準になります。"};
+  }
   if(state.mode==="1d"&&state.periodic){
     if(state.equationKind==="scalar"&&
        (state.equationType==="diffusion"||
@@ -5062,6 +5684,15 @@ function analyticalSupportInfo(){
     }
   }
 
+  if(state.mode==="3d"&&state.initialType==="sine"){
+    if(state.equationKind==="scalar3d"&&(state.equationType==="diffusion"||state.equationType==="advection")){
+      return {ok:true,type:"sine3d-scalar",description:"3D正弦波の閉形式解析解。周期境界で、拡散では exp(−3Dk²t) により減衰し、一様移流では (uₓ,uᵧ,u_z)t だけ位相移動します。"};
+    }
+    if(state.equationKind==="wave3d"){
+      return {ok:true,type:"sine3d-wave",description:"3D正弦波の閉形式解析解。初期 ∂p/∂t=0 では cos(√3 ckt) で振動します。"};
+    }
+  }
+
   if(state.mode==="2d"&&state.initialType==="sine"&&!state.hadPerturbation&&
      ((state.equationKind==="scalar"&&state.periodic)||
       (state.equationKind==="wave"&&state.px&&state.py))){
@@ -5090,6 +5721,17 @@ function analyticalSupportInfo(){
   return {ok:false,reason:"この設定には現在のアプリで厳密に対応できる解析解比較がありません。周期境界の1D拡散・移流・移流＋拡散・波動は、初期条件を問わず比較できます。"};
 }
 
+function exactKdVSoliton1D(t){
+  var N=state.N,L=state.L,out=new Float64Array(N),alpha=state.kdvAlpha,beta=state.kdvBeta,c=1,x0=.3*L;
+  if(Math.abs(alpha)<1e-12)return out;
+  var A=3*c/alpha,k=Math.sqrt(c/(4*beta)),xc=x0+c*t;
+  for(var i=0;i<N;i++){
+    var x=i*state.dx,d=x-xc;
+    d-=Math.round(d/L)*L;
+    var ch=Math.cosh(k*d);out[i]=A/(ch*ch);
+  }
+  return out;
+}
 function dftReal1D(a){
   var N=a.length,re=new Float64Array(N),im=new Float64Array(N);
   for(var n=0;n<N;n++){
@@ -5209,6 +5851,22 @@ function exact2DSineAt(t,kind){
   return out;
 }
 
+function exact3DSineAt(t,kind){
+  var N=state.N,L=state.L,dx=state.dx,out=new Float64Array(N*N*N),k0=2*Math.PI/L;
+  if(kind==="scalar"){
+    var p=state.transportParams||{},ux=p.ux||0,uy=p.uy||0,uz=p.uz||0,D=p.D||0;
+    var decay=Math.exp(-3*D*k0*k0*t);
+    for(var k=0;k<N;k++){var z=k*dx;for(var j=0;j<N;j++){var y=j*dx;for(var i=0;i<N;i++){var x=i*dx;
+      out[idx3(i,j,k,N)]=.5+.5*decay*Math.sin(k0*(x-ux*t))*Math.sin(k0*(y-uy*t))*Math.sin(k0*(z-uz*t));
+    }}}
+  }else{
+    var c=state.waveSpeed||1,osc=Math.cos(c*Math.sqrt(3)*k0*t);
+    for(var kk=0;kk<N;kk++){var zz=kk*dx;for(var jj=0;jj<N;jj++){var yy=jj*dx;for(var ii=0;ii<N;ii++){var xx=ii*dx;
+      out[idx3(ii,jj,kk,N)]=.5+.5*Math.sin(k0*xx)*Math.sin(k0*yy)*Math.sin(k0*zz)*osc;
+    }}}
+  }return out;
+}
+
 function errorMetrics(numerical,exact){
   var n=numerical.length;
   var e1=0,e2=0,eInf=0;
@@ -5289,14 +5947,17 @@ function buildAnalyticalCache(){
 
   for(var f=0;f<frames.length;f++){
     var exact;
-    if(support.type==="fourier1d-scalar")exact=exactFourier1D(coeff,times[f],"scalar");
+    if(support.type==="kdv-soliton")exact=exactKdVSoliton1D(times[f]);
+    else if(support.type==="fourier1d-scalar")exact=exactFourier1D(coeff,times[f],"scalar");
     else if(support.type==="fourier1d-wave")exact=exactFourier1D(coeff,times[f],"wave");
     else if(support.type==="eigen1d-dirichlet-scalar")exact=exactDirichlet1D(coeff,times[f],"scalar");
     else if(support.type==="eigen1d-dirichlet-wave")exact=exactDirichlet1D(coeff,times[f],"wave");
     else if(support.type==="eigen1d-neumann-scalar")exact=exactNeumann1D(coeff,times[f],"scalar");
     else if(support.type==="eigen1d-neumann-wave")exact=exactNeumann1D(coeff,times[f],"wave");
     else if(support.type==="sine2d-scalar")exact=exact2DSineAt(times[f],"scalar");
-    else exact=exact2DSineAt(times[f],"wave");
+    else if(support.type==="sine2d-wave")exact=exact2DSineAt(times[f],"wave");
+    else if(support.type==="sine3d-scalar")exact=exact3DSineAt(times[f],"scalar");
+    else if(support.type==="sine3d-wave")exact=exact3DSineAt(times[f],"wave");
     var m=errorMetrics(frames[f],exact);
     values.push({
       t:times[f],
@@ -5601,8 +6262,14 @@ function draw1D(){
 
   var pad={l:108,r:18,t:18,b:44};
   var pw=w-pad.l-pad.r,ph=h-pad.t-pad.b;
-  var data=frames[current],initial=frames[0],i,j;
-  var axisRange=state.overrideDisplayRange?state.overrideDisplayRange:selectedScaleRange(data,initial,frames,false);
+  var data=frames[current],initial=frames[0],displayFrames=frames,i,j;
+  if(state.equationKind==="euler"){
+    var ev=E.eulerView.value;
+    if(ev==="velocity"){data=state.velocityFrames[current];initial=state.velocityFrames[0];displayFrames=state.velocityFrames;state.fieldAxisLabel="u(x,t)";}
+    else if(ev==="pressure"){data=state.pressureFrames[current];initial=state.pressureFrames[0];displayFrames=state.pressureFrames;state.fieldAxisLabel="p(x,t)";}
+    else{state.fieldAxisLabel="ρ(x,t)";}
+  }
+  var axisRange=state.overrideDisplayRange?state.overrideDisplayRange:selectedScaleRange(data,initial,displayFrames,false);
   var ymin=axisRange[0],ymax=axisRange[1];
 
   ctx.lineWidth=1;ctx.strokeStyle=css("--grid");ctx.fillStyle=css("--muted");
@@ -5958,6 +6625,7 @@ function drawConvection(){
   var ox=pad.l+(aw-size)/2,oy=pad.t+(ah-size)/2;
   var mode=E.viewMode.value;
   var data=frames[current];
+  var isNS=(state.equationKind==="navier-stokes");
   var initialTemp=frames[0];
   var vel=state.velocityFrames[current];
   var vort=state.vorticityFrames[current];
@@ -5973,6 +6641,7 @@ function drawConvection(){
     displayData=vort;signed=true;
   }else{
     displayData=data;
+    if(isNS)signed=true;
   }
   var cr=displayedScaleRange(current,displayData,signed),scaleMin=cr[0],scaleMax=cr[1];
   var maxVal=Math.max(Math.abs(scaleMin),Math.abs(scaleMax),1e-12);
@@ -5986,7 +6655,7 @@ function drawConvection(){
       }else if(mode==="vorticity"){
         rgb=divergingColorRange(displayData[k],scaleMin,scaleMax);
       }else{
-        rgb=colorMap((displayData[k]-scaleMin)/(scaleMax-scaleMin));
+        rgb=isNS?divergingColorRange(displayData[k],scaleMin,scaleMax):colorMap((displayData[k]-scaleMin)/(scaleMax-scaleMin));
       }
       pix=4*((N-1-j)*N+i);
       img.data[pix]=rgb[0];img.data[pix+1]=rgb[1];img.data[pix+2]=rgb[2];img.data[pix+3]=255;
@@ -6028,8 +6697,8 @@ function drawConvection(){
 
   ctx.fillStyle=css("--muted");ctx.font="12px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif";
   if(mode==="temperature"||mode==="temperature-velocity"){
-    ctx.fillText("T scale min="+scaleMin.toPrecision(4),ox+5,oy+14);
-    ctx.fillText("T scale max="+scaleMax.toPrecision(4),ox+5,oy+30);
+    ctx.fillText((isNS?"ω":"T")+" scale min="+scaleMin.toPrecision(4),ox+5,oy+14);
+    ctx.fillText((isNS?"ω":"T")+" scale max="+scaleMax.toPrecision(4),ox+5,oy+30);
   }else if(mode==="velocity"){
     ctx.fillText("|u| scale min="+scaleMin.toPrecision(4),ox+5,oy+14);
     ctx.fillText("|u| scale max="+scaleMax.toPrecision(4),ox+5,oy+30);
@@ -6067,6 +6736,9 @@ function updateCurrentDiagnostics(){
     E.mass.textContent="総量 = "+mass2D(
       frames[current],state.dx,state.dy,!!state.px,!!state.py,state.N
     ).toPrecision(5);
+  }else if(state.mode==="convection"&&state.equationKind==="navier-stokes"){
+    var vel=state.velocityFrames[current],K=0;for(var kk=0;kk<state.N*state.N;kk++)K+=.5*(vel[2*kk]*vel[2*kk]+vel[2*kk+1]*vel[2*kk+1])*state.dx*state.dy;
+    E.mass.textContent="運動エネルギー K = "+K.toPrecision(5)+(state.nsRe!==null?"　Re = "+state.nsRe.toPrecision(4):"");
   }else if(state.mode==="convection"){
     var meanT=mass2D(
       frames[current],state.dx,state.dy,false,false,state.N
@@ -6519,6 +7191,16 @@ function buildHistorySeries(){
       series.push({label:"総運動量",values:sh.map(x=>x.momentum)});
     }
     series.push({label:"全エネルギー",values:sh.map(x=>x.energy)});
+  }else if(state.equationKind==="navier-stokes"){
+    var circ=[],keNS=[],ensNS=[];
+    for(var nf=0;nf<frames.length;nf++){
+      var om=frames[nf],vv=state.velocityFrames[nf],sc=0,sk=0,se=0;
+      for(var nk=0;nk<om.length;nk++){sc+=om[nk];se+=.5*om[nk]*om[nk];sk+=.5*(vv[2*nk]*vv[2*nk]+vv[2*nk+1]*vv[2*nk+1]);}
+      circ.push(sc*state.dx*state.dy);keNS.push(sk*state.dx*state.dy);ensNS.push(se*state.dx*state.dy);
+    }
+    series.push({label:"循環 ∫ωdA",values:circ});
+    series.push({label:"運動エネルギー",values:keNS});
+    series.push({label:"enstrophy",values:ensNS});
   }else if(state.mode==="convection"){
     var means=[],ke=[];
     for(var cf=0;cf<frames.length;cf++){
@@ -6535,6 +7217,20 @@ function buildHistorySeries(){
       l21.push(.5*integrateSquare1D(frames[f1],state.dx,!!state.periodic));
     }
     series.push({label:"総量",values:mass1});series.push({label:"二乗積分/2",values:l21});
+  }else if(state.mode==="3d"){
+    if(state.equationKind==="wave3d"){
+      var meanP=[],p2=[];
+      for(var f3=0;f3<frames.length;f3++){
+        var sm=0,sq3=0,a3=frames[f3];for(var kk3=0;kk3<a3.length;kk3++){sm+=a3[kk3];sq3+=.5*a3[kk3]*a3[kk3];}
+        meanP.push(sm/a3.length);p2.push(sq3*state.dx*state.dy*state.dz);
+      }
+      series.push({label:"平均p（診断量）",values:meanP});
+      series.push({label:"½∫p²dV（診断量）",values:p2});
+    }else{
+      var mass3=[],l23=[];
+      for(var f3s=0;f3s<frames.length;f3s++){var a3s=frames[f3s],sm3=0,sq3s=0;for(var k3s=0;k3s<a3s.length;k3s++){sm3+=a3s[k3s];sq3s+=.5*a3s[k3s]*a3s[k3s];}mass3.push(sm3*state.dx*state.dy*state.dz);l23.push(sq3s*state.dx*state.dy*state.dz);}
+      series.push({label:"総量 ∫φdV",values:mass3});series.push({label:"½∫φ²dV",values:l23});
+    }
   }else if(state.mode==="2d"){
     var mass2=[],l22=[];
     for(var f2=0;f2<frames.length;f2++){
@@ -6576,6 +7272,18 @@ function historyExplanation(){
       "<br><b>総運動量</b>：∫hu dx。水平方向の運動量です。平坦な海底・周期境界では保存が期待されますが、海底勾配がある場合は地形から力を受けるため一般には一定ではありません。":"";
     return "<b>総水量</b>：水深 h を領域全体で積分した量です。周期境界では水が領域外へ出ないため、ほぼ一定であることが期待されます。"+mom+
       "<br><b>全エネルギー</b>：流れの運動エネルギーと重力による位置エネルギーを合わせた指標です。理想的な連続方程式では保存されますが、数値流束の散逸によって少し減少することがあります。<br>"+common;
+  }
+  if(kind==="navier-stokes"){
+    return "<b>循環 ∫ωdA</b>：領域全体の渦度積分です。周期境界では平均渦度に対応し、壁駆動キャビティでは壁が渦度を生成するため一般に一定ではありません。"+
+      "<br><b>運動エネルギー</b>：½∫|u|²dA。外部駆動がない周期流では粘性で減衰し、上壁駆動キャビティでは上壁から仕事が供給され粘性散逸と競合します。"+
+      "<br><b>enstrophy</b>：½∫ω²dA。細かな渦構造の強さを見る指標です。<br>"+common;
+  }
+  if(state.mode==="3d"){
+    if(kind==="wave3d")return "<b>平均p</b>：3D波動変数pの体積平均です。周期境界ではk=0成分に対応します。"+
+      "<br><b>½∫p²dV</b>：波動場の振幅の大きさを測る診断量です。これはpだけから作った量であり、運動項を含む全波エネルギーではないため一定である必要はありません。<br>"+common;
+    var eq3=E.equationType.value;
+    return "<b>総量 ∫φdV</b>：周期立方体全体のスカラー量です。"+(eq3==="diffusion"||eq3==="advection"?"連続方程式では保存される量で、数値計算の保存性確認に使います。":"")+
+      "<br><b>½∫φ²dV</b>：場の二乗ノルムに対応する診断量です。拡散では減衰し、純粋な連続移流では理想的には保持されますが、一次風上法では数値拡散により減少します。<br>"+common;
   }
   if(state.mode==="convection"){
     return "<b>平均T</b>：領域全体の温度の空間平均です。4辺すべてが断熱なら総熱量に対応してほぼ一定ですが、固定温度にした辺が1つでもあれば境界から熱が出入りできるため一般には一定ではありません。<br><b>運動エネルギー</b>：½∫|u|²dA。浮力が温度差から流れを駆動して増加させ、粘性が散逸させます。対流の立ち上がりや定常化を見る指標です。<br>"+common;
@@ -6797,6 +7505,147 @@ function setProbeFromChartEvent(ev){
   probeLocation.y=clamp(1-(cy-geom.oy)/geom.size,0,1);
   drawMeasurements();
 }
+
+function slice3D(field,N,axis,frac){
+  var s=Math.max(0,Math.min(N-1,Math.round(frac*(N-1)))),out=new Float64Array(N*N),i,j,k;
+  if(axis==="xy"){k=s;for(j=0;j<N;j++)for(i=0;i<N;i++)out[j*N+i]=field[idx3(i,j,k,N)];}
+  else if(axis==="xz"){j=s;for(k=0;k<N;k++)for(i=0;i<N;i++)out[k*N+i]=field[idx3(i,j,k,N)];}
+  else{i=s;for(k=0;k<N;k++)for(j=0;j<N;j++)out[k*N+j]=field[idx3(i,j,k,N)];}
+  return {data:out,index:s};
+}
+function scaleRange3D(field,signed){
+  var mode=E.scaleMode.value;
+  if(mode==="manual"){
+    var lo=Number(E.manualScaleMin.value),hi=Number(E.manualScaleMax.value);
+    if(Number.isFinite(lo)&&Number.isFinite(hi)&&hi>lo)return [lo,hi];
+  }
+  if(mode==="auto"){
+    var sl=slice3D(field,state.N,E.sliceAxis3d.value,Number(E.slicePosition3d.value)).data;
+    var ar=arrayRange(sl);return signed?[-Math.max(Math.abs(ar[0]),Math.abs(ar[1]),1e-12),Math.max(Math.abs(ar[0]),Math.abs(ar[1]),1e-12)]:paddedRange(ar[0],ar[1]);
+  }
+  if(!state.scale3dCache)state.scale3dCache={};
+  var key=mode+":"+(signed?"signed":"plain");
+  if(state.scale3dCache[key])return state.scale3dCache[key];
+  var mn=Infinity,mx=-Infinity,sets=(mode==="global"?frames:[frames[0]]);
+  for(var f=0;f<sets.length;f++){var rr=arrayRange(sets[f]);mn=Math.min(mn,rr[0]);mx=Math.max(mx,rr[1]);}
+  var range;
+  if(signed){var aa=Math.max(Math.abs(mn),Math.abs(mx),1e-12);range=[-aa,aa];}
+  else range=paddedRange(mn,mx);
+  state.scale3dCache[key]=range;return range;
+}
+
+var view3dCamera={yaw:-0.72,pitch:0.48,zoom:1.0,drag:false,lastX:0,lastY:0,pinch:0};
+
+function update3DViewControls(){
+  var volume=E.viewMode3d.value==="volume";
+  E.isoLevel3dGroup.style.display=volume?"grid":"none";
+  E.isoCount3dGroup.style.display=volume?"grid":"none";
+  E.sliceAxis3dGroup.style.display=volume?"none":"grid";
+  E.slicePosition3dGroup.style.display=volume?"none":"grid";
+  E.view3dHint.textContent=volume
+    ?"ドラッグで回転、ホイール/ピンチで拡大縮小できます。半透明の点群で等値面近傍を表示し、x・y・z軸を常時表示します。"
+    :"3D場を2D断面として表示します。断面方向と位置を変更できます。";
+}
+function rotate3DPoint(x,y,z){
+  var cy=Math.cos(view3dCamera.yaw),sy=Math.sin(view3dCamera.yaw);
+  var cp=Math.cos(view3dCamera.pitch),sp=Math.sin(view3dCamera.pitch);
+  var x1=cy*x-sy*z,z1=sy*x+cy*z;
+  var y1=cp*y-sp*z1,z2=sp*y+cp*z1;
+  return [x1,y1,z2];
+}
+function project3DPoint(x,y,z,cx,cy,scale){
+  var r=rotate3DPoint(x,y,z),pers=1/(1+0.18*r[2]);
+  return [cx+scale*r[0]*pers,cy-scale*r[1]*pers,r[2],pers];
+}
+function draw3DAxes(cx,cy,scale){
+  var O=project3DPoint(-.5,-.5,-.5,cx,cy,scale);
+  var axes=[
+    {p:project3DPoint(.62,-.5,-.5,cx,cy,scale),label:"x"},
+    {p:project3DPoint(-.5,.62,-.5,cx,cy,scale),label:"y"},
+    {p:project3DPoint(-.5,-.5,.62,cx,cy,scale),label:"z"}
+  ];
+  ctx.save();ctx.lineWidth=2;ctx.font="bold 14px sans-serif";
+  for(var a=0;a<axes.length;a++){
+    ctx.strokeStyle=a===0?"#d94b4b":(a===1?"#2f9e64":"#3975d4");
+    ctx.fillStyle=ctx.strokeStyle;ctx.beginPath();ctx.moveTo(O[0],O[1]);ctx.lineTo(axes[a].p[0],axes[a].p[1]);ctx.stroke();
+    ctx.fillText(axes[a].label,axes[a].p[0]+5,axes[a].p[1]-4);
+  }
+  ctx.restore();
+}
+function draw3DBox(cx,cy,scale){
+  var V=[],x,y,z;
+  for(z=0;z<2;z++)for(y=0;y<2;y++)for(x=0;x<2;x++)V.push(project3DPoint(x-.5,y-.5,z-.5,cx,cy,scale));
+  var edges=[[0,1],[0,2],[0,4],[1,3],[1,5],[2,3],[2,6],[3,7],[4,5],[4,6],[5,7],[6,7]];
+  ctx.save();ctx.strokeStyle="rgba(90,100,115,.42)";ctx.lineWidth=1;
+  for(var e=0;e<edges.length;e++){var a=V[edges[e][0]],b=V[edges[e][1]];ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();}
+  ctx.restore();
+}
+function draw3DVolume(){
+  var sz=canvasSize(),w=sz.w,h=sz.h;ctx.clearRect(0,0,w,h);
+  var field=frames[current],N=state.N,signed=(state.equationKind==="wave3d");
+  var range=scaleRange3D(field,signed),vmin=range[0],vmax=range[1],span=Math.max(vmax-vmin,1e-12);
+  var frac=Number(E.isoLevel3d.value),target=signed?((2*frac-1)*Math.max(Math.abs(vmin),Math.abs(vmax))):(vmin+frac*span);
+  E.isoLevel3dOutput.value=Math.round(frac*100)+"%";
+  var layerCount=Number(E.isoCount3d.value)||1,fracs=[frac];
+  if(layerCount>=2)fracs=[clamp(frac-.14,0,1),clamp(frac+.14,0,1)];
+  if(layerCount>=3)fracs=[clamp(frac-.18,0,1),frac,clamp(frac+.18,0,1)];
+  var tol=Math.max(span*.035,1e-12),pts=[],stride=N>31?2:1;
+  for(var li=0;li<fracs.length;li++){
+    var tar=signed?((2*fracs[li]-1)*Math.max(Math.abs(vmin),Math.abs(vmax))):(vmin+fracs[li]*span);
+    for(var k=0;k<N;k+=stride)for(var j=0;j<N;j+=stride)for(var i=0;i<N;i+=stride){
+      var id=idx3(i,j,k,N),val=field[id];
+      if(Math.abs(val-tar)<=tol){
+        var r=rotate3DPoint(i/(N-1)-.5,j/(N-1)-.5,k/(N-1)-.5);
+        pts.push([r[2],r[0],r[1],val,li]);
+      }
+    }
+  }
+  if(pts.length<24){
+    var candidates=[];
+    for(k=0;k<N;k+=stride)for(j=0;j<N;j+=stride)for(i=0;i<N;i+=stride){
+      id=idx3(i,j,k,N);val=field[id];candidates.push([Math.abs(val-target),i,j,k,val]);
+    }
+    candidates.sort(function(a,b){return a[0]-b[0]});
+    var take=Math.min(500,candidates.length);pts=[];
+    for(var q=0;q<take;q++){var c=candidates[q],rr=rotate3DPoint(c[1]/(N-1)-.5,c[2]/(N-1)-.5,c[3]/(N-1)-.5);pts.push([rr[2],rr[0],rr[1],c[4],0]);}
+  }
+  pts.sort(function(a,b){return a[0]-b[0]});
+  var cx=w*.5,cy=h*.49,scale=Math.min(w,h)*.64*view3dCamera.zoom;
+  draw3DBox(cx,cy,scale);
+  ctx.save();
+  for(q=0;q<pts.length;q++){
+    var pt=pts[q],pers=1/(1+.18*pt[0]),px=cx+scale*pt[1]*pers,py=cy-scale*pt[2]*pers;
+    var rgb=signed?divergingColorRange(pt[3],vmin,vmax):colorMap((pt[3]-vmin)/span);
+    var radius=Math.max(1.7,3.1*view3dCamera.zoom*pers);
+    var alpha=fracs.length>1?(0.20+0.08*(pt[4]/Math.max(1,fracs.length-1))):0.32;
+    ctx.fillStyle="rgba("+rgb[0]+","+rgb[1]+","+rgb[2]+","+alpha+")";
+    ctx.beginPath();ctx.arc(px,py,radius,0,2*Math.PI);ctx.fill();
+  }
+  ctx.restore();
+  draw3DAxes(cx,cy,scale);
+  ctx.fillStyle=css("--muted");ctx.font="12px sans-serif";
+  ctx.fillText("等値面近傍: "+target.toPrecision(4)+"　表示点: "+pts.length,w>360?18:8,20);
+  ctx.fillText("drag: 回転　wheel/pinch: zoom",w>360?18:8,h-12);
+}
+function draw3D(){
+  update3DViewControls();
+  if(E.viewMode3d.value==="volume"){draw3DVolume();return;}
+  var sz=canvasSize(),w=sz.w,h=sz.h;ctx.clearRect(0,0,w,h);
+  var N=state.N,axis=E.sliceAxis3d.value,frac=Number(E.slicePosition3d.value),sl=slice3D(frames[current],N,axis,frac),data=sl.data;
+  var signed=(state.equationKind==="wave3d"),range=scaleRange3D(frames[current],signed),vmin=range[0],vmax=range[1];
+  var pad={l:70,r:18,t:26,b:58},size=Math.max(120,Math.min(w-pad.l-pad.r,h-pad.t-pad.b)),ox=pad.l+(w-pad.l-pad.r-size)/2,oy=pad.t+(h-pad.t-pad.b-size)/2;
+  var off=document.createElement("canvas");off.width=N;off.height=N;var oc=off.getContext("2d"),img=oc.createImageData(N,N);
+  for(var j=0;j<N;j++)for(var i=0;i<N;i++){var val=data[j*N+i],rgb=signed?divergingColorRange(val,vmin,vmax):colorMap((val-vmin)/(vmax-vmin)),pix=((N-1-j)*N+i)*4;img.data[pix]=rgb[0];img.data[pix+1]=rgb[1];img.data[pix+2]=rgb[2];img.data[pix+3]=255;}
+  oc.putImageData(img,0,0);ctx.imageSmoothingEnabled=false;ctx.drawImage(off,ox,oy,size,size);
+  ctx.strokeStyle="#777";ctx.strokeRect(ox,oy,size,size);ctx.fillStyle="#444";ctx.font="12px sans-serif";
+  var labels=axis==="xy"?["x","y","z"]:axis==="xz"?["x","z","y"]:["y","z","x"];
+  ctx.fillText(labels[0]+" / L",ox+size/2-12,oy+size+32);
+  ctx.save();ctx.translate(ox-45,oy+size/2);ctx.rotate(-Math.PI/2);ctx.fillText(labels[1]+" / L",0,0);ctx.restore();
+  var coord=sl.index*state.dx,fracActual=sl.index/(N-1);
+  ctx.fillText(labels[2]+" = "+coord.toPrecision(4)+"  ("+fracActual.toFixed(2)+" L)",ox+5,oy-8);
+  ctx.fillText("scale min="+vmin.toPrecision(4)+"   max="+vmax.toPrecision(4),ox+5,oy+size+49);
+  E.slicePosition3dOutput.value=fracActual.toFixed(2)+" L";
+}
 function draw(){
   if(!frames.length)return;
 
@@ -6815,7 +7664,8 @@ function draw(){
     drawComparisons();
     return;
   }
-  if(state.mode==="convection")drawConvection();
+  if(state.mode==="3d")draw3D();
+  else if(state.mode==="convection")drawConvection();
   else if(state.equationKind==="shallow1d")drawShallow1D();
   else if(state.equationKind==="burgers2d"||state.equationKind==="cahn"||state.equationKind==="shallow")drawNew2D();
   else if(state.mode==="2d")draw2D();
@@ -7557,7 +8407,8 @@ async function runComparisonEquation(base,eq,serial,index){
   frames=[];times=[];state={};
   var actual=p.equationType;
 
-  if(actual==="convection")await calcConvection(p,serial);
+  if(actual==="navier-stokes")await calcNavierStokes2D(p,serial);
+  else if(actual==="convection")await calcConvection(p,serial);
   else if(actual==="wave"){
     if(p.waveModel==="shallow"){
       if(p.mode==="1d")await calcWaveShallow1D(p,serial); else await calcWaveShallow2D(p,serial);
@@ -7768,9 +8619,15 @@ async function startComparison(){
 
 
 function convergenceSupported(p){
+  if(p.mode==="3d"&&!(p.equationType==="diffusion"||p.equationType==="advection"||(p.equationType==="wave"&&p.waveModel==="generic")))
+    return {ok:false,reason:"3D収束性チェックは現在実装済みの3D拡散・移流・通常波動に対応します。"};
   if(p.mode==="2d" && ((p.boundaryX==="periodic")!==(p.boundaryY==="periodic")))
     return {ok:false,reason:"2Dでx方向とy方向の片方だけを周期境界にした条件は、現在の一様N×N収束比較では格子点の対応付けが異なるため対象外です。両方向を周期境界にするか、両方向を非周期境界にしてください。"};
+  if(p.equationType==="navier-stokes")return {ok:false,reason:"2D Navier–StokesはPoisson反復と壁渦度処理を含むため、専用のベンチマーク量（中心線速度・渦中心位置）による検証を優先し、通常の点ごとの自動収束チェック対象外です。"};
   if(p.equationType==="convection")return {ok:false,reason:"自然対流はPoisson反復を含み計算負荷が高いため、現段階の自動収束チェック対象外です。"};
+  if(p.equationType==="euler")return {ok:false,reason:"圧縮性Eulerのshock-tube問題は不連続解を含み、点ごとの自己収束次数は衝撃波位置誤差に強く依存します。専用のRiemann解比較を導入するまで自動収束チェック対象外です。"};
+  if(p.equationType==="kuramoto-sivashinsky")return {ok:false,reason:"Kuramoto–Sivashinskyは不安定・カオス的発展で微小な位相差が時間とともに増幅されるため、長時間の点ごとの自己収束比較は解釈が難しく、専用統計指標を導入するまで対象外です。"};
+  if(p.equationType==="allen-cahn")return {ok:false,reason:"Allen–Cahnは界面位置の格子依存性を点ごとの相対誤差で測ると解釈しにくいため、界面位置・自由エネルギー用の専用収束指標を導入するまで対象外です。"};
   if(p.equationType==="reaction-diffusion"||p.equationType==="cahn-hilliard")
     return {ok:false,reason:"パターン形成系は位相ずれにより単純な点ごとの自己収束誤差が解釈しにくいため、専用指標を導入するまで対象外です。"};
   if(p.equationType==="wave"&&p.waveModel==="deep")
@@ -7785,7 +8642,9 @@ function analyticalFinalErrorForCurrentRun(){
   if(!support.ok||!frames.length)return null;
   var t=times[times.length-1],exact=null,coeff=null;
   try{
-    if(support.type==="fourier1d-scalar"||support.type==="fourier1d-wave"){
+    if(support.type==="kdv-soliton"){
+      exact=exactKdVSoliton1D(t);
+    }else if(support.type==="fourier1d-scalar"||support.type==="fourier1d-wave"){
       coeff=dftReal1D(frames[0]);
       exact=exactFourier1D(coeff,t,support.type==="fourier1d-scalar"?"scalar":"wave");
     }else if(support.type==="eigen1d-dirichlet-scalar"||support.type==="eigen1d-dirichlet-wave"){
@@ -7798,6 +8657,10 @@ function analyticalFinalErrorForCurrentRun(){
       exact=exact2DSineAt(t,"scalar");
     }else if(support.type==="sine2d-wave"){
       exact=exact2DSineAt(t,"wave");
+    }else if(support.type==="sine3d-scalar"){
+      exact=exact3DSineAt(t,"scalar");
+    }else if(support.type==="sine3d-wave"){
+      exact=exact3DSineAt(t,"wave");
     }
     if(!exact)return null;
     var m=errorMetrics(frames[frames.length-1],exact);
@@ -7809,7 +8672,9 @@ function analyticalFinalErrorForCurrentRun(){
 
 async function runConvergenceSolver(p,serial){
   frames=[];times=[];state={};
-  if(p.equationType==="wave"){
+  if(p.mode==="3d"){
+    if(p.equationType==="wave")await calcWave3D(p,serial);else await calc3D(p,serial);
+  }else if(p.equationType==="wave"){
     if(p.waveModel==="shallow"){
       if(p.mode==="1d")await calcWaveShallow1D(p,serial);else await calcWaveShallow2D(p,serial);
     }else{
@@ -7817,6 +8682,8 @@ async function runConvergenceSolver(p,serial){
     }
   }else if(p.equationType==="burgers"){
     await calcBurgers1D(p,serial);
+  }else if(p.equationType==="kdv"){
+    await calcKdV1D(p,serial);
   }else if(p.equationType==="burgers-2d"){
     await calcBurgers2D(p,serial);
   }else if(p.equationType==="shallow-water-1d"){
@@ -7839,8 +8706,8 @@ async function runConvergenceSolver(p,serial){
 
 function convergenceDifference(coarse,fine,dim,periodic){
   var Nc=coarse.length;
-  if(dim==="2d")Nc=Math.round(Math.sqrt(Nc));
-  var Nf=dim==="2d"?Math.round(Math.sqrt(fine.length)):fine.length;
+  if(dim==="2d")Nc=Math.round(Math.sqrt(Nc));else if(dim==="3d")Nc=Math.round(Math.cbrt(Nc));
+  var Nf=dim==="2d"?Math.round(Math.sqrt(fine.length)):(dim==="3d"?Math.round(Math.cbrt(fine.length)):fine.length);
   var ratio=periodic?Math.round(Nf/Nc):Math.round((Nf-1)/(Nc-1));
   var s1=0,s2=0,si=0,n1=0,n2=0,ni=0,count=0;
   if(dim==="1d"){
@@ -7849,6 +8716,11 @@ function convergenceDifference(coarse,fine,dim,periodic){
       var d=coarse[i]-fine[fi],a=Math.abs(fine[fi]);
       s1+=Math.abs(d);s2+=d*d;si=Math.max(si,Math.abs(d));
       n1+=a;n2+=fine[fi]*fine[fi];ni=Math.max(ni,a);count++;
+    }
+  }else if(dim==="3d"){
+    for(var k=0;k<Nc;k++)for(var j=0;j<Nc;j++)for(var i=0;i<Nc;i++){
+      var fk=k*ratio,fj=j*ratio,fi=i*ratio,cidx=idx3(i,j,k,Nc),fidx=idx3(fi,fj,fk,Nf),d=coarse[cidx]-fine[fidx],a=Math.abs(fine[fidx]);
+      s1+=Math.abs(d);s2+=d*d;si=Math.max(si,Math.abs(d));n1+=a;n2+=fine[fidx]*fine[fidx];ni=Math.max(ni,a);count++;
     }
   }else{
     for(var j=0;j<Nc;j++)for(var i=0;i<Nc;i++){
@@ -7903,16 +8775,23 @@ async function startConvergenceCheck(){
   stop();stopComparisonPlayback();
   var base=readParams(),support=convergenceSupported(base);
   if(!support.ok){E.convergenceStatus.textContent=support.reason;E.convergenceResult.style.display="none";return;}
-  var N0=Math.round(clamp(num(E.convergenceBaseGrid,base.mode==="2d"?21:41),11,501));
+  var N0=Math.round(clamp(num(E.convergenceBaseGrid,base.mode==="3d"?9:(base.mode==="2d"?21:41)),base.mode==="3d"?7:11,501));
+  if(base.mode==="3d"&&N0>13){
+    E.convergenceStatus.textContent="3Dの最粗格子は計算負荷のため13以下にしてください。";
+    E.convergenceResult.style.display="none";return;
+  }
   if(base.mode==="2d"&&N0>41){
     E.convergenceStatus.textContent="2Dの最粗格子は計算負荷のため41以下にしてください。";
     E.convergenceResult.style.display="none";return;
   }
-  var periodic=base.mode==="1d"?(base.boundary1d==="periodic"):
-    (base.boundaryX==="periodic"&&base.boundaryY==="periodic");
+  var periodic=base.mode==="3d"?true:(base.mode==="1d"?(base.boundary1d==="periodic"):
+    (base.boundaryX==="periodic"&&base.boundaryY==="periodic"));
   if(base.equationType==="wave"&&base.waveModel==="shallow")periodic=true;
   var Ns=periodic?[N0,2*N0,4*N0]:
     [N0,2*(N0-1)+1,4*(N0-1)+1];
+  if(base.mode==="3d"&&Ns[2]>53){
+    E.convergenceStatus.textContent="3D細格子が大きすぎます。最粗格子点数を小さくしてください。";return;
+  }
   if(base.mode==="2d"&&Ns[2]>165){
     E.convergenceStatus.textContent="細格子が大きすぎます。最粗格子点数を小さくしてください。";return;
   }
@@ -7925,7 +8804,7 @@ async function startConvergenceCheck(){
   try{
     for(var q=0;q<3;q++){
       var pp=Object.assign({},base);
-      if(base.mode==="1d")pp.grid1d=Ns[q];else pp.grid2d=Ns[q];
+      if(base.mode==="1d")pp.grid1d=Ns[q];else if(base.mode==="3d")pp.grid3d=Ns[q];else pp.grid2d=Ns[q];
       if(pp.equationType==="shallow-water-1d"|| (pp.equationType==="wave"&&pp.waveModel==="shallow"&&pp.mode==="1d"))pp.grid1d=Ns[q];
       runs.push(await runConvergenceSolver(pp,serial));
       E.convergenceStatus.textContent="収束性チェック中："+(q+1)+"/3 完了";
@@ -8013,10 +8892,17 @@ async function calculate(){
     E.dx.textContent="Δx = —";
     E.dt.textContent="Δt = —";
     E.mass.textContent=
+      (p.mode==="3d"&&p.equationType==="wave")?"3D波動場":
+      (p.mode==="3d")?"総量 = —":
+      (p.equationType==="navier-stokes")?"運動エネルギー K = —":
       (p.equationType==="convection")?"平均T = —":
       (p.equationType==="wave")?"波エネルギー = —":
       (p.equationType==="reaction-diffusion")?"平均V = —":
       (p.equationType==="cahn-hilliard")?"平均φ = —":
+      (p.equationType==="kdv")?"∫u dx = —":
+      (p.equationType==="euler")?"総質量 = —":
+      (p.equationType==="allen-cahn")?"自由エネルギー F = —":
+      (p.equationType==="kuramoto-sivashinsky")?"平均u = —":
       (p.equationType==="shallow-water"||p.equationType==="shallow-water-1d")?"総水量 = —":
       (p.equationType==="burgers-2d")?"2D Burgers":
       "総量 = —";
@@ -8032,7 +8918,12 @@ async function calculate(){
         :Date.now();
     await maybeYieldToBrowser(serial,true);
 
-    if(p.equationType==="convection"){
+    if(p.mode==="3d"){
+      if(p.equationType==="wave")await calcWave3D(p,serial);
+      else await calc3D(p,serial);
+    }else if(p.equationType==="navier-stokes"){
+      await calcNavierStokes2D(p,serial);
+    }else if(p.equationType==="convection"){
       await calcConvection(p,serial);
     }else if(p.equationType==="wave"){
       if(p.waveModel==="shallow"){
@@ -8047,6 +8938,14 @@ async function calculate(){
       }
     }else if(p.equationType==="burgers"){
       await calcBurgers1D(p,serial);
+    }else if(p.equationType==="kdv"){
+      await calcKdV1D(p,serial);
+    }else if(p.equationType==="euler"){
+      await calcEuler1D(p,serial);
+    }else if(p.equationType==="allen-cahn"){
+      await calcAllenCahn(p,serial);
+    }else if(p.equationType==="kuramoto-sivashinsky"){
+      await calcKS1D(p,serial);
     }else if(p.equationType==="reaction-diffusion"){
       await calcReactionDiffusion2D(p,serial);
     }else if(p.equationType==="burgers-2d"){
@@ -8072,6 +8971,12 @@ async function calculate(){
     E.slider.max=String(Math.max(0,frames.length-1));
     E.slider.value="0";
     E.status.textContent="計算完了："+frames.length+" フレーム";
+    if(state.equationKind==="kdv"&&Math.abs(state.kdvI2f-state.kdvI20)/Math.max(Math.abs(state.kdvI20),1e-14)>.02){
+      E.status.textContent+="。注意：KdVの∫u²dxの変化が2%を超えています。格子点数を増やすか計算時間を短くして収束性を確認してください。";
+    }
+    if(state.equationKind==="allen-cahn"&&state.allenEnergyFinal>state.allenEnergy0*(1+1e-6)){
+      E.status.textContent+="。注意：Allen–Cahn自由エネルギーが増加しました。格子点数・時間刻み条件を見直してください。";
+    }
     if(state.cahnEnergyWarning){
       E.status.textContent+="。注意：保存フレーム間で自由エネルギーの小さな増加を検出しました。格子点数または時間条件を見直してください。";
     }
@@ -8164,6 +9069,7 @@ E.comparisonAdvancedGrid.addEventListener("click",function(ev){
   }
 });
 
+E.eulerView.addEventListener("change",function(){if(state&&state.equationKind==="euler")draw();});
 E.probeEnabled.addEventListener("change",function(){drawMeasurements();});
 E.sectionEnabled.addEventListener("change",function(){E.sectionPositionGroup.style.display=this.value==="on"?"block":"none";drawMeasurements();});
 E.sectionPosition.addEventListener("input",function(){E.sectionPositionOutput.textContent=Number(this.value).toFixed(2);drawMeasurements();});
@@ -8233,12 +9139,35 @@ E.playbackDisplayQuantity.addEventListener("change",function(){
   src.value=this.value;src.dispatchEvent(new Event("change",{bubbles:true}));
   updateScaleControlsUI();draw();
 });
+E.viewMode3d.addEventListener("change",function(){update3DViewControls();if(state&&state.mode==="3d")draw();});
+E.isoLevel3d.addEventListener("input",function(){E.isoLevel3dOutput.value=Math.round(Number(this.value)*100)+"%";if(state&&state.mode==="3d")draw();});
+E.isoCount3d.addEventListener("change",function(){if(state&&state.mode==="3d")draw();});
+E.resetCamera3d.addEventListener("click",function(){view3dCamera.yaw=-.72;view3dCamera.pitch=.48;view3dCamera.zoom=1;if(state&&state.mode==="3d")draw();});
+E.sliceAxis3d.addEventListener("change",function(){if(state&&state.mode==="3d")draw();});
+E.slicePosition3d.addEventListener("input",function(){E.slicePosition3dOutput.value=Number(this.value).toFixed(2)+" L";if(state&&state.mode==="3d")draw();});
+E.chart.addEventListener("pointerdown",function(ev){
+  if(!(state&&state.mode==="3d"&&E.viewMode3d.value==="volume"))return;
+  view3dCamera.drag=true;view3dCamera.lastX=ev.clientX;view3dCamera.lastY=ev.clientY;
+  try{E.chart.setPointerCapture(ev.pointerId);}catch(_){}
+});
+E.chart.addEventListener("pointermove",function(ev){
+  if(!view3dCamera.drag||!(state&&state.mode==="3d"&&E.viewMode3d.value==="volume"))return;
+  var dx=ev.clientX-view3dCamera.lastX,dy=ev.clientY-view3dCamera.lastY;
+  view3dCamera.lastX=ev.clientX;view3dCamera.lastY=ev.clientY;
+  view3dCamera.yaw+=dx*.009;view3dCamera.pitch=Math.max(-1.45,Math.min(1.45,view3dCamera.pitch+dy*.009));draw();
+});
+function stop3DDrag(){view3dCamera.drag=false;}
+E.chart.addEventListener("pointerup",stop3DDrag);E.chart.addEventListener("pointercancel",stop3DDrag);
+E.chart.addEventListener("wheel",function(ev){
+  if(!(state&&state.mode==="3d"&&E.viewMode3d.value==="volume"))return;
+  ev.preventDefault();view3dCamera.zoom=Math.max(.55,Math.min(2.4,view3dCamera.zoom*Math.exp(-ev.deltaY*.001)));draw();
+},{passive:false});
 E.scaleMode.addEventListener("change",function(){updateScaleControlsUI();draw();});
 E.manualScaleMin.addEventListener("input",function(){if(E.scaleMode.value==="manual")draw();});
 E.manualScaleMax.addEventListener("input",function(){if(E.scaleMode.value==="manual")draw();});
 E.probeEnabled.addEventListener("change",drawMeasurements);E.sectionEnabled.addEventListener("change",function(){E.sectionPositionGroup.style.display=this.value==="on"?"block":"none";drawMeasurements();});E.sectionPosition.addEventListener("input",function(){E.sectionPositionOutput.textContent=Number(this.value).toFixed(2);drawMeasurements();});E.chart.addEventListener("click",setProbeFromChartEvent);
 document.addEventListener("input",function(){if(E.physicsDiagnostics)physicsDiagnosticsHTML();});
-function syncNewFeatureUI(){var ow=E.equationType.value==="wave"&&E.waveModel.value==="generic";E.waveExtraControls.style.display=ow?"block":"none";E.waveSourceParams.style.display=ow&&E.waveSourceMode.value!=="off"?"block":"none";E.waveSourceYGroup.style.display=E.dimension.value==="2d"?"block":"none";E.waveObstacleGroup.style.display=ow&&E.dimension.value==="2d"?"block":"none";E.measurementControls.style.display=E.dimension.value==="2d"?"block":"none";physicsDiagnosticsHTML();}
+function syncNewFeatureUI(){var ow=E.equationType.value==="wave"&&E.waveModel.value==="generic"&&E.dimension.value!=="3d";E.waveExtraControls.style.display=ow?"block":"none";E.waveSourceParams.style.display=ow&&E.waveSourceMode.value!=="off"?"block":"none";E.waveSourceYGroup.style.display=E.dimension.value==="2d"?"block":"none";E.waveObstacleGroup.style.display=ow&&E.dimension.value==="2d"?"block":"none";E.measurementControls.style.display=E.dimension.value==="2d"?"block":"none";physicsDiagnosticsHTML();}
 document.addEventListener("change",function(){syncNewFeatureUI();});syncNewFeatureUI();
 E.comparisonStart.addEventListener("click",startComparison);
 E.comparisonTimeSlider.addEventListener("input",function(){
@@ -8286,6 +9215,7 @@ E.comparisonPlay.addEventListener("click",function(){
 
 E.landingDim1d.addEventListener("click",function(){setLandingDimension("1d");});
 E.landingDim2d.addEventListener("click",function(){setLandingDimension("2d");});
+E.landingDim3d.addEventListener("click",function(){setLandingDimension("3d");});
 E.landingCustomMode.addEventListener("click",function(){openCustomSolver();});
 E.backToTitle.addEventListener("click",function(){showLanding();});
 E.switchToCustom.addEventListener("click",function(){
@@ -8304,6 +9234,7 @@ E.dimension.addEventListener("change",function(){
   calculate();
 });
 
+E.nsInitial.addEventListener("change",function(){updateModeUI();updateBoundaryUI();physicsDiagnosticsHTML();});
 E.equationType.addEventListener("change",function(){
   stop();
   enforceEquationDimensionCompatibility();
