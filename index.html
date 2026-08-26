@@ -158,9 +158,21 @@ canvas{display:block;width:100%;height:430px}
   .definition-section:first-of-type{border-top:0}
   .definition-section h3{font-size:16px;margin:0 0 8px}
   .definition-formula{
-    font-family:"Times New Roman",serif;font-size:17px;line-height:1.65;
+    font-family:"Times New Roman","STIX Two Math","Cambria Math",serif;
+    font-size:clamp(15px,4.2vw,18px);line-height:1.75;
     padding:10px 12px;border-radius:12px;background:var(--soft,#f3f4f6);
-    overflow-x:auto
+    overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;
+    font-variant-numeric:lining-nums;
+  }
+  .definition-formula .eq-line{display:block;width:max-content;min-width:100%;white-space:nowrap}
+  .definition-equation-description{margin-top:10px}
+  .definition-term-list{margin-top:12px;display:grid;gap:10px}
+  .definition-term-item{line-height:1.65}
+  .definition-term-item b{display:inline;color:var(--text,#111827)}
+  @media(max-width:430px){
+    .definition-sheet{padding:16px;border-radius:18px}
+    .definition-section h3{font-size:15px;line-height:1.45}
+    .definition-text{font-size:13.5px}
   }
   .definition-text{font-size:14px;line-height:1.7;color:var(--muted,#4b5563)}
   .definition-text b{color:var(--text,#111827)}
@@ -297,6 +309,11 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
   .modebar-actions{width:100%}.modebar-actions button{flex:1}
 }
 #chart{touch-action:none;}
+#simulator-screen.simple-mode #playback-display-controls,
+#simulator-screen.simple-mode #view-3d-controls{margin-top:10px}
+@media(max-width:560px){
+  #view-3d-controls .playback-display-item{width:100%}
+}
 </style>
 </head>
 <body>
@@ -492,16 +509,57 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
 </div>
 <div id="burgers-controls" style="display:none">
       <div class="group">
+        <label for="burgers-preset">特徴的な挙動の設定</label>
+        <select id="burgers-preset">
+          <option value="shock" selected>急峻化・衝撃波形成（おすすめ）</option>
+          <option value="viscous">粘性で滑らかになる波</option>
+          <option value="inviscid">非粘性極限</option>
+          <option value="custom">カスタム</option>
+        </select>
+        <div class="hint" id="burgers-preset-description"></div>
+      </div>
+      <div class="group">
         <label for="burgers-nu">Burgers粘性係数 ν</label>
         <input id="burgers-nu" type="number" value="0.02" min="0" max="10" step="0.005">
         <div class="hint">ν=0 では非粘性Burgers方程式、ν&gt;0 では粘性により衝撃波が滑らかになります。</div>
       </div>
     </div>
 
-    <div id="kdv-controls" style="display:none"><div class="group"><label for="kdv-alpha">非線形係数 α</label><input id="kdv-alpha" type="number" value="6" min="-20" max="20" step="0.5"></div><div class="group"><label for="kdv-beta">分散係数 β</label><input id="kdv-beta" type="number" value="0.02" min="0.0001" max="2" step="0.005"><div class="hint">uₜ+αuuₓ+βuₓₓₓ=0。非線形急峻化と分散が釣り合うと孤立波が現れます。周期境界で計算します。</div></div><div class="group"><label for="kdv-initial">KdV 初期条件</label><select id="kdv-initial"><option value="soliton">1ソリトン</option><option value="two-solitons">速度の異なる2ソリトン</option><option value="gaussian">Gaussian</option></select></div></div>
-<div id="euler-controls" style="display:none"><div class="group"><label for="euler-gamma">比熱比 γ</label><input id="euler-gamma" type="number" value="1.4" min="1.01" max="2" step="0.01"><div class="hint">理想気体の状態方程式 p=(γ−1)[E−ρu²/2] を用います。</div></div><div class="group"><label for="euler-initial">Euler 初期条件</label><select id="euler-initial"><option value="sod">Sod shock tube</option><option value="lax">Lax shock tube</option><option value="blast">強い圧力差</option></select><div class="hint">左右で密度・速度・圧力を不連続にしたRiemann問題です。</div></div><div class="group"><label for="euler-view">表示</label><select id="euler-view"><option value="density">密度 ρ</option><option value="velocity">速度 u</option><option value="pressure">圧力 p</option></select></div></div>
-<div id="allen-controls" style="display:none"><div class="group"><label for="allen-mobility">移動度 M</label><input id="allen-mobility" type="number" value="1" min="0.0001" max="20" step="0.1"></div><div class="group"><label for="allen-epsilon">界面幅係数 ε</label><input id="allen-epsilon" type="number" value="0.20" min="0.005" max="5" step="0.01"><div class="hint">φₜ=M[ε²∇²φ+φ−φ³]。Cahn–Hilliardと異なり、φの空間積分は一般には保存されません。</div></div></div>
-<div id="ks-controls" style="display:none"><div class="group"><label for="ks-nu2">不安定化係数 a</label><input id="ks-nu2" type="number" value="0.20" min="0" max="5" step="0.02"></div><div class="group"><label for="ks-nu4">高階散逸係数 b</label><input id="ks-nu4" type="number" value="0.001" min="0.0001" max="2" step="0.002"><div class="hint">uₜ+uuₓ+a uₓₓ+b uₓₓₓₓ=0。長波長不安定性と短波長散逸の競合を表します。</div></div></div>
+    <div id="kdv-controls" style="display:none">
+<div class="group"><label for="kdv-preset">特徴的な挙動の設定</label><select id="kdv-preset">
+<option value="soliton" selected>安定な1ソリトン（おすすめ）</option>
+<option value="collision">速度の異なる孤立波の追越し</option>
+<option value="dispersion">Gaussianの分散波列</option>
+<option value="custom">カスタム</option></select><div class="hint" id="kdv-preset-description"></div></div>
+<div class="group"><label for="kdv-alpha">非線形係数 α</label><input id="kdv-alpha" type="number" value="6" min="-20" max="20" step="0.5"></div><div class="group"><label for="kdv-beta">分散係数 β</label><input id="kdv-beta" type="number" value="0.02" min="0.0001" max="2" step="0.005"><div class="hint">uₜ+αuuₓ+βuₓₓₓ=0。非線形急峻化と分散が釣り合うと孤立波が現れます。1ソリトン式は無限領域で厳密で、ここでは周期境界内に十分局在させて計算します。</div></div><div class="group"><label for="kdv-initial">KdV 初期条件</label><select id="kdv-initial"><option value="soliton">1ソリトン</option><option value="two-solitons">2つの孤立波（重ね合わせ初期値）</option><option value="gaussian">Gaussian</option></select></div></div>
+<div id="euler-controls" style="display:none">
+<div class="group"><label for="euler-preset">特徴的な流れの設定</label><select id="euler-preset">
+<option value="sod" selected>Sod：衝撃波・接触不連続・希薄波</option>
+<option value="lax">Lax：より強い圧縮波</option>
+<option value="blast">強い爆風問題</option>
+<option value="custom">カスタム</option></select><div class="hint" id="euler-preset-description"></div></div>
+<div class="group"><label for="euler-gamma">比熱比 γ</label><input id="euler-gamma" type="number" value="1.4" min="1.01" max="2" step="0.01"><div class="hint">理想気体の状態方程式 p=(γ−1)[E−ρu²/2] を用います。</div></div><div class="group"><label for="euler-initial">Euler 初期条件</label><select id="euler-initial"><option value="sod">Sod shock tube</option><option value="lax">Lax shock tube</option><option value="blast">強い圧力差</option></select><div class="hint">左右で密度・速度・圧力を不連続にしたRiemann問題です。</div></div><div class="group"><label for="euler-view">表示</label><select id="euler-view"><option value="density">密度 ρ</option><option value="velocity">速度 u</option><option value="pressure">圧力 p</option></select></div></div>
+<div id="allen-controls" style="display:none">
+<div class="group"><label for="allen-preset">特徴的な挙動の設定</label><select id="allen-preset">
+<option value="coarsening" selected>ドメイン粗大化（おすすめ）</option>
+<option value="droplet">孤立ドメインの収縮</option>
+<option value="thin-interface">薄い界面の高速緩和</option>
+<option value="custom">カスタム</option></select><div class="hint" id="allen-preset-description"></div></div>
+<div class="group"><label for="allen-mobility">移動度 M</label><input id="allen-mobility" type="number" value="1" min="0.0001" max="20" step="0.1"></div><div class="group"><label for="allen-epsilon">界面幅係数 ε</label><input id="allen-epsilon" type="number" value="0.20" min="0.005" max="5" step="0.01"><div class="hint">φₜ=M[ε²∇²φ+φ−φ³]。Cahn–Hilliardと異なり、φの空間積分は一般には保存されません。</div></div></div>
+<div id="ks-controls" style="display:none">
+  <div class="group">
+    <label for="ks-initial">特徴を見る初期条件</label>
+    <select id="ks-initial">
+      <option value="mode-competition" selected>不安定モードの競合（おすすめ）</option>
+      <option value="fastest-mode">最も成長しやすい線形モード</option>
+      <option value="broadband">微小な多波数擾乱</option>
+      <option value="localized">局在パルスからの発展</option>
+    </select>
+    <div class="hint" id="ks-initial-description">最も成長しやすい波数の近傍に複数モードを入れ、線形不安定性・非線形飽和・モード競合を見やすくします。</div>
+  </div>
+  <div class="group"><label for="ks-nu2">不安定化係数 a</label><input id="ks-nu2" type="number" value="0.20" min="0" max="5" step="0.02"></div>
+  <div class="group"><label for="ks-nu4">高階散逸係数 b</label><input id="ks-nu4" type="number" value="0.001" min="0.0001" max="2" step="0.002"><div class="hint">uₜ+uuₓ+a uₓₓ+b uₓₓₓₓ=0。線形成長率は σ(k)=ak²−bk⁴。初期条件プリセットはこの不安定帯を利用します。</div></div>
+</div>
 <div id="reaction-controls" style="display:none">
       <div class="group">
         <label for="reaction-preset">Gray–Scott パターンプリセット</label>
@@ -561,6 +619,16 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
 
     <div id="burgers2d-controls" style="display:none">
       <div class="group">
+        <label for="burgers2d-preset">特徴的な挙動の設定</label>
+        <select id="burgers2d-preset">
+          <option value="steepening" selected>2D急峻化（おすすめ）</option>
+          <option value="vortical">ずれた速度成分から複雑化</option>
+          <option value="viscous">粘性優勢で滑らかに</option>
+          <option value="custom">カスタム</option>
+        </select>
+        <div class="hint" id="burgers2d-preset-description"></div>
+      </div>
+      <div class="group">
         <label for="burgers2d-nu">2D Burgers 粘性係数 ν</label>
         <input id="burgers2d-nu" type="number" value="0.02" min="0" max="2" step="0.005">
         <div class="hint">ベクトル Burgers 系 ∂u/∂t+(u·∇)u=ν∇²u を周期境界で解きます。</div>
@@ -588,6 +656,16 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
 
     <div id="cahn-controls" style="display:none">
       <div class="group">
+        <label for="cahn-preset">特徴的なパターンの設定</label>
+        <select id="cahn-preset">
+          <option value="spinodal" selected>スピノーダル分解（おすすめ）</option>
+          <option value="droplets">液滴状ドメインの粗大化</option>
+          <option value="broad-interface">太い界面でゆっくり相分離</option>
+          <option value="custom">カスタム</option>
+        </select>
+        <div class="hint" id="cahn-preset-description"></div>
+      </div>
+      <div class="group">
         <label for="cahn-M">移動度 M</label>
         <input id="cahn-M" type="number" value="0.20" min="0.0001" max="10" step="0.01">
       </div>
@@ -607,6 +685,17 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
     </div>
 
     <div id="shallow-controls" style="display:none">
+      <div class="group">
+        <label for="shallow-preset">特徴的な波・地形効果の設定</label>
+        <select id="shallow-preset">
+          <option value="tsunami" selected>局所隆起からの津波伝播（おすすめ）</option>
+          <option value="dipole">隆起＋沈降の双極型津波</option>
+          <option value="seamount">海山による屈折・変形</option>
+          <option value="shoaling">浅瀬への進入</option>
+          <option value="custom">カスタム</option>
+        </select>
+        <div class="hint" id="shallow-preset-description"></div>
+      </div>
       <div class="group" id="legacy-shallow-g-group">
         <label for="shallow-g">重力加速度 g</label>
         <input id="shallow-g" type="number" value="1.0" min="0.0001" max="100" step="0.1">
@@ -674,6 +763,16 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
 
     <div id="navier-stokes-controls" style="display:none">
       <div class="group">
+        <label for="ns-preset">特徴的な流れの設定</label>
+        <select id="ns-preset">
+          <option value="cavity" selected>上壁駆動キャビティ渦（おすすめ）</option>
+          <option value="shear">せん断層の巻き上がり</option>
+          <option value="taylor">Taylor–Green渦の粘性減衰</option>
+          <option value="custom">カスタム</option>
+        </select>
+        <div class="hint" id="ns-preset-description"></div>
+      </div>
+      <div class="group">
         <label for="ns-nu">動粘性係数 ν</label>
         <input id="ns-nu" type="number" value="0.01" min="0.00001" max="2" step="0.001">
         <div class="hint">非圧縮性Navier–Stokes方程式の粘性。小さいほどReynolds数が大きくなり、渦構造が細かくなります。</div>
@@ -700,6 +799,17 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
     </div>
 
     <div id="convection-controls" style="display:none">
+      <div class="group">
+        <label for="convection-preset">特徴的な対流パターンの設定</label>
+        <select id="convection-preset">
+          <option value="rayleigh" selected>下から加熱：対流セル形成（おすすめ）</option>
+          <option value="plume">局所加熱：上昇プルーム</option>
+          <option value="stable">上から加熱：安定成層</option>
+          <option value="strong">強い浮力：活発な対流</option>
+          <option value="custom">カスタム</option>
+        </select>
+        <div class="hint" id="convection-preset-description"></div>
+      </div>
       <div class="group">
         <label for="nu">動粘性係数 ν</label>
         <input id="nu" type="number" value="0.03" min="0.0001" max="2" step="0.005">
@@ -1074,6 +1184,17 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
     <span>低</span><div class="gradient"></div><span>高</span>
   </div>
 
+  <div class="time-row">
+    <div class="playback-buttons">
+      <button id="pause" type="button">一時停止</button>
+      <button id="play" type="button">再生</button>
+      <button id="analytical-toggle" class="analysis-toggle-button" type="button">解析解と比較</button>
+      <button id="definition-toggle" class="definition-toggle-button" type="button">定義・式</button>
+    </div>
+    <input id="time-slider" type="range" min="0" max="100" value="0" step="1">
+    <output id="time-output">t = 0.000</output>
+  </div>
+
   <div class="playback-display-controls" id="playback-display-controls">
     <div class="playback-display-item" id="playback-quantity-group">
       <label for="playback-display-quantity">表示する量</label>
@@ -1102,18 +1223,25 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
     <div class="playback-display-item">
       <label for="view-mode-3d">3D表示</label>
       <select id="view-mode-3d">
-        <option value="volume">立体表示</option>
-        <option value="slice">断面表示</option>
+        <option value="orthoslices" selected>3方向断面（おすすめ）</option>
+        <option value="volume">回転できる立体表示</option>
+        <option value="slice">1断面を詳しく見る</option>
       </select>
     </div>
-    <div class="playback-display-item" id="iso-level-3d-group">
-      <label for="iso-level-3d">等値面レベル</label>
-      <input id="iso-level-3d" type="range" min="0" max="1" value="0.55" step="0.01">
-      <output id="iso-level-3d-output">55%</output>
+    <div class="playback-display-item" id="surface-preset-3d-group" style="display:none">
+      <label for="surface-preset-3d">立体表示で見たい部分</label>
+      <select id="surface-preset-3d">
+        <option value="outer">弱い部分まで広く見る</option>
+        <option value="standard" selected>標準</option>
+        <option value="core">強い部分を中心に見る</option>
+      </select>
+      <div class="hint">値そのものを指定する「等値面レベル」の代わりに、見たい強度範囲を選びます。</div>
+      <input id="iso-level-3d" type="range" min="0" max="1" value="0.55" step="0.01" style="display:none" aria-hidden="true">
+      <output id="iso-level-3d-output" style="display:none">55%</output>
     </div>
-    <div class="playback-display-item" id="iso-count-3d-group">
-      <label for="iso-count-3d">等値面の層</label>
-      <select id="iso-count-3d"><option value="1">1層</option><option value="2">2層</option><option value="3">3層</option></select>
+    <div class="playback-display-item" id="iso-count-3d-group" style="display:none">
+      <label for="iso-count-3d">立体面の重ね方</label>
+      <select id="iso-count-3d"><option value="1">1面（見やすい）</option><option value="2">2面</option><option value="3">3面（内部構造も見る）</option></select>
     </div>
     <div class="playback-display-item"><label>視点</label><button id="reset-camera-3d" type="button">視点をリセット</button></div>
     <div class="playback-display-item" id="slice-axis-3d-group" style="display:none">
@@ -1132,16 +1260,7 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
     <div class="hint playback-display-hint" id="view-3d-hint">ドラッグで回転、ホイール/ピンチで拡大縮小できます。格子セル内を線形補間して等値面を三角形メッシュとして表示します。x・y・z軸は右手系（x×y=z）です。</div>
   </div>
 
-  <div class="time-row">
-    <div class="playback-buttons">
-      <button id="pause" type="button">一時停止</button>
-      <button id="play" type="button">再生</button>
-      <button id="analytical-toggle" class="analysis-toggle-button" type="button">解析解と比較</button>
-      <button id="definition-toggle" class="definition-toggle-button" type="button">定義・式</button>
-    </div>
-    <input id="time-slider" type="range" min="0" max="100" value="0" step="1">
-    <output id="time-output">t = 0.000</output>
-  </div>
+
 
   <div class="history-wrap" id="history-wrap">
     <div class="history-title">代表的な積分量・エネルギー履歴</div>
@@ -1284,12 +1403,12 @@ var E={
   waveWaterDepth:document.getElementById("wave-water-depth"),
   waveRegimeWarning:document.getElementById("wave-regime-warning"),
   waveSpeed:document.getElementById("wave-speed"),
-  burgersControls:document.getElementById("burgers-controls"),
+  burgersControls:document.getElementById("burgers-controls"),burgersPreset:document.getElementById("burgers-preset"),burgersPresetDescription:document.getElementById("burgers-preset-description"),
   burgersNu:document.getElementById("burgers-nu"),
-  kdvControls:document.getElementById("kdv-controls"),kdvAlpha:document.getElementById("kdv-alpha"),kdvBeta:document.getElementById("kdv-beta"),kdvInitial:document.getElementById("kdv-initial"),
-  eulerControls:document.getElementById("euler-controls"),eulerGamma:document.getElementById("euler-gamma"),eulerInitial:document.getElementById("euler-initial"),eulerView:document.getElementById("euler-view"),
-  allenControls:document.getElementById("allen-controls"),allenMobility:document.getElementById("allen-mobility"),allenEpsilon:document.getElementById("allen-epsilon"),
-  ksControls:document.getElementById("ks-controls"),ksNu2:document.getElementById("ks-nu2"),ksNu4:document.getElementById("ks-nu4"),
+  kdvControls:document.getElementById("kdv-controls"),kdvPreset:document.getElementById("kdv-preset"),kdvPresetDescription:document.getElementById("kdv-preset-description"),kdvAlpha:document.getElementById("kdv-alpha"),kdvBeta:document.getElementById("kdv-beta"),kdvInitial:document.getElementById("kdv-initial"),
+  eulerControls:document.getElementById("euler-controls"),eulerPreset:document.getElementById("euler-preset"),eulerPresetDescription:document.getElementById("euler-preset-description"),eulerGamma:document.getElementById("euler-gamma"),eulerInitial:document.getElementById("euler-initial"),eulerView:document.getElementById("euler-view"),
+  allenControls:document.getElementById("allen-controls"),allenPreset:document.getElementById("allen-preset"),allenPresetDescription:document.getElementById("allen-preset-description"),allenMobility:document.getElementById("allen-mobility"),allenEpsilon:document.getElementById("allen-epsilon"),
+  ksControls:document.getElementById("ks-controls"),ksInitial:document.getElementById("ks-initial"),ksInitialDescription:document.getElementById("ks-initial-description"),ksNu2:document.getElementById("ks-nu2"),ksNu4:document.getElementById("ks-nu4"),
   reactionControls:document.getElementById("reaction-controls"),
   reactionPreset:document.getElementById("reaction-preset"),
   reactionPresetDescription:document.getElementById("reaction-preset-description"),
@@ -1312,8 +1431,8 @@ var E={
   u2dGroup:document.getElementById("u2d-group"),
   transportViewGroup:document.getElementById("transport-view-group"),
   view3dControls:document.getElementById("view-3d-controls"),
-  viewMode3d:document.getElementById("view-mode-3d"),
-  isoLevel3d:document.getElementById("iso-level-3d"),isoLevel3dOutput:document.getElementById("iso-level-3d-output"),isoLevel3dGroup:document.getElementById("iso-level-3d-group"),
+  viewMode3d:document.getElementById("view-mode-3d"),surfacePreset3d:document.getElementById("surface-preset-3d"),surfacePreset3dGroup:document.getElementById("surface-preset-3d-group"),
+  isoLevel3d:document.getElementById("iso-level-3d"),isoLevel3dOutput:document.getElementById("iso-level-3d-output"),isoLevel3dGroup:document.getElementById("surface-preset-3d-group"),
   isoCount3d:document.getElementById("iso-count-3d"),isoCount3dGroup:document.getElementById("iso-count-3d-group"),resetCamera3d:document.getElementById("reset-camera-3d"),
   sliceAxis3d:document.getElementById("slice-axis-3d"),sliceAxis3dGroup:document.getElementById("slice-axis-3d-group"),
   slicePosition3d:document.getElementById("slice-position-3d"),slicePosition3dOutput:document.getElementById("slice-position-3d-output"),slicePosition3dGroup:document.getElementById("slice-position-3d-group"),
@@ -1335,16 +1454,16 @@ var E={
   reactionViewGroup:document.getElementById("reaction-view-group"),
   reactionViewMode:document.getElementById("reaction-view-mode"),
   reactionViewDescription:document.getElementById("reaction-view-description"),
-  burgers2dControls:document.getElementById("burgers2d-controls"),
+  burgers2dControls:document.getElementById("burgers2d-controls"),burgers2dPreset:document.getElementById("burgers2d-preset"),burgers2dPresetDescription:document.getElementById("burgers2d-preset-description"),
   burgers2dNu:document.getElementById("burgers2d-nu"),
   burgers2dInitialVector:document.getElementById("burgers2d-initial-vector"),
   burgers2dInitialVectorDescription:document.getElementById("burgers2d-initial-vector-description"),
   burgers2dView:document.getElementById("burgers2d-view"),
-  cahnControls:document.getElementById("cahn-controls"),
+  cahnControls:document.getElementById("cahn-controls"),cahnPreset:document.getElementById("cahn-preset"),cahnPresetDescription:document.getElementById("cahn-preset-description"),
   cahnM:document.getElementById("cahn-M"),
   cahnKappa:document.getElementById("cahn-kappa"),
   cahnView:document.getElementById("cahn-view"),
-  shallowControls:document.getElementById("shallow-controls"),
+  shallowControls:document.getElementById("shallow-controls"),shallowPreset:document.getElementById("shallow-preset"),shallowPresetDescription:document.getElementById("shallow-preset-description"),
   legacyShallowGGroup:document.getElementById("legacy-shallow-g-group"),
   legacyShallowH0Group:document.getElementById("legacy-shallow-h0-group"),
   shallowG:document.getElementById("shallow-g"),
@@ -1362,12 +1481,12 @@ var E={
   shallowTsunamiAmplitude:document.getElementById("shallow-tsunami-amplitude"),
   shallowValidityWarning:document.getElementById("shallow-validity-warning"),
   shallowView:document.getElementById("shallow-view"),
-  navierStokesControls:document.getElementById("navier-stokes-controls"),
+  navierStokesControls:document.getElementById("navier-stokes-controls"),nsPreset:document.getElementById("ns-preset"),nsPresetDescription:document.getElementById("ns-preset-description"),
   nsNu:document.getElementById("ns-nu"),
   nsInitial:document.getElementById("ns-initial"),
   nsLidSpeed:document.getElementById("ns-lid-speed"),
   nsLidSpeedGroup:document.getElementById("ns-lid-speed-group"),
-  convectionControls:document.getElementById("convection-controls"),
+  convectionControls:document.getElementById("convection-controls"),convectionPreset:document.getElementById("convection-preset"),convectionPresetDescription:document.getElementById("convection-preset-description"),
   nu:document.getElementById("nu"),
   buoyancy:document.getElementById("buoyancy"),
   convInitial:document.getElementById("conv-initial"),
@@ -1782,25 +1901,88 @@ function updateVelocityFieldUI(){
 }
 
 function updateInitialOptions(){
-  var is2=E.dimension.value==="2d",is3=E.dimension.value==="3d";
-  var eq=E.equationType.value;
-  var isShallow=(eq==="shallow-water"||eq==="shallow-water-1d"||
-                 (eq==="wave"&&(E.waveModel.value==="shallow"||E.waveModel.value==="deep")));
-  var spatialOnly={ring:true,checkerboard:true,circle:true,"multi-spots":true};
-  var shallowOnly={"tsunami-uplift":true,"tsunami-dipole":true};
-  for(var i=0;i<E.initial.options.length;i++){
-    var opt=E.initial.options[i];
-    var hide=(!!spatialOnly[opt.value]&&!(is2||is3)) || (!!shallowOnly[opt.value]&&!isShallow);
-    opt.hidden=hide;opt.disabled=hide;
-    if(hide&&E.initial.value===opt.value)E.initial.value="gaussian";
+  var dim=E.dimension.value,is2=dim==="2d",is3=dim==="3d",eq=E.equationType.value;
+  var isWater=(eq==="shallow-water"||eq==="shallow-water-1d"||
+               (eq==="wave"&&(E.waveModel.value==="shallow"||E.waveModel.value==="deep")));
+  var old=E.initial.value;
+  var common=[
+    ["gaussian",is3?"中央3D Gaussian":(is2?"中央 Gaussian":"Gaussian")],
+    ["pulse",is3?"中央球形パルス":(is2?"中央正方形パルス":"中央パルス")],
+    ["step",is3?"x方向ステップ分布":(is2?"左右ステップ分布":"ステップ分布")],
+    ["double-gaussian",is3?"2つの3D Gaussian":"2つの Gaussian"],
+    ["triple-gaussian",is3?"3つの3D Gaussian":"3つの Gaussian"],
+    ["triangle",is3?"球対称の円錐状分布":(is2?"円錐状分布":"三角形分布")],
+    ["sine",is3?"3D 正弦波":(is2?"2D 正弦波":"正弦波")],
+    ["random",is3?"3D不規則分布（再現可能）":"不規則分布（再現可能）"],
+    ["positive-negative",is3?"正負の3D Gaussian 対":"正負の Gaussian 対"],
+    ["left-right",is3?"x方向2領域":(is2?"左右2領域":"左右2領域")]
+  ];
+  if(is2||is3){
+    common.splice(7,0,
+      ["ring",is3?"球殻 Gaussian":"リング"],
+      ["checkerboard",is3?"3Dチェッカーボード":"チェッカーボード"],
+      ["circle",is3?"球形トップハット":"円形トップハット"],
+      ["multi-spots",is3?"複数3D Gaussianスポット":"複数 Gaussian スポット"]
+    );
   }
-  var labels1={gaussian:"Gaussian",pulse:"中央パルス",step:"ステップ分布","double-gaussian":"2つの Gaussian","triple-gaussian":"3つの Gaussian",triangle:"三角形分布",sine:"正弦波",random:"不規則分布（再現可能）","positive-negative":"正負の Gaussian 対","left-right":"左右2領域","tsunami-uplift":"津波：局所水面隆起","tsunami-dipole":"津波：隆起＋沈降"};
-  var labels2={gaussian:"中央 Gaussian",pulse:"中央正方形パルス",step:"左右ステップ分布","double-gaussian":"2つの Gaussian","triple-gaussian":"3つの Gaussian",triangle:"円錐状分布",sine:"2D 正弦波",ring:"リング",random:"不規則分布（再現可能）","positive-negative":"正負の Gaussian 対",checkerboard:"チェッカーボード",circle:"円形トップハット","multi-spots":"複数 Gaussian スポット","left-right":"左右2領域","tsunami-uplift":"津波：局所水面隆起","tsunami-dipole":"津波：隆起＋沈降"};
-  var labels3={gaussian:"中央3D Gaussian",pulse:"中央球形パルス",step:"x方向ステップ分布","double-gaussian":"2つの3D Gaussian","triple-gaussian":"3つの3D Gaussian",triangle:"球対称の円錐状分布",sine:"3D 正弦波",ring:"球殻 Gaussian",random:"3D不規則分布（再現可能）","positive-negative":"正負の3D Gaussian 対",checkerboard:"3Dチェッカーボード",circle:"球形トップハット","multi-spots":"複数3D Gaussianスポット","left-right":"x方向2領域"};
-  var map=is3?labels3:(is2?labels2:labels1);
-  for(var j=0;j<E.initial.options.length;j++){var o=E.initial.options[j];if(map[o.value])o.textContent=map[o.value];}
+  if(isWater&&!is3){
+    common.push(["tsunami-uplift","津波：局所水面隆起"],["tsunami-dipole","津波：隆起＋沈降"]);
+  }
+  setSelectOptions(E.initial,common,common.some(function(x){return x[0]===old;})?old:"gaussian");
 }
 
+function setInterestingPreset(select,desc,kind,doCalc){
+  var name=select.value, custom=(name==="custom"), d="";
+  if(kind==="burgers"){
+    if(name==="shock"){E.burgersNu.value=".006";E.initial.value="sine";E.duration.value="5";d="小さい粘性と正弦波から、非線形急峻化と粘性で有限幅になった衝撃波を見やすくします。";}
+    else if(name==="viscous"){E.burgersNu.value=".08";E.initial.value="sine";E.duration.value="5";d="粘性を強め、急峻化と平滑化の競合を比較しやすくします。";}
+    else if(name==="inviscid"){E.burgersNu.value="0";E.initial.value="sine";E.duration.value="3";d="ν=0 の保存則として急峻化・衝撃波形成を観察します。";}
+  }else if(kind==="kdv"){
+    E.kdvAlpha.value="6";
+    if(name==="soliton"){E.kdvBeta.value=".02";E.kdvInitial.value="soliton";E.duration.value="10";d="非線形性と分散が釣り合う1孤立波を伝播させます。";}
+    else if(name==="collision"){E.kdvBeta.value=".02";E.kdvInitial.value="two-solitons";E.duration.value="10";d="振幅の異なる2孤立波を置き、速度差による追越しと波形回復を観察します。";}
+    else if(name==="dispersion"){E.kdvBeta.value=".05";E.kdvInitial.value="gaussian";E.duration.value="10";d="Gaussianから分散による振動波列が形成される過程を見やすくします。";}
+  }else if(kind==="euler"){
+    E.eulerGamma.value="1.4";
+    if(name!=="custom"){E.eulerInitial.value=name;d=name==="sod"?"衝撃波・接触不連続・希薄波が同時に現れる標準Riemann問題です。":name==="lax"?"Sodとは異なる左右状態から、より強い圧縮性波動を比較します。":"大きな圧力差から強い衝撃波と希薄波を発生させます。";}
+  }else if(kind==="allen"){
+    if(name==="coarsening"){E.allenMobility.value="1";E.allenEpsilon.value=".20";E.initial.value="random";E.duration.value="8";d="微小な空間むらから±1相が選択され、界面が減少してドメインが粗大化する様子を見やすくします。";}
+    else if(name==="droplet"){E.allenMobility.value="1";E.allenEpsilon.value=".16";E.initial.value="circle";E.duration.value="6";d="孤立した相ドメインを置き、曲率駆動で界面が移動・収縮する様子を観察します。";}
+    else if(name==="thin-interface"){E.allenMobility.value="2";E.allenEpsilon.value=".08";E.initial.value="positive-negative";E.duration.value="4";d="薄い界面と大きい移動度で、局所緩和と界面運動を強調します。";}
+  }else if(kind==="burgers2d"){
+    if(name==="steepening"){E.burgers2dNu.value=".008";E.initial.value="sine";E.burgers2dInitialVector.value="same";E.duration.value="4";d="小粘性の2D速度場で非線形急峻化を見やすくします。";}
+    else if(name==="vortical"){E.burgers2dNu.value=".006";E.initial.value="multi-spots";E.burgers2dInitialVector.value="shifted";E.duration.value="4";d="uₓとuᵧの分布をずらし、速度勾配と複雑な変形が発達しやすい設定です。";}
+    else if(name==="viscous"){E.burgers2dNu.value=".08";E.initial.value="multi-spots";E.burgers2dInitialVector.value="same";E.duration.value="4";d="粘性を強め、構造が平滑化される場合と比較します。";}
+  }else if(kind==="cahn"){
+    if(name==="spinodal"){E.cahnM.value=".20";E.cahnKappa.value=".05";E.initial.value="random";E.genericPerturbationMode.value="on";E.genericPerturbationAmplitude.value=".04";E.duration.value="8";d="平均組成付近の微小むらから相分離が自発的に進むスピノーダル分解を見やすくします。";}
+    else if(name==="droplets"){E.cahnM.value=".20";E.cahnKappa.value=".035";E.initial.value="multi-spots";E.genericPerturbationMode.value="off";E.duration.value="8";d="複数ドメインから開始し、界面エネルギー低下に伴う合体・粗大化を観察します。";}
+    else if(name==="broad-interface"){E.cahnM.value=".08";E.cahnKappa.value=".12";E.initial.value="random";E.genericPerturbationMode.value="on";E.genericPerturbationAmplitude.value=".04";E.duration.value="10";d="κを大きくして界面を太くし、ゆっくりした相分離と比較します。";}
+  }else if(kind==="ns"){
+    if(name==="cavity"){E.nsInitial.value="lid-cavity";E.nsNu.value=".01";E.nsLidSpeed.value="1";E.duration.value="10";d="上壁運動により主渦と壁近傍の循環が形成される代表例です。";}
+    else if(name==="shear"){E.nsInitial.value="shear-layer";E.nsNu.value=".003";E.duration.value="8";d="低粘性の周期せん断層を用い、せん断層の変形・巻き上がりを見やすくします。";}
+    else if(name==="taylor"){E.nsInitial.value="taylor-green";E.nsNu.value=".01";E.duration.value="8";d="規則的なTaylor–Green渦が粘性で減衰する様子を観察します。";}
+  }else if(kind==="convection"){
+    E.thermalBoundary.value="fixed-top-bottom";
+    if(name==="rayleigh"){E.nu.value=".03";E.D.value=".03";E.buoyancy.value="2";E.convInitial.value="random-perturbations";E.tBottom.value="1";E.tTop.value="0";E.perturbationMode.value="on";E.perturbationAmplitude.value=".01";E.duration.value="10";d="下を高温・上を低温にし、微小擾乱から浮力対流セルが成長しやすい設定です。";}
+    else if(name==="plume"){E.nu.value=".03";E.D.value=".04";E.buoyancy.value="2";E.convInitial.value="hot-spot";E.thermalBoundary.value="adiabatic";E.duration.value="8";d="下部の局所高温域から上昇プルームが形成される様子を見やすくします。";}
+    else if(name==="stable"){E.nu.value=".03";E.D.value=".03";E.buoyancy.value="2";E.convInitial.value="top-hot";E.tBottom.value="0";E.tTop.value="1";E.perturbationMode.value="on";E.perturbationAmplitude.value=".01";E.duration.value="8";d="上が高温・下が低温の安定成層で、対流が成長しにくい対照例です。";}
+    else if(name==="strong"){E.nu.value=".02";E.D.value=".02";E.buoyancy.value="4";E.convInitial.value="random-perturbations";E.tBottom.value="1";E.tTop.value="0";E.perturbationMode.value="on";E.perturbationAmplitude.value=".015";E.duration.value="8";d="拡散を弱め浮力を強め、より活発で細かな対流構造を出しやすくします。";}
+  }else if(kind==="shallow"){
+    E.shallowG.value="1";E.shallowH0.value="1";E.shallowTerrainAmplitude.value=".25";E.shallowTerrainWidth.value=".14";E.shallowTsunamiAmplitude.value=".08";
+    if(name==="tsunami"){E.initial.value="tsunami-uplift";E.shallowTerrain.value="flat";E.duration.value="8";d="局所的な自由水面隆起から長波が両方向（2Dでは放射状）へ伝播する基本例です。";}
+    else if(name==="dipole"){E.initial.value="tsunami-dipole";E.shallowTerrain.value="flat";E.duration.value="8";d="隆起と沈降を隣接させ、符号の異なる長波の伝播を観察します。";}
+    else if(name==="seamount"){E.initial.value="tsunami-uplift";E.shallowTerrain.value="seamount";E.shallowTerrainPositionX.value=".62";E.duration.value="10";d="津波が海山上を通過する際の波速変化・波面変形を観察しやすくします。";}
+    else if(name==="shoaling"){E.initial.value="tsunami-uplift";E.shallowTerrain.value="shoal";E.shallowTerrainPositionX.value=".68";E.shallowTerrainWidth.value=".22";E.duration.value="10";d="広い浅瀬へ進入する長波の速度・波形変化を観察しやすくします。";}
+  }
+  if(custom)d="現在の各パラメータを自由に設定します。";
+  desc.textContent=d;
+  updateInitialOptions(); updateGenericPerturbationUI(); updateBurgers2DInitialVectorUI();
+  updateConvectionSpecialUI(); updateShallowTerrainUI(); updateShallowValidityWarning(); updateModeUI();
+  if(doCalc)calculate();
+}
+function markInterestingCustom(select){
+  if(select && select.value!=="custom")select.value="custom";
+}
 function reactionPresetValues(name){
   // Values below were checked numerically with this app's default scaling
   // (L=10, N=51, Du:Dv=2:1) and remain spatially non-uniform at t≈400.
@@ -2529,6 +2711,15 @@ function updateWaveModelUI(){
   updateWaveRegimeWarning();
 }
 
+function updateKSInitialDescription(){
+  var m=E.ksInitial.value,txt={
+    "mode-competition":"最も成長しやすい波数の近傍に複数モードを入れ、線形不安定性・非線形飽和・モード競合を見やすくします。",
+    "fastest-mode":"線形成長率 σ(k)=ak²−bk⁴ が最大になる k≈√(a/2b) に最も近い周期モードを小振幅で与えます。",
+    "broadband":"複数の小振幅Fourierモードを同時に与え、どの波数帯が選択・成長するかを観察します。",
+    "localized":"局在した山から開始し、不安定モードが空間全体へ形成されていく過程を観察します。"
+  }[m]||"";
+  E.ksInitialDescription.textContent=txt;
+}
 function updateModeUI(){
   updateLargeDomainWarning();
 
@@ -2559,13 +2750,14 @@ function updateModeUI(){
   E.waveControls.style.display=isWave?"block":"none";
   if(isWave&&is3){E.waveModel.value="generic";E.waveSourceMode.value="off";E.waveObstacleMode.value="off";}
   if(isWave)updateWaveModelUI();
-  E.burgersControls.style.display=isBurgers?"block":"none";
+  E.burgersControls.style.display=isBurgers?"block":"none";if(isBurgers&&E.burgersPresetDescription&&!E.burgersPresetDescription.textContent)setInterestingPreset(E.burgersPreset,E.burgersPresetDescription,"burgers",false);
   E.reactionControls.style.display=isReaction?"block":"none";
-  E.burgers2dControls.style.display=isBurgers2D?"block":"none";
-  E.cahnControls.style.display=isCahn?"block":"none";
-  E.kdvControls.style.display=isKdv?"block":"none";E.eulerControls.style.display=isEuler?"block":"none";E.allenControls.style.display=isAllen?"block":"none";E.ksControls.style.display=isKS?"block":"none";
+  E.burgers2dControls.style.display=isBurgers2D?"block":"none";if(isBurgers2D&&E.burgers2dPresetDescription&&!E.burgers2dPresetDescription.textContent)setInterestingPreset(E.burgers2dPreset,E.burgers2dPresetDescription,"burgers2d",false);
+  E.cahnControls.style.display=isCahn?"block":"none";if(isCahn&&E.cahnPresetDescription&&!E.cahnPresetDescription.textContent)setInterestingPreset(E.cahnPreset,E.cahnPresetDescription,"cahn",false);
+  E.kdvControls.style.display=isKdv?"block":"none";if(isKdv&&E.kdvPresetDescription&&!E.kdvPresetDescription.textContent)setInterestingPreset(E.kdvPreset,E.kdvPresetDescription,"kdv",false);E.eulerControls.style.display=isEuler?"block":"none";if(isEuler&&E.eulerPresetDescription&&!E.eulerPresetDescription.textContent)setInterestingPreset(E.eulerPreset,E.eulerPresetDescription,"euler",false);E.allenControls.style.display=isAllen?"block":"none";if(isAllen&&E.allenPresetDescription&&!E.allenPresetDescription.textContent)setInterestingPreset(E.allenPreset,E.allenPresetDescription,"allen",false);E.ksControls.style.display=isKS?"block":"none";if(isKS)updateKSInitialDescription();
   var isWaveShallow=(isWave&&E.waveModel.value==="shallow");
   E.shallowControls.style.display=(isShallow||isShallow1D||isWaveShallow)?"block":"none";
+  if((isShallow||isShallow1D)&&E.shallowPresetDescription&&!E.shallowPresetDescription.textContent)setInterestingPreset(E.shallowPreset,E.shallowPresetDescription,"shallow",false);
   E.legacyShallowGGroup.style.display=isWaveShallow?"none":"grid";
   E.legacyShallowH0Group.style.display=isWaveShallow?"none":"grid";
   E.shallowValidityWarning.style.display=isWaveShallow?"none":"block";
@@ -2606,9 +2798,9 @@ function updateModeUI(){
   E.schemeGroup.style.display=(!special&&useAdv&&!is3)?"grid":"none";
   E.limiterGroup.style.display=(!special&&useAdv&&!is3&&E.advectionScheme.value==="muscl-tvd")?"grid":"none";
 
-  E.navierStokesControls.style.display=isNS?"block":"none";
+  E.navierStokesControls.style.display=isNS?"block":"none";if(isNS&&E.nsPresetDescription&&!E.nsPresetDescription.textContent)setInterestingPreset(E.nsPreset,E.nsPresetDescription,"ns",false);
   E.nsLidSpeedGroup.style.display=(isNS&&E.nsInitial.value==="lid-cavity")?"grid":"none";
-  E.convectionControls.style.display=isConv?"block":"none";
+  E.convectionControls.style.display=isConv?"block":"none";if(isConv&&E.convectionPresetDescription&&!E.convectionPresetDescription.textContent)setInterestingPreset(E.convectionPreset,E.convectionPresetDescription,"convection",false);
   updateScalarViewUI();
   E.view3dControls.style.display=is3?"grid":"none";
   updateScaleControlsUI();
@@ -3068,7 +3260,7 @@ function readParams(){
     kdvAlpha:clamp(num(E.kdvAlpha,6),-20,20),kdvBeta:clamp(num(E.kdvBeta,.02),.0001,2),kdvInitial:E.kdvInitial.value,
     eulerGamma:clamp(num(E.eulerGamma,1.4),1.01,2),eulerInitial:E.eulerInitial.value,eulerView:E.eulerView.value,
     allenMobility:clamp(num(E.allenMobility,1),.0001,20),allenEpsilon:clamp(num(E.allenEpsilon,.2),.005,5),
-    ksNu2:clamp(num(E.ksNu2,.2),0,5),ksNu4:clamp(num(E.ksNu4,.001),.0001,2),
+    ksInitial:E.ksInitial.value,ksNu2:clamp(num(E.ksNu2,.2),0,5),ksNu4:clamp(num(E.ksNu4,.001),.0001,2),
     reactionDu:clamp(num(E.reactionDu,.0064),.000001,10),
     reactionDv:clamp(num(E.reactionDv,.0032),.000001,10),
     reactionFeed:clamp(num(E.reactionFeed,.0220),0,1),
@@ -4676,7 +4868,12 @@ async function calcEuler1D(p,serial){
         F0[i]=.5*(fl[0]+fr[0])-.5*aa*(UR[0]-UL[0]);F1[i]=.5*(fl[1]+fr[1])-.5*aa*(UR[1]-UL[1]);F2[i]=.5*(fl[2]+fr[2])-.5*aa*(UR[2]-UL[2]);
       }
       var nr=new Float64Array(N),nm=new Float64Array(N),ne=new Float64Array(N);
-      for(i=0;i<N;i++){nr[i]=rho[i]-dt/dx*(F0[i+1]-F0[i]);nm[i]=mom[i]-dt/dx*(F1[i+1]-F1[i]);ne[i]=ene[i]-dt/dx*(F2[i+1]-F2[i]);if(nr[i]<=0)throw new Error("Euler計算で非正密度が発生しました。格子・条件を見直してください。");}
+      for(i=0;i<N;i++){
+        nr[i]=rho[i]-dt/dx*(F0[i+1]-F0[i]);nm[i]=mom[i]-dt/dx*(F1[i+1]-F1[i]);ne[i]=ene[i]-dt/dx*(F2[i+1]-F2[i]);
+        if(!(nr[i]>0))throw new Error("Euler計算で非正密度が発生しました。格子・条件を見直してください。");
+        var rawP=(g-1)*(ne[i]-.5*nm[i]*nm[i]/nr[i]);
+        if(!(rawP>0)||!Number.isFinite(rawP))throw new Error("Euler計算で非正圧力が発生しました。格子を細かくするか条件を弱めてください。");
+      }
       rho=nr;mom=nm;ene=ne;remain-=dt;
     }
     frames.push(new Float64Array(rho));z=saveAux();velFrames.push(z[0]);pressureFrames.push(z[1]);times.push(f*displayDt);updateCalculationProgress(100*f/(fc-1));if(f%4===0)await maybeYieldToBrowser(serial,false);
@@ -4694,8 +4891,13 @@ function allenEnergy(field,N,dx,eps,is2){
 }
 async function calcAllenCahn(p,serial){
   var is2=p.mode==="2d",N=is2?p.grid2d:p.grid1d,dx=is2?p.L/N:p.L/N,M=p.allenMobility,eps=p.allenEpsilon,fc=is2?160:240,displayDt=p.T/(fc-1),u;
-  if(is2){u=init2D(p.type,N,p.L,p.sigma,dx,dx);for(var k=0;k<u.length;k++)u[k]=2*u[k]-1;}
-  else{u=init1D(p.type,N,p.L,p.sigma,dx);for(var i=0;i<N;i++)u[i]=2*u[i]-1;}
+  if(is2){
+    u=init2D(p.type,N,p.L,p.sigma,dx,dx);
+    if(p.type!=="positive-negative"&&p.type!=="left-right")for(var k=0;k<u.length;k++)u[k]=2*u[k]-1;
+  }else{
+    u=init1D(p.type,N,p.L,p.sigma,dx);
+    if(p.type!=="positive-negative"&&p.type!=="left-right")for(var i=0;i<N;i++)u[i]=2*u[i]-1;
+  }
   frames=[new Float64Array(u)];times=[0];var stable=.18/(M*(is2?4:2)*eps*eps/(dx*dx)+2*M),micro=Math.max(1,Math.ceil(displayDt/stable)),dt=displayDt/micro;
   if(micro>100000)throw new Error("Allen–Cahnの内部時間刻みが多すぎます。");
   for(var f=1;f<fc;f++){for(var m=0;m<micro;m++){var un=new Float64Array(u.length);
@@ -4707,9 +4909,28 @@ async function calcAllenCahn(p,serial){
   state={mode:p.mode,equationKind:"allen-cahn",equationType:"allen-cahn",fieldLabel:"φ",fieldAxisLabel:"φ(x,t)",L:p.L,N:N,dx:dx,dy:is2?dx:undefined,periodic:true,px:true,py:true,plotMin:-1.1,plotMax:1.1,allenEnergy0:en0,allenEnergyFinal:enf};
   E.dx.textContent="N = "+(is2?N+"×"+N:N)+"　Δx = "+dx.toPrecision(4);E.dt.textContent="内部 Δt = "+dt.toPrecision(4);var mean0=0;for(var qi=0;qi<frames[0].length;qi++)mean0+=frames[0][qi];mean0/=frames[0].length;E.mass.textContent="自由エネルギー F = "+enf.toPrecision(5)+"（初期 "+en0.toPrecision(5)+"）";
 }
+function initKS1D(N,L,dx,a,b,mode){
+  var u=new Float64Array(N),km=a>0?Math.sqrt(a/(2*b)):2*Math.PI/L;
+  var n0=Math.max(1,Math.round(km*L/(2*Math.PI)));
+  function k(n){return 2*Math.PI*n/L;}
+  for(var i=0;i<N;i++){
+    var x=i*dx;
+    if(mode==="fastest-mode")u[i]=0.12*Math.sin(k(n0)*x);
+    else if(mode==="broadband"){
+      u[i]=0.035*(Math.sin(k(Math.max(1,n0-3))*x+0.31)+.85*Math.sin(k(Math.max(1,n0-1))*x+1.17)+.70*Math.sin(k(n0+2)*x+2.03)+.45*Math.sin(k(n0+5)*x+0.62));
+    }else if(mode==="localized"){
+      var d=Math.min(Math.abs(x-.5*L),L-Math.abs(x-.5*L));
+      u[i]=0.55*Math.exp(-(d*d)/(2*(.055*L)**2));
+    }else{
+      u[i]=0.075*Math.sin(k(Math.max(1,n0-1))*x+0.2)+0.065*Math.sin(k(n0)*x+1.1)+0.055*Math.sin(k(n0+1)*x+2.0);
+    }
+  }
+  var mean=0;for(i=0;i<N;i++)mean+=u[i];mean/=N;for(i=0;i<N;i++)u[i]-=mean;
+  return u;
+}
 async function calcKS1D(p,serial){
-  var N=p.grid1d,dx=p.L/N,a=p.ksNu2,b=p.ksNu4,fc=240,displayDt=p.T/(fc-1),u=init1D(p.type,N,p.L,p.sigma,dx);
-  for(var i=0;i<N;i++)u[i]=2*(u[i]-.5);
+  var N=p.grid1d,dx=p.L/N,a=p.ksNu2,b=p.ksNu4,fc=240,displayDt=p.T/(fc-1),u=initKS1D(N,p.L,dx,a,b,p.ksInitial);
+  var i;
   function rhs(v){var d=periodicDerivatives1D(v,dx,true),r=new Float64Array(N);for(var j=0;j<N;j++)r[j]=-v[j]*d.ux[j]-a*d.uxx[j]-b*d.uxxxx[j];return r;}
   frames=[new Float64Array(u)];times=[0];var lastdt=0;
   for(var f=1;f<fc;f++){var umax=0;for(i=0;i<N;i++)umax=Math.max(umax,Math.abs(u[i]));var stable=Math.min(.18*dx/(umax+1e-9),.08*dx*dx/(a+1e-12),.04*dx**4/b);var micro=Math.max(1,Math.ceil(displayDt/stable));if(micro>150000)throw new Error("Kuramoto–Sivashinskyの内部時間刻みが多すぎます。格子数・b・計算時間を見直してください。");lastdt=displayDt/micro;
@@ -5109,8 +5330,9 @@ async function calcNavierStokes2D(p,serial){
           var dwdx=(u>=0?(omega[k]-omega[k-1]):(omega[k+1]-omega[k]))/dx,dwdy=(v>=0?(omega[k]-omega[k-N]):(omega[k+N]-omega[k]))/dx;
           var lap=(omega[k+1]+omega[k-1]+omega[k+N]+omega[k-N]-4*omega[k])/(dx*dx);omegaNext[k]=omega[k]+dt*(-u*dwdx-v*dwdy+nu*lap);
         }
-        // Thom wall-vorticity formula; moving top wall contributes +2U/dx with this sign convention.
-        for(i=1;i<N-1;i++){omegaNext[i]=-2*psi[N+i]/(dx*dx);omegaNext[(N-1)*N+i]=-2*psi[(N-2)*N+i]/(dx*dx)+2*p.nsLidSpeed/dx;}
+        // Thom wall-vorticity formula. With omega=v_x-u_y=-lap(psi) and u=psi_y,
+        // a right-moving top wall contributes -2 U_lid/dx.
+        for(i=1;i<N-1;i++){omegaNext[i]=-2*psi[N+i]/(dx*dx);omegaNext[(N-1)*N+i]=-2*psi[(N-2)*N+i]/(dx*dx)-2*p.nsLidSpeed/dx;}
         for(j=1;j<N-1;j++){omegaNext[j*N]=-2*psi[j*N+1]/(dx*dx);omegaNext[j*N+N-1]=-2*psi[j*N+N-2]/(dx*dx);}
       }
       var sw=omega;omega=omegaNext;omegaNext=sw;elapsed+=dt;
@@ -5297,9 +5519,14 @@ function escDef(v){
   });
 }
 
+function formatDefinitionFormula(formula){
+  return String(formula||"").split("<br>").map(function(line){
+    return '<span class="eq-line">'+line+'</span>';
+  }).join("");
+}
 function defSection(title,formula,text){
   return '<section class="definition-section"><h3>'+title+'</h3>'+
-    (formula?'<div class="definition-formula">'+formula+'</div>':'')+
+    (formula?'<div class="definition-formula">'+formatDefinitionFormula(formula)+'</div>':'')+
     (text?'<div class="definition-text">'+text+'</div>':'')+'</section>';
 }
 
@@ -5344,7 +5571,11 @@ function equationDefinition(type,dim){
         (E.dimension.value==="2d"&&E.waveObstacleMode.value!=="off"?" 内部障害物ではマスク界面の数値流束に q·n=0 の反射条件を直接課します。":"")
     };
   }
-  else if(type==="kdv") d={title:"Korteweg–de Vries (KdV) 方程式",f:"∂u/∂t+αu∂u/∂x+β∂³u/∂x³=0",t:"α は非線形性、β は分散の強さです。非線形項は波を急峻化し、三階微分の分散項は波数ごとに異なる位相速度を与えます。両者の釣り合いでソリトンが存在します。"};
+  else if(type==="kdv") d={
+    title:"Korteweg–de Vries (KdV) 方程式",
+    f:"∂u/∂t + αu ∂u/∂x + β ∂³u/∂x³ = 0",
+    t:"α は非線形係数、β>0 は分散係数です。αu uₓ は振幅依存の伝播速度による非線形急峻化、βuₓₓₓ は線形分散を表します。α≠0, β>0 のとき両者が釣り合う孤立波解を持ちます。"
+  };
   else if(type==="euler") d={title:"1D圧縮性Euler方程式",f:"∂ρ/∂t+∂(ρu)/∂x=0<br>∂(ρu)/∂t+∂(ρu²+p)/∂x=0<br>∂E/∂t+∂[u(E+p)]/∂x=0",t:"ρ は密度、u は流速、p は圧力、E は単位体積あたりの全エネルギーです。理想気体 p=(γ−1)(E−ρu²/2) で閉じます。粘性を明示しない保存則ですが、弱解として衝撃波を扱えます。"};
   else if(type==="allen-cahn") d={title:"Allen–Cahn方程式",f:"∂φ/∂t=M(ε²∇²φ+φ−φ³)",t:"φ は非保存秩序変数、M は移動度、ε は界面幅を決める係数です。φ≈±1 が安定相で、界面は自由エネルギーを下げる方向へ動きます。Cahn–Hilliardと違って平均φは一般に保存されません。"};
   else if(type==="kuramoto-sivashinsky") d={title:"Kuramoto–Sivashinsky方程式",f:"∂u/∂t+u∂u/∂x+a∂²u/∂x²+b∂⁴u/∂x⁴=0",t:"a>0 の二階項は長波長を線形不安定化し、b>0 の四階項は短波長を強く減衰させます。非線形移流との競合により複雑な時空間発展が生じます。"};
@@ -5370,12 +5601,12 @@ function equationDefinition(type,dim){
   };
   else if(type==="navier-stokes") d={
     title:"2D非圧縮性Navier–Stokes方程式（渦度–流れ関数形式）",
-    f:"∂ω/∂t+u·∇ω=ν∇²ω<br>∇²ψ=−ω<br>u=∂ψ/∂y,　v=−∂ψ/∂x,　∇·u=0",
+    f:"∂ω/∂t + 𝐮·∇ω = ν∇²ω<br>∇²ψ = −ω<br>u = ∂ψ/∂y,　v = −∂ψ/∂x,　𝐮=(u,v),　∇·𝐮=0",
     t:"ω=∂v/∂x−∂u/∂y は渦度、ψ は流れ関数、ν は動粘性係数です。流れ関数から速度を作ることで非圧縮条件を満たします。自然対流モードは、この渦度方程式に温度輸送方程式とBoussinesq浮力による渦度生成を追加した拡張です。"
   };
   else if(type==="convection") d={
     title:"Boussinesq自然対流",
-    f:"∂T/∂t + ∇·(uT) = κ∇²T<br>∂ω/∂t + ∇·(uω) = ν∇²ω + gβ ∂T/∂x<br>∇²ψ = −ω,　u=∂ψ/∂y,　v=−∂ψ/∂x",
+    f:"∂T/∂t + ∇·(𝐮T) = κ∇²T<br>∂ω/∂t + ∇·(𝐮ω) = ν∇²ω + gβ ∂T/∂x<br>∇²ψ = −ω,　u=∂ψ/∂y,　v=−∂ψ/∂x",
     t:"温度 T の差が浮力を生み、渦度 ω と流速場 u を作り、その流れが再び温度を輸送します。κ は熱拡散率、ν は動粘性係数、g は重力加速度、β は熱膨張係数です。このシミュレータでは gβ の積を浮力係数として入力します。"
   };
   else if(type==="shallow-water-1d") d={
@@ -5425,7 +5656,7 @@ function equationTermExplanation(type,dim){
     add("c","波が情報を伝える速度です。");
   }else if(type==="kdv"){
     add("αu∂u/∂x","振幅に依存して伝播速度を変える非線形項で、波形を急峻化させます。");
-    add("β∂³u/∂x³","分散項です。Fourierモードごとに異なる位相速度を与え、波束を広げる作用を持ちます。");
+    add("β∂³u/∂x³","分散項です。Fourierモードごとに異なる位相速度を与え、一般の波形に位相分散・波形変化を生じさせます。ソリトンでは非線形項と釣り合います。");
     add("ソリトン","非線形急峻化と分散が釣り合うと、形をほぼ保って進む孤立波が成立します。");
   }else if(type==="euler"){
     add("ρu","質量フラックスです。");
@@ -5496,7 +5727,7 @@ function equationTermExplanation(type,dim){
     add("c=√(gh)","浅水重力波の局所的な代表波速です。海底が浅くなると波速が下がり、波面の屈折や浅水化が起こり得ます。");
     add("長波（浅水）仮定","代表水深 H が波・地形の代表水平スケール Lc より十分小さい H/Lc≪1 を仮定します。鉛直速度構造・強い分散・砕波が重要な条件では浅水方程式だけでは不十分です。");
   }
-  return rows.length?'<div class="definition-text" style="margin-top:10px">'+rows.join("<br><br>")+"</div>":"";
+  return rows.length?'<div class="definition-term-list">'+rows.map(function(x){return '<div class="definition-term-item">'+x+'</div>';}).join("")+"</div>":"";
 }
 
 function initialDefinition(type,dim){
@@ -5507,8 +5738,8 @@ function initialDefinition(type,dim){
     "double-gaussian":["2つの Gaussian","φ = Σₙ Aₙ exp(−rₙ²/(2σ²))","2個の滑らかな局在分布を重ねます。"],
     "triple-gaussian":["3つの Gaussian","φ = Σₙ Aₙ exp(−rₙ²/(2σ²))","3個の滑らかな局在分布を重ねます。"],
     "triangle":["三角形分布","中心で最大、中心からの距離に対して線形に減少","Gaussianより角を持ち、ステップより連続な初期形状です。"],
-    "sine":["正弦波",dim==="1d"?"φ = φ₀ + A sin(2πx/L)":"φ = φ₀ + A sin(2πx/L) sin(2πy/L)","単一の低波数モードです。Fourier解析や解析解比較に特に適しています。"],
-    "ring":["リング","φ = φ₀ + A exp(−(r−r₀)²/(2σ²))","2Dで環状の分布を与えます。半径方向の変形や輸送を観察できます。"],
+    "sine":["正弦波",dim==="1d"?"φ = φ₀ + A sin(2πx/L)":(dim==="3d"?"φ = φ₀ + A sin(2πx/L) sin(2πy/L) sin(2πz/L)":"φ = φ₀ + A sin(2πx/L) sin(2πy/L)"),"単一の低波数モードです。Fourier解析や解析解比較に特に適しています。"],
+    "ring":[dim==="3d"?"球殻 Gaussian":"リング","φ = φ₀ + A exp(−(r−r₀)²/(2σ²))",dim==="3d"?"3Dでは球殻状の分布を与えます。":"2Dで環状の分布を与えます。半径方向の変形や輸送を観察できます。"],
     "random":["不規則分布","φ = φ₀ + 再現可能な空間擾乱","乱数シードを固定した再現可能な不規則初期場です。"],
     "positive-negative":["正負の Gaussian 対","φ = +G₁ − G₂","正の山と負の谷を組み合わせ、符号を持つ場の輸送を観察します。"],
     "checkerboard":["チェッカーボード","高値・低値を格子状に交互配置","多数の鋭い界面を含む2D初期条件です。"],
@@ -5522,6 +5753,63 @@ function initialDefinition(type,dim){
   return {title:a[0],f:a[1],t:a[2]};
 }
 
+
+function currentInitialDefinition(type,dim){
+  if(type==="kdv"){
+    var mode=E.kdvInitial.value,a=num(E.kdvAlpha,6),b=num(E.kdvBeta,.02);
+    if(mode==="soliton"){
+      return {
+        title:"KdV 1ソリトン",
+        f:"u(x,0) = (3c/α) sech²[√(c/(4β)) (x−x₀)]",
+        t:"この初期条件では c=1, x₀=0.3L を用います。KdV方程式 uₜ+αuuₓ+βuₓₓₓ=0 の無限領域における1ソリトン解の t=0 断面です。現在の周期領域では裾が境界で十分小さいときに良い近似になります。"
+      };
+    }
+    if(mode==="two-solitons"){
+      return {
+        title:"2つの孤立波の重ね合わせ",
+        f:"u(x,0) = Σₙ (3cₙ/α) sech²[√(cₙ/(4β)) (x−xₙ)]",
+        t:"c₁=1, c₂=0.45 の2つの単独ソリトン形状を離して重ねた初期値です。KdVの厳密な2ソリトン解そのものではなく、相互作用を観察するための近似的な初期配置です。"
+      };
+    }
+    return {title:"KdV Gaussian",f:"u(x,0)=exp[−(x−x₀)²/(2σ²)]",t:"一般の局在波束としてGaussianを与えます。これはKdVの厳密ソリトンではありません。"};
+  }
+  if(type==="allen-cahn"||type==="cahn-hilliard"){
+    var base=initialDefinition(E.initial.value,dim),signed=(E.initial.value==="positive-negative"||E.initial.value==="left-right");
+    return {
+      title:(type==="allen-cahn"?"Allen–Cahn：":"Cahn–Hilliard：")+base.title,
+      f:signed?base.f:"φ(x,0) = 2G(x) − 1　（G：選択した0〜1初期分布）",
+      t:(signed?"この初期条件はもともと正負の値を持つため、そのままφとして使います。":"選択した通常の0〜1初期分布を−1〜1へ写像し、二重井戸自由エネルギーの二相 φ≈±1 と対応させます。")+" "+base.t
+    };
+  }
+  if(type==="wave"&&E.waveModel.value==="shallow"){
+    var b=initialDefinition(E.initial.value,dim);
+    return {title:"浅水波："+b.title,f:"η(x,0)=H + A G(x),　h(x,0)=η(x,0)−b(x),　𝐮(x,0)=0",t:"Gは選択した初期形状、Hは基準自由水面、bは上向きを正とする海底高度です。水深hそのものではなく自由水面ηを摂動して初期化します。"};
+  }
+  if(type==="wave"&&E.waveModel.value==="deep"){
+    var d=initialDefinition(E.initial.value,"1d");
+    return {title:"深水波："+d.title,f:"η(x,0)=G(x),　∂η/∂t(x,0)=0",t:"選択したG(x)を初期自由水面変位としてFourier分解し、各波数成分を深水分散関係 ω²=g|k| で時間発展させます。"};
+  }
+  if(type==="euler"){
+    var em=E.eulerInitial.value;
+    if(em==="sod")return {title:"Sod shock tube",f:"(ρ,u,p)_L=(1,0,1),　(ρ,u,p)_R=(0.125,0,0.1)",t:"中央に1つの不連続を置く標準Riemann問題です。希薄波・接触不連続・衝撃波が生じます。"};
+    if(em==="lax")return {title:"Lax shock tube",f:"(ρ,u,p)_L=(0.445,0.698,3.528),　(ρ,u,p)_R=(0.5,0,0.571)",t:"圧縮性Euler方程式の代表的なRiemann問題です。"};
+    return {title:"強い圧力差",f:"(ρ,u,p)_L=(1,0,10),　(ρ,u,p)_R=(1,0,0.1)",t:"左右の大きな圧力差から強い圧縮・膨張波を発生させます。"};
+  }
+  if(type==="reaction-diffusion"){
+    return {title:"Gray–Scott："+E.reactionInitial.options[E.reactionInitial.selectedIndex].textContent,f:"U≈1, V≈0 の背景に局所シードを配置",t:"選択したシード形状からV成分を局所的に導入し、反応・供給・除去・拡散によるパターン形成を開始します。"};
+  }
+  if(type==="convection"){
+    return {title:"自然対流："+E.convInitial.options[E.convInitial.selectedIndex].textContent,f:"T(x,y,0) を選択した温度分布で設定、ω(x,y,0)=0",t:"初期温度差がBoussinesq浮力を通じて渦度を生成し、その後の流れが温度を輸送します。"};
+  }
+  if(type==="navier-stokes"){
+    var nm=E.nsInitial.value;
+    if(nm==="lid-cavity")return {title:"上壁駆動キャビティ",f:"初期 𝐮=0、上壁のみ u=U_lid",t:"静止流体から開始し、移動する上壁が粘性を介して流れと渦度を生成します。"};
+    if(nm==="taylor-green")return {title:"Taylor–Green渦",f:"ω(x,y,0)=2k sin(kx) sin(ky),　k=2π/L",t:"現在の流れ関数規約 ∇²ψ=−ω, u=ψ_y, v=−ψ_x と整合する周期渦です。粘性のみなら振幅は exp(−2νk²t) で減衰します。"};
+    return {title:"周期せん断層",f:"2本のせん断層＋小さな周期擾乱",t:"Kelvin–Helmholtz型の巻き上がりを観察するための周期初期渦度場です。"};
+  }
+  return initialDefinition(E.initial.value,dim);
+}
+
 function boundaryDefinition(type){
   var map={
     periodic:["周期境界","φ(0,t)=φ(L,t)","領域の両端を接続します。片側から出た分布は反対側から入ります。"],
@@ -5529,7 +5817,8 @@ function boundaryDefinition(type){
     dirichlet:["Dirichlet境界","φ|境界 = 指定値","境界上の場の値そのものを固定します。"],
     robin:["Robin境界","aφ + b∂φ/∂n = c","値と法線微分を線形結合した境界条件です。Dirichlet・Neumannを一般化します。"],
     outflow:["開放境界","流出側：外挿／ゼロ勾配　流入側：指定値","移流を含む問題で、領域外へ出る流れをできるだけ反射させず扱うための境界です。"],
-    absorbing:["吸収境界（一次放射境界）","入射特性 = 0","波動方程式用です。境界へ到達した波をできるだけ領域外へ通し、人工的な反射を抑えます。有限差分上の近似なので完全無反射ではありません。"]
+    absorbing:["吸収境界（一次放射境界）","入射特性 = 0","波動方程式用です。境界へ到達した波をできるだけ領域外へ通し、人工的な反射を抑えます。有限差分上の近似なので完全無反射ではありません。"],
+    "no-slip":["no-slip壁","𝐮·𝐧=0,　𝐮_t=𝐔_wall","壁を流体が貫通せず、接線速度は壁速度に一致します。上壁駆動キャビティでは上壁だけ 𝐔_wall=(U_lid,0)、その他の壁は静止壁です。"]
   };
   var a=map[type]||["境界条件","—",""];
   return {title:a[0],f:a[1],t:a[2]};
@@ -5547,9 +5836,12 @@ function analyticalDefinition(){
     "2Dでは i は (i,j) の全格子点をまとめて表す添字として扱っています。<br><br>";
 
   if(info.ok){
+    var kdvRef=(state&&state.equationKind==="kdv");
     origin+=
       "<b>現在の u_exact の作り方</b><br>"+escDef(info.description)+"<br>"+
-      "つまり u_exact は数値解から作った近似値ではなく、現在の設定で利用できる解析解・固有関数展開・Fourier展開を使って独立に計算した基準解です。<br><br>";
+      (kdvRef
+        ?"KdVの周期計算では、u_exact という変数名を共通UI上そのまま使っていますが、実体は無限領域1ソリトンを周期領域へ置いた参照解です。境界で裾が無視できる条件で解析解比較として有効です。<br><br>"
+        :"u_exact は数値解から作った近似値ではなく、現在の設定で利用できる解析解・固有関数展開・Fourier展開を使って独立に計算した基準解です。<br><br>");
   }else{
     origin+=
       "<b>現在の設定</b><br>"+escDef(info.reason||"解析解比較対象外です。")+"<br><br>";
@@ -5569,12 +5861,16 @@ function analyticalDefinition(){
 function renderDefinitions(){
   var dim=document.getElementById("dimension").value;
   var type=document.getElementById("equation-type").value;
-  var init=document.getElementById("initial").value;
   var eq=equationDefinition(type,dim);
-  var ic=initialDefinition(init,dim);
+  var ic=currentInitialDefinition(type,dim);
 
   var html=defSection("現在の方程式："+eq.title,eq.f,eq.t+equationTermExplanation(type,dim));
   html+=defSection("現在の初期条件："+ic.title,ic.f,ic.t);
+  if(type==="kdv"&&E.kdvInitial.value==="soliton"){
+    html+=defSection("1ソリトンの時間発展",
+      "u(x,t) = (3c/α) sech²[√(c/(4β)) (x−x₀−ct)]",
+      "無限領域での厳密な進行波解です。このアプリでは c=1 を使います。周期境界上では、この式の裾が境界で十分小さい場合に参照解として用います。");
+  }
 
   var solverBoundary=(dim==="3d")?"periodic":(type==="kdv"||type==="kuramoto-sivashinsky"||type==="allen-cahn")?"periodic":(type==="euler"?"outflow":(type==="navier-stokes"?(E.nsInitial.value==="lid-cavity"?"no-slip":"periodic"):null));
   if(solverBoundary){
@@ -5646,7 +5942,7 @@ function analyticalSupportInfo(){
 
   if(state.mode==="1d"&&state.equationKind==="kdv"&&state.kdvInitial==="soliton"){
     return {ok:true,type:"kdv-soliton",
-      description:"KdVの1ソリトン厳密解 u(x,t)=(3c/α) sech²[√(c/(4β))(x−x₀−ct)] を周期距離で評価します。初期条件生成と同じ c=1, x₀=0.3L を用います。有限周期領域では孤立波の裾が境界で厳密には無限領域解と一致しないため、境界から十分離れた条件で最も良い基準になります。"};
+      description:"無限領域KdVの1ソリトン厳密解 u(x,t)=(3c/α) sech²[√(c/(4β))(x−x₀−ct)] を、周期領域内の参照解として評価します。c=1, x₀=0.3L を用います。周期境界そのものの厳密解ではないため、ソリトンの裾が境界で十分小さい場合に高精度な基準となります。"};
   }
   if(state.mode==="1d"&&state.periodic){
     if(state.equationKind==="scalar"&&
@@ -7537,14 +7833,14 @@ function scaleRange3D(field,signed){
 var view3dCamera={yaw:-0.72,pitch:0.48,zoom:1.0,drag:false,lastX:0,lastY:0,pinch:0};
 
 function update3DViewControls(){
-  var volume=E.viewMode3d.value==="volume";
-  E.isoLevel3dGroup.style.display=volume?"grid":"none";
+  var mode=E.viewMode3d.value,volume=mode==="volume",single=mode==="slice";
+  E.surfacePreset3dGroup.style.display=volume?"grid":"none";
   E.isoCount3dGroup.style.display=volume?"grid":"none";
-  E.sliceAxis3dGroup.style.display=volume?"none":"grid";
-  E.slicePosition3dGroup.style.display=volume?"none":"grid";
+  E.sliceAxis3dGroup.style.display=single?"grid":"none";
+  E.slicePosition3dGroup.style.display=single?"grid":"none";
   E.view3dHint.textContent=volume
-    ?"ドラッグで回転、ホイール/ピンチで拡大縮小できます。格子セル内を線形補間して等値面を三角形メッシュとして表示します。x・y・z軸は右手系（x×y=z）です。"
-    :"3D場を2D断面として表示します。断面方向と位置を変更できます。";
+    ?"回転できる立体表示です。「弱い部分まで／標準／強い部分」を選ぶだけで表示面を切り替えられます。座標は右手系 x×y=z です。"
+    :(single?"1枚の断面を大きく表示します。断面方向と位置を変更できます。":"中央の x–y・x–z・y–z 断面を同時表示します。3D分布の位置と広がりを最も直感的に確認できる表示です。");
 }
 function rotate3DPoint(x,y,z){
   var cy=Math.cos(view3dCamera.yaw),sy=Math.sin(view3dCamera.yaw);
@@ -7650,8 +7946,32 @@ function draw3DVolume(){
   ctx.fillText("等値面: "+target.toPrecision(4)+"　三角形: "+all.length,w>360?18:8,20);
   ctx.fillText("右手系 x×y=z　drag: 回転　wheel/pinch: zoom",w>360?18:8,h-12);
 }
+function draw3DOrthoslices(){
+  var sz=canvasSize(),w=sz.w,h=sz.h;ctx.clearRect(0,0,w,h);
+  var field=frames[current],N=state.N,signed=(state.equationKind==="wave3d"),range=scaleRange3D(field,signed),vmin=range[0],vmax=range[1],span=Math.max(vmax-vmin,1e-12);
+  var axes=["xy","xz","yz"],titles=["x–y（中央 z）","x–z（中央 y）","y–z（中央 x）"];
+  var gap=12,top=34,bottom=38,availW=w-24,cols=w<560?1:3;
+  var panelW=cols===1?Math.min(availW,h*.29):((availW-gap*2)/3);
+  var panelH=cols===1?Math.max(105,(h-top-bottom-gap*2)/3):Math.min(panelW,h-top-bottom);
+  for(var a=0;a<3;a++){
+    var sl=slice3D(field,N,axes[a],.5),data=sl.data;
+    var off=document.createElement("canvas");off.width=N;off.height=N;var oc=off.getContext("2d"),img=oc.createImageData(N,N);
+    for(var j=0;j<N;j++)for(var i=0;i<N;i++){
+      var val=data[j*N+i],rgb=signed?divergingColorRange(val,vmin,vmax):colorMap((val-vmin)/span),pix=((N-1-j)*N+i)*4;
+      img.data[pix]=rgb[0];img.data[pix+1]=rgb[1];img.data[pix+2]=rgb[2];img.data[pix+3]=255;
+    }
+    oc.putImageData(img,0,0);
+    var x=cols===1?(w-panelW)/2:12+a*(panelW+gap),y=cols===1?top+a*(panelH+gap):top;
+    ctx.imageSmoothingEnabled=false;ctx.drawImage(off,x,y,panelW,panelH);
+    ctx.strokeStyle="rgba(100,110,125,.65)";ctx.strokeRect(x,y,panelW,panelH);
+    ctx.fillStyle=css("--text");ctx.font="bold 12px sans-serif";ctx.fillText(titles[a],x+5,y-8);
+  }
+  ctx.fillStyle=css("--muted");ctx.font="12px sans-serif";
+  ctx.fillText("中央3断面を同一カラースケールで表示",12,18);
+}
 function draw3D(){
   update3DViewControls();
+  if(E.viewMode3d.value==="orthoslices"){draw3DOrthoslices();return;}
   if(E.viewMode3d.value==="volume"){draw3DVolume();return;}
   var sz=canvasSize(),w=sz.w,h=sz.h;ctx.clearRect(0,0,w,h);
   var N=state.N,axis=E.sliceAxis3d.value,frac=Number(E.slicePosition3d.value),sl=slice3D(frames[current],N,axis,frac),data=sl.data;
@@ -9167,6 +9487,12 @@ E.playbackDisplayQuantity.addEventListener("change",function(){
   updateScaleControlsUI();draw();
 });
 E.viewMode3d.addEventListener("change",function(){update3DViewControls();if(state&&state.mode==="3d")draw();});
+E.surfacePreset3d.addEventListener("change",function(){
+  var m=this.value;
+  E.isoLevel3d.value=(m==="outer"?"0.32":m==="core"?"0.74":"0.55");
+  E.isoCount3d.value=(m==="core"?"2":"1");
+  if(state&&state.mode==="3d")draw();
+});
 E.isoLevel3d.addEventListener("input",function(){E.isoLevel3dOutput.value=Math.round(Number(this.value)*100)+"%";if(state&&state.mode==="3d")draw();});
 E.isoCount3d.addEventListener("change",function(){if(state&&state.mode==="3d")draw();});
 E.resetCamera3d.addEventListener("click",function(){view3dCamera.yaw=-.72;view3dCamera.pitch=.48;view3dCamera.zoom=1;if(state&&state.mode==="3d")draw();});
@@ -9572,6 +9898,29 @@ E.slider.addEventListener("input",function(){
 });
 window.addEventListener("resize",draw);
 
+
+[
+ [E.burgersPreset,E.burgersPresetDescription,"burgers"],
+ [E.kdvPreset,E.kdvPresetDescription,"kdv"],
+ [E.eulerPreset,E.eulerPresetDescription,"euler"],
+ [E.allenPreset,E.allenPresetDescription,"allen"],
+ [E.burgers2dPreset,E.burgers2dPresetDescription,"burgers2d"],
+ [E.cahnPreset,E.cahnPresetDescription,"cahn"],
+ [E.nsPreset,E.nsPresetDescription,"ns"],
+ [E.convectionPreset,E.convectionPresetDescription,"convection"],
+ [E.shallowPreset,E.shallowPresetDescription,"shallow"]
+].forEach(function(x){x[0].addEventListener("change",function(){setInterestingPreset(x[0],x[1],x[2],true);});});
+[
+ [E.burgersNu,E.burgersPreset],[E.kdvAlpha,E.kdvPreset],[E.kdvBeta,E.kdvPreset],[E.kdvInitial,E.kdvPreset],
+ [E.eulerGamma,E.eulerPreset],[E.eulerInitial,E.eulerPreset],
+ [E.allenMobility,E.allenPreset],[E.allenEpsilon,E.allenPreset],
+ [E.burgers2dNu,E.burgers2dPreset],[E.burgers2dInitialVector,E.burgers2dPreset],
+ [E.cahnM,E.cahnPreset],[E.cahnKappa,E.cahnPreset],
+ [E.nsNu,E.nsPreset],[E.nsInitial,E.nsPreset],[E.nsLidSpeed,E.nsPreset],
+ [E.nu,E.convectionPreset],[E.buoyancy,E.convectionPreset],[E.convInitial,E.convectionPreset],
+ [E.shallowG,E.shallowPreset],[E.shallowH0,E.shallowPreset],[E.shallowTerrain,E.shallowPreset],[E.shallowTsunamiAmplitude,E.shallowPreset]
+].forEach(function(x){x[0].addEventListener("input",function(){markInterestingCustom(x[1]);});});
+E.ksInitial.addEventListener("change",function(){updateKSInitialDescription();});
 updateEquationOptionsForDimension(E.equationType.value);
 updateModeUI();
 renderLandingEquations();
