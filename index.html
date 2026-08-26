@@ -340,6 +340,10 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
 .basic-playback button{padding:7px 11px}
 #basic-slider{flex:1}
 #basic-status{min-height:20px;margin-top:10px;font-size:12px;color:var(--muted)}
+.basic-validation-toggle{display:flex;align-items:center;gap:7px;margin-top:13px;font-size:13px;font-weight:750}
+.basic-validation-toggle input{width:auto}
+#basic-validation{margin-top:8px;padding:10px 12px;border-radius:10px;background:var(--soft);font-size:12px;line-height:1.55}
+.basic-validation-note{color:var(--muted);margin-top:3px}
 @media(max-width:560px){
   .basic-top{margin-bottom:26px}
   .basic-card{padding:17px}
@@ -372,6 +376,11 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
       <div class="basic-playback">
         <button id="basic-play" type="button">▶ 再生</button>
         <input id="basic-slider" type="range" min="0" max="119" value="0" step="1">
+      </div>
+      <label class="basic-validation-toggle"><input id="basic-show-exact" type="checkbox" checked> 解析解を重ねて検証</label>
+      <div id="basic-validation">
+        <div><b>解析解との誤差</b> <span id="basic-error">—</span></div>
+        <div class="basic-validation-note">Gaussian解析解を破線で重ねています。境界は解析解の値を与えるため、有限計算領域でも比較できます。</div>
       </div>
       <div id="basic-status">拡散係数を設定して「計算」を押してください。</div>
     </section>
@@ -1455,6 +1464,9 @@ var E={
   basicPlay:document.getElementById("basic-play"),
   basicSlider:document.getElementById("basic-slider"),
   basicTime:document.getElementById("basic-time"),
+  basicShowExact:document.getElementById("basic-show-exact"),
+  basicError:document.getElementById("basic-error"),
+  basicValidation:document.getElementById("basic-validation"),
   basicStatus:document.getElementById("basic-status"),
   landingScreen:document.getElementById("landing-screen"),
   simulatorScreen:document.getElementById("simulator-screen"),
@@ -2458,27 +2470,37 @@ var equationCatalog=[
 
 
 
-var basicFrames=[],basicTimes=[],basicCurrent=0,basicPlaying=false,basicRaf=null,basicLastTs=0;
-function basicGaussian(x,L){
-  var sigma=L*.10,xc=L*.5,z=(x-xc)/sigma;
-  return Math.exp(-.5*z*z);
+
+var basicFrames=[],basicExactFrames=[],basicTimes=[],basicErrors=[],basicCurrent=0,basicPlaying=false,basicRaf=null,basicLastTs=0;
+var BASIC_L=10,BASIC_N=181,BASIC_SIGMA=1,BASIC_X0=5,BASIC_T=10;
+function basicExactGaussian(x,t,D){
+  var s2=BASIC_SIGMA*BASIC_SIGMA+2*D*t;
+  return BASIC_SIGMA/Math.sqrt(s2)*Math.exp(-(x-BASIC_X0)*(x-BASIC_X0)/(2*s2));
 }
 function calculateBasicDiffusion(){
-  var D=Math.max(.0001,Math.min(10,Number(E.basicD.value)||.2));
-  E.basicD.value=String(D);
-  var L=10,N=181,dx=L/(N-1),T=10,fc=120,displayDt=T/(fc-1);
+  var D=Math.max(.0001,Math.min(10,Number(E.basicD.value)||.2));E.basicD.value=String(D);
+  var L=BASIC_L,N=BASIC_N,dx=L/(N-1),T=BASIC_T,fc=120,displayDt=T/(fc-1);
   var u=new Float64Array(N),next=new Float64Array(N);
-  for(var i=0;i<N;i++)u[i]=basicGaussian(i*dx,L);
-  basicFrames=[new Float64Array(u)];basicTimes=[0];
+  for(var i=0;i<N;i++)u[i]=basicExactGaussian(i*dx,0,D);
+  basicFrames=[];basicExactFrames=[];basicTimes=[];basicErrors=[];
+  function save(t){
+    var ex=new Float64Array(N),num=0,den=0;
+    for(var q=0;q<N;q++){ex[q]=basicExactGaussian(q*dx,t,D);var dd=u[q]-ex[q];num+=dd*dd;den+=ex[q]*ex[q];}
+    basicFrames.push(new Float64Array(u));basicExactFrames.push(ex);basicTimes.push(t);basicErrors.push(Math.sqrt(num/Math.max(den,1e-300)));
+  }
+  save(0);
   for(var f=1;f<fc;f++){
-    var elapsed=0;
-    while(elapsed<displayDt-1e-14){
-      var dt=Math.min(displayDt-elapsed,.45*dx*dx/(2*D));
-      next[0]=u[0];next[N-1]=u[N-1];
+    var target=f*displayDt,elapsed=(f-1)*displayDt;
+    while(elapsed<target-1e-14){
+      var dt=Math.min(target-elapsed,.45*dx*dx/(2*D));
+      // Open/truncated computational interval: boundary values are supplied by the
+      // exact infinite-domain Gaussian solution, rather than held fixed.
+      var tn=elapsed+dt;
+      next[0]=basicExactGaussian(0,tn,D);next[N-1]=basicExactGaussian(L,tn,D);
       for(i=1;i<N-1;i++)next[i]=u[i]+D*dt*(u[i+1]-2*u[i]+u[i-1])/(dx*dx);
-      var tmp=u;u=next;next=tmp;elapsed+=dt;
+      var tmp=u;u=next;next=tmp;elapsed=tn;
     }
-    basicFrames.push(new Float64Array(u));basicTimes.push(f*displayDt);
+    save(target);
   }
   basicCurrent=0;E.basicSlider.max=String(fc-1);E.basicSlider.value="0";
   E.basicStatus.textContent="計算完了：Gaussianの拡散を "+T+" s まで計算しました。";
@@ -2487,14 +2509,22 @@ function calculateBasicDiffusion(){
 function drawBasic(){
   if(!basicFrames.length)return;
   var c=E.basicChart,ctxb=c.getContext("2d"),w=c.width,h=c.height,p={l:52,r:18,t:18,b:38};
-  var pw=w-p.l-p.r,ph=h-p.t-p.b,data=basicFrames[basicCurrent],ymax=1.05;
-  ctxb.clearRect(0,0,w,h);ctxb.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue("--grid");ctxb.fillStyle=getComputedStyle(document.documentElement).getPropertyValue("--muted");ctxb.lineWidth=1;ctxb.font="12px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif";
+  var pw=w-p.l-p.r,ph=h-p.t-p.b,data=basicFrames[basicCurrent],exact=basicExactFrames[basicCurrent],ymax=1.05;
+  var css=getComputedStyle(document.documentElement),grid=css.getPropertyValue("--grid"),muted=css.getPropertyValue("--muted"),accent=css.getPropertyValue("--accent");
+  ctxb.clearRect(0,0,w,h);ctxb.strokeStyle=grid;ctxb.fillStyle=muted;ctxb.lineWidth=1;ctxb.font="12px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif";
   for(var j=0;j<=4;j++){var gy=p.t+ph*j/4;ctxb.beginPath();ctxb.moveTo(p.l,gy);ctxb.lineTo(w-p.r,gy);ctxb.stroke();ctxb.fillText((ymax*(1-j/4)).toFixed(2),8,gy+4);}
   for(j=0;j<=5;j++){var gx=p.l+pw*j/5;ctxb.beginPath();ctxb.moveTo(gx,p.t);ctxb.lineTo(gx,p.t+ph);ctxb.stroke();ctxb.fillText((10*j/5).toFixed(0),gx-4,h-12);}
-  ctxb.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue("--accent");ctxb.lineWidth=2.5;ctxb.beginPath();
+  ctxb.strokeStyle=accent;ctxb.lineWidth=2.5;ctxb.setLineDash([]);ctxb.beginPath();
   for(var i=0;i<data.length;i++){var x=p.l+pw*i/(data.length-1),y=p.t+ph*(ymax-data[i])/ymax;if(i===0)ctxb.moveTo(x,y);else ctxb.lineTo(x,y);}ctxb.stroke();
-  ctxb.fillStyle=getComputedStyle(document.documentElement).getPropertyValue("--muted");ctxb.fillText("x",w-p.r+4,h-12);ctxb.fillText("u",p.l-4,p.t-5);
+  if(E.basicShowExact.checked){
+    ctxb.strokeStyle=muted;ctxb.lineWidth=2;ctxb.setLineDash([8,6]);ctxb.beginPath();
+    for(i=0;i<exact.length;i++){x=p.l+pw*i/(exact.length-1);y=p.t+ph*(ymax-exact[i])/ymax;if(i===0)ctxb.moveTo(x,y);else ctxb.lineTo(x,y);}ctxb.stroke();ctxb.setLineDash([]);
+    ctxb.fillStyle=muted;ctxb.fillText("実線: 数値解   破線: 解析解",p.l+8,p.t+16);
+  }
+  ctxb.fillStyle=muted;ctxb.fillText("x",w-p.r+4,h-12);ctxb.fillText("u",p.l-4,p.t-5);
   E.basicTime.textContent="t = "+basicTimes[basicCurrent].toFixed(3);E.basicSlider.value=String(basicCurrent);
+  E.basicError.textContent="相対 L2 = "+basicErrors[basicCurrent].toExponential(3);
+  E.basicValidation.style.display=E.basicShowExact.checked?"block":"none";
 }
 function stopBasicPlayback(){basicPlaying=false;if(basicRaf!==null)cancelAnimationFrame(basicRaf);basicRaf=null;basicLastTs=0;E.basicPlay.textContent="▶ 再生";}
 function basicPlaybackStep(ts){
@@ -9744,6 +9774,7 @@ E.landingDim2d.addEventListener("click",function(){setLandingDimension("2d");});
 E.landingDim3d.addEventListener("click",function(){setLandingDimension("3d");});
 E.goTransport.addEventListener("click",function(){showTransportLanding();});
 E.basicCalculate.addEventListener("click",calculateBasicDiffusion);
+E.basicShowExact.addEventListener("change",drawBasic);
 E.basicSlider.addEventListener("input",function(){stopBasicPlayback();basicCurrent=Number(E.basicSlider.value)||0;drawBasic();});
 E.basicPlay.addEventListener("click",function(){if(!basicFrames.length)calculateBasicDiffusion();if(basicPlaying){stopBasicPlayback();return;}if(basicCurrent>=basicFrames.length-1)basicCurrent=0;basicPlaying=true;E.basicPlay.textContent="■ 停止";basicLastTs=0;basicRaf=requestAnimationFrame(basicPlaybackStep);});
 E.landingCustomMode.addEventListener("click",function(){openCustomSolver();});
