@@ -24,7 +24,7 @@ $`
 u_{\max}(0)=1
 `$
 
-である。ここでは物理量 u は無次元量とする。
+である。ここでは物理量 *u* は無次元量とする。
 
 |<img src="figure/initial-condition.png" width="600">|
 |:--:|
