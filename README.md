@@ -25,9 +25,9 @@ $u$
 | 図1: 初期条件のスナップショット |
 
 図２には 
-$t\approx5\;\mathrm{s}$
+$t\approx5\mathrm{s}$
 および 
-$t=10\;\mathrm{s}$ でのスナップショットを示す．
+$t=10\mathrm{s}$ でのスナップショットを示す．
 
 |<img src="figure/t-5s.png" width="400"><img src="figure/t-10s.png" width="400">|
 |:--:|
@@ -44,7 +44,7 @@ $t=10\;\mathrm{s}$ でのスナップショットを示す．
 
 に対し、シミュレータでは初期条件として
 
-    u(x,0) = exp[-(x-x0)²/(2σ0²)]
+   $u(x,0) = exp\bigg[-\farc{(x-x_0)^2}{2\sigma\theta^2} \bigg]$
 
 というGaussian分布を与えている。
 
