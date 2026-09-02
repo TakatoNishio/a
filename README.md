@@ -3,7 +3,7 @@
 0. 一次元拡散方程式シミュレータの結果
 図１には
 
-   $\frac{\del u}{\del t} = D \frac{\del^2 u}{\del^2 x} $
+   $\frac{\partial u}{\partial t} = D \frac{\partial ^2 u}{\partial ^2 x} $
     
 の形で表される，物理量uの一次元拡散方程式の初期状態のスナップショットを示す．
 このとき，ピーク位置はx=5mであり，ピーク高さは1である（ここでは物理量uは無次元とする）．
@@ -25,7 +25,7 @@
 
 一次元拡散方程式
 
-    ∂u/∂t = D ∂²u/∂x²
+ $\frac{\partial u}{\partial t} = D \frac{\partial ^2 u}{\partial ^2 x} $
 
 に対し、シミュレータでは初期条件として
 
