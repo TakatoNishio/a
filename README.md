@@ -5,10 +5,9 @@
 ![初期状態のスナップショット](figure/initial-condition.png "初期条件のスナップショット")
 *図1: サンプル画像の説明*
 
-<figure>
-  <img src="figure/initial-condition.png" alt="初期条件のスナップショット">
-  <figcaption>図1: 初期条件のスナップショット</figcaption>
-</figure>
+|![初期状態のスナップショット](figure/initial-condition.png "初期条件のスナップショット")|
+|:--:|
+| 図1: サンプル画像の説明 |
 
 1. 拡散による物理的時間発展の確認
 
