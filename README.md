@@ -2,10 +2,7 @@
 
 0.一次元拡散方程式シミュレータの結果
 
-![初期状態のスナップショット](figure/initial-condition.png "初期条件のスナップショット")
-*図1: サンプル画像の説明*
-
-|![初期状態のスナップショット](figure/initial-condition.png "初期条件のスナップショット")|
+|<img src="figure/initial-condition.png" width="100">|
 |:--:|
 | 図1: サンプル画像の説明 |
 
