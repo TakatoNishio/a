@@ -22,7 +22,7 @@ $u$
 
 |<img src="figure/initial-condition.png" width="600">|
 |:--:|
-| 図1: 初期条件のスナップショット．縦軸$u$，横軸$x$．|
+| 図1: 初期条件のスナップショット．縦軸u，横軸$x$．|
 
 図２には 
 $t\approx5\mathrm{s}$
