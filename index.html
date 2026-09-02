@@ -335,7 +335,7 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
 #basic-calculate{min-width:110px;font-weight:800}
 .basic-chart-wrap{border:1px solid var(--border);border-radius:14px;padding:10px;background:var(--chart)}
 #basic-chart{display:block;width:100%;height:auto;aspect-ratio:16/8}
-.basic-meta{display:flex;justify-content:space-between;gap:10px;margin-top:8px;font-size:12px;color:var(--muted)}
+.basic-meta{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--muted)}
 .basic-playback{display:flex;align-items:center;gap:8px;margin-top:12px}
 .basic-playback button{padding:7px 11px}
 #basic-slider{flex:1}
@@ -367,7 +367,8 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
       <div class="basic-method">
         <b>計算条件</b>
         <div>方程式：∂u/∂t = D ∂²u/∂x²</div>
-        <div>初期条件：Gaussian（中心 x₀ = 5、初期幅 σ₀ = 1）</div>
+        <div>初期条件：u(x,0)=exp[−(x−x₀)²/(2σ₀²)]</div>
+        <div>初期値パラメータ：x₀ = 5、σ₀ = 1、初期ピーク高さ u(x₀,0)=1</div>
         <div>計算領域：0 ≤ x ≤ 10　／　格子点数 N = 181　／　Δx = 10/(N−1) ≈ 0.05556</div>
         <div>時間積分：陽的Euler法　／　空間差分：2次中心差分</div>
         <div>内部時間刻み：Δt ≤ 0.45 Δx²/(2D)（拡散数 DΔt/Δx² ≤ 0.225）</div>
@@ -383,7 +384,11 @@ button.soft-disabled,select.soft-disabled,input.soft-disabled{
       </div>
       <div class="basic-chart-wrap">
         <canvas id="basic-chart" width="760" height="380"></canvas>
-        <div class="basic-meta"><span>初期条件：Gaussian</span><output id="basic-time">t = 0.000</output></div>
+        <div class="basic-meta">
+          <span>初期条件：Gaussian</span>
+          <span><output id="basic-peak">ピーク高さ = 1.0000000000</output></span>
+          <output id="basic-time">t = 0.000</output>
+        </div>
       </div>
       <div class="basic-playback">
         <button id="basic-play" type="button">▶ 再生</button>
@@ -1476,6 +1481,7 @@ var E={
   basicPlay:document.getElementById("basic-play"),
   basicSlider:document.getElementById("basic-slider"),
   basicTime:document.getElementById("basic-time"),
+  basicPeak:document.getElementById("basic-peak"),
   basicShowExact:document.getElementById("basic-show-exact"),
   basicError:document.getElementById("basic-error"),
   basicValidation:document.getElementById("basic-validation"),
@@ -2529,12 +2535,14 @@ function drawBasic(){
   ctxb.strokeStyle=accent;ctxb.lineWidth=2.5;ctxb.setLineDash([]);ctxb.beginPath();
   for(var i=0;i<data.length;i++){var x=p.l+pw*i/(data.length-1),y=p.t+ph*(ymax-data[i])/ymax;if(i===0)ctxb.moveTo(x,y);else ctxb.lineTo(x,y);}ctxb.stroke();
   if(E.basicShowExact.checked){
-    ctxb.strokeStyle=muted;ctxb.lineWidth=2;ctxb.setLineDash([8,6]);ctxb.beginPath();
+    ctxb.strokeStyle="#d97706";ctxb.lineWidth=2.2;ctxb.setLineDash([8,6]);ctxb.beginPath();
     for(i=0;i<exact.length;i++){x=p.l+pw*i/(exact.length-1);y=p.t+ph*(ymax-exact[i])/ymax;if(i===0)ctxb.moveTo(x,y);else ctxb.lineTo(x,y);}ctxb.stroke();ctxb.setLineDash([]);
-    ctxb.fillStyle=muted;ctxb.fillText("実線: 数値解   破線: 解析解",p.l+8,p.t+16);
+    ctxb.fillStyle=muted;ctxb.fillText("実線: 数値解　橙色破線: 解析解",p.l+8,p.t+16);
   }
   ctxb.fillStyle=muted;ctxb.fillText("x",w-p.r+4,h-12);ctxb.fillText("u",p.l-4,p.t-5);
   E.basicTime.textContent="t = "+basicTimes[basicCurrent].toFixed(3);E.basicSlider.value=String(basicCurrent);
+  var peak=-Infinity;for(var pi=0;pi<data.length;pi++)if(data[pi]>peak)peak=data[pi];
+  E.basicPeak.textContent="ピーク高さ = "+peak.toFixed(10);
   E.basicError.textContent="相対 L2 = "+basicErrors[basicCurrent].toExponential(3);
   E.basicValidation.style.display=E.basicShowExact.checked?"block":"none";
 }
