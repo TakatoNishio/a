@@ -9,7 +9,7 @@
 
 図２には t~5s および t=10s でのスナップショットを示す．
 
-|<img src="figure/t=5s.png" width="600"><img src="figure/t=10s.png" width="600">|
+|<img src="figure/t-5s.png" width="400"><img src="figure/t-10s.png" width="400">|
 |:--:|
 | 図２: 初期条件のスナップショット |
 
