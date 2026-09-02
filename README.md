@@ -46,17 +46,14 @@ u_{\max}(0)=1
 一次元拡散方程式
 
 $`
-\frac{\partial u}{\partial t}
-=
-D\frac{\partial^2 u}{\partial x^2}
+\frac{\partial u}{\partial t}=D\frac{\partial^2 u}{\partial x^2}
 `$
 
 に対し、シミュレータでは初期条件として
 
 $`
 u(x,0)
-=
-\exp\left[
+=\exp\left[
 -\frac{(x-x_0)^2}{2\sigma_0^2}
 \right]
 `$
@@ -67,8 +64,7 @@ u(x,0)
 
 $`
 u(x,t)
-=
-\frac{\sigma_0}
+=\frac{\sigma_0}
 {\sqrt{\sigma_0^2+2Dt}}
 \exp\left[
 -\frac{(x-x_0)^2}
@@ -82,8 +78,7 @@ u(x,t)
 
 $`
 \sigma^2(t)
-=
-\sigma_0^2+2Dt
+=\sigma_0^2+2Dt
 `$
 
 で与えられる。
@@ -108,10 +103,8 @@ $`
 
 $`
 u_{\max}(t)
-=
-u(x_0,t)
-=
-\frac{\sigma_0}
+=u(x_0,t)
+=\frac{\sigma_0}
 {\sqrt{\sigma_0^2+2Dt}}
 `$
 
@@ -163,14 +156,11 @@ $`
 
 $`
 u_{\max,\mathrm{exact}}(10)
-=
-\frac{\sigma_0}
+=\frac{\sigma_0}
 {\sqrt{\sigma_0^2+2Dt}}
-=
-\frac{1.0\ \mathrm{m}}
+=\frac{1.0\ \mathrm{m}}
 {\sqrt{5.0\ \mathrm{m^2}}}
-=
-\frac{1}{\sqrt{5}}
+=\frac{1}{\sqrt{5}}
 \approx 0.45
 `$
 
@@ -184,8 +174,7 @@ u_{\max,\mathrm{exact}}(10)
 
 $`
 u_{\max,\mathrm{num}}
-=
-0.4472042017
+=0.4472042017
 `$
 
 であった（図2の t = 10 s のスナップショットより）。
@@ -194,12 +183,10 @@ u_{\max,\mathrm{num}}
 
 $`
 E_{\mathrm{peak}}
-=
-\frac{
+=\frac{
 \left|
 u_{\max,\mathrm{num}}
--
-u_{\max,\mathrm{exact}}
+-u_{\max,\mathrm{exact}}
 \right|
 }{
 \left|
@@ -224,8 +211,7 @@ u_{\max,\mathrm{exact}}
 
 $`
 E_{\mathrm{peak}}
-=
-\frac{
+=\frac{
 \left|
 0.4472042017-\frac{1}{\sqrt{5}}
 \right|
@@ -269,8 +255,7 @@ E_{\mathrm{peak}}
 
 $`
 u_{\mathrm{exact}}(x,t)
-=
-\frac{\sigma_0}
+=\frac{\sigma_0}
 {\sqrt{\sigma_0^2+2Dt}}
 \exp\left[
 -\frac{(x-x_0)^2}
@@ -298,14 +283,12 @@ t=10\ \mathrm{s}
 
 $`
 E_{L_2}
-=
-\frac{
+=\frac{
 \sqrt{
 \displaystyle\sum_i
 \left(
 u_{\mathrm{num},i}
--
-u_{\mathrm{exact},i}
+-u_{\mathrm{exact},i}
 \right)^2
 }
 }{
@@ -324,8 +307,7 @@ u_{\mathrm{exact},i}^{\,2}
 
 $`
 E_{L_2}
-=
-1.841\times10^{-5}
+=1.841\times10^{-5}
 `$
 
 であった。
