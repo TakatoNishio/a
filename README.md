@@ -2,7 +2,8 @@
 
 0.一次元拡散方程式シミュレータの結果
 
-|<img src="figure/initial-condition.png" width="300">|
+|:--:|
+|<img src="figure/initial-condition.png" width="600">|
 |:--:|
 | 図1: サンプル画像の説明 |
 
