@@ -201,8 +201,7 @@ u_{\max,\mathrm{exact}}
 
 $`
 u_{\max,\mathrm{exact}}
-=
-\frac{1}{\sqrt{5}}
+=\frac{1}{\sqrt{5}}
 `$
 
 を用いて計算する。
