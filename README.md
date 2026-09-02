@@ -5,9 +5,7 @@
 図1には
 
 $$
-\frac{\partial u}{\partial t}
-=
-D\frac{\partial^2 u}{\partial x^2}
+\frac{\partial u}{\partial t}=D\frac{\partial^2 u}{\partial x^2}
 $$
 
 の形で表される、物理量 $u$ の一次元拡散方程式の初期状態の
