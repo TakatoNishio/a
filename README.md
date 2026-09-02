@@ -44,7 +44,7 @@ $t=10\mathrm{s}$ でのスナップショットを示す．
 
 に対し、シミュレータでは初期条件として
 
-   $u(x,0) = exp\bigg[-\farc{(x-x_0)^2}{2\sigma\theta^2} \bigg]$
+   $u(x,0) = \exp\bigg[-\frac{(x-x_0)^2}{2\sigma\theta^2} \bigg]$
 
 というGaussian分布を与えている。
 
