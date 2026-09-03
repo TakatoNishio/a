@@ -281,7 +281,7 @@ t=10\ \mathrm{s}
 さらに、解全体の差を定量的に評価するため、相対誤差を
 
 $`
-E_{L_2}
+E
 =\frac{
 \sqrt{
 \displaystyle\sum_i
